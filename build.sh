@@ -7,17 +7,17 @@ mkdir -p build
 ./compilerpy/main.py build/vbr.bin boot/vbr.kc
 [ `stat -c %s build/vbr.bin` -gt 448 ] && echo "VBR too large" && exit 1
 
-./compilerpy/main.py build/kernel.bin kernel/kernel.kc
+./compilerpy/main.py build/command.exe command/main.kc
 
 dd if=/dev/zero of=build/disk.img bs=1M count=32
 echo 'start=1, type=6, bootable' | sfdisk build/disk.img
 dd if=build/mbr.bin of=build/disk.img conv=notrunc
-sudo losetup -f -P build/disk.img
-sudo mkfs.vfat -F 16 /dev/loop0p1
-sudo mount /dev/loop0p1 /mnt
-sudo cp build/kernel.bin /mnt/TKERNEL.BIN
+LOOP=`sudo losetup -f -P build/disk.img --show`
+sudo mkfs.vfat -F 16 "$LOOP"p1
+sudo mount "$LOOP"p1 /mnt
+sudo cp build/command.exe /mnt/COMMAND.EXE
 sudo umount /mnt
-sudo losetup -D
+sudo losetup -d "$LOOP"
 dd if=build/vbr.bin of=build/disk.img bs=1 seek=574 conv=notrunc
 
 [ "$1" = "run" ] && qemu-system-i386 -hda build/disk.img -m 1M -cpu 486

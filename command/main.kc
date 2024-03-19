@@ -1,0 +1,105 @@
+const BUFSIZE = 64;
+struct STRING = STRINGLEN, STRINGPTR;
+
+function main()
+(s[STRING], buf{BUFSIZE})
+{
+    s[STRINGPTR] = buf;
+    while (1)
+    {
+        print("> ");
+        input(s, BUFSIZE);
+        format(print, "hi %s! you are %d characters long\r\n", s, s[STRINGLEN]);
+    }
+}
+
+function format(fn, fmt)
+(s[STRING], i, start, v)
+{
+    i = 0;
+    start = 0;
+    v = 2;
+    while (i < fmt[STRINGLEN])
+    {
+        if (fmt[STRINGPTR]{i} = '%')
+        {
+            s[STRINGLEN] = i - start;
+            s[STRINGPTR] = fmt[STRINGPTR] + start;
+            fn(s);
+            if (fmt[STRINGPTR]{i + 1} = 's') fn(vararg(v));
+            else if (fmt[STRINGPTR]{i + 1} = 'd') format_int(fn, vararg(v));
+            start = i + 2;
+            v = v + 1;
+        }
+        i = i + 1;
+    }
+    s[STRINGLEN] = i - start;
+    s[STRINGPTR] = fmt[STRINGPTR] + start;
+    fn(s);
+}
+
+function format_int(fn, int)
+(s[STRING], buf{4}, i)
+{
+    s[STRINGLEN] = 4;
+    s[STRINGPTR] = buf;
+    i = 0;
+    while (i < 4)
+    {
+        buf{i} = (int >> 12 & 0xF) + '0';
+        if (buf{i} > '9') buf{i} = buf{i} + 7;
+        int = int << 4;
+        i = i + 1;
+    }
+    fn(s);
+}
+
+vararg:
+    MOV BX, SP
+    MOV SI, [SS:BX+2]
+    SHL SI, 1
+    MOV AX, [BP+SI+4]
+    RET
+
+function print(s)
+(i, len, c)
+{
+    i = 0;
+    len = s[STRINGLEN];
+    while (i < len)
+    {
+        c = s[STRINGPTR]{i};
+        MOV AL, [c]
+        MOV AH, 0x0E
+        INT 0x10
+        i = i + 1;
+    }
+}
+
+function input(outstr, maxsiz)
+(c, i)
+{
+    i = 0;
+    while (i < maxsiz)
+    {
+.b:
+        MOV AH, 0x00
+        INT 0x16
+        MOV [c], AL
+        if (c = '\r') JMP .x
+        MOV AL, [c]
+        MOV AH, 0x0E
+        INT 0x10
+        if (c = '\b')
+        {
+            print(" \b");
+            i = i - 1;
+            JMP .b
+        }
+        outstr[STRINGPTR]{i} = c;
+        i = i + 1;
+    }
+.x:
+    outstr[STRINGLEN] = i;
+    print("\r\n");
+}

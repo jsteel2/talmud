@@ -13,6 +13,13 @@ class T(Enum):
     Rb = auto()
     Pad = auto()
 
+    Const = auto()
+    Struct = auto()
+    Function = auto()
+    While = auto()
+    If = auto()
+    Else = auto()
+
     Byte = auto()
     Word = auto()
     Far = auto()
@@ -137,11 +144,19 @@ class T(Enum):
     RightParen = auto()
     LeftBracket = auto()
     RightBracket = auto()
+    LeftBrace = auto()
+    RightBrace = auto()
     BitwiseShiftRight = auto()
     BitwiseShiftLeft = auto()
     BitwiseXor = auto()
     BitwiseOr = auto()
     BitwiseAnd = auto()
+    GreaterThan = auto()
+    LessThan = auto()
+    GreaterEquals = auto()
+    LessEquals = auto()
+    Equals = auto()
+    NotEquals = auto()
     Plus = auto()
     Minus = auto()
     Modulo = auto()
@@ -150,6 +165,7 @@ class T(Enum):
     Comma = auto()
     Dot = auto()
     Colon = auto()
+    SemiColon = auto()
     IpOrigin = auto()
     IpCurrent = auto()
 
@@ -182,7 +198,17 @@ class Tokenizer:
     def string_token(self, type, delim):
         s = ""
         while not self.advance() and self.char != delim:
-            s += self.char
+            if self.char == "\\":
+                if self.advance(): self.die("unterminated string/char literal")
+                match self.char:
+                    case "r": s += "\r"
+                    case "n": s += "\n"
+                    case "t": s += "\t"
+                    case "b": s += "\b"
+                    case "'": s += "'"
+                    case '"': s += '"'
+                    case x: self.die(f"unknown escape char {x}")
+            else: s += self.char
         if self.char != delim: self.die("unterminated string/char literal")
         self.advance()
         return Token(type, s)
@@ -199,6 +225,12 @@ class Tokenizer:
             case "DD": return Token(T.Dd, ident)
             case "RB": return Token(T.Rb, ident)
             case "PAD": return Token(T.Pad, ident)
+            case "const": return Token(T.Const, ident)
+            case "struct": return Token(T.Struct, ident)
+            case "function": return Token(T.Function, ident)
+            case "while": return Token(T.While, ident)
+            case "if": return Token(T.If, ident)
+            case "else": return Token(T.Else, ident)
             case "BYTE": return Token(T.Byte, ident)
             case "WORD": return Token(T.Word, ident)
             case "FAR": return Token(T.Far, ident)
@@ -326,6 +358,8 @@ class Tokenizer:
             case ")": return ta(T.RightParen)
             case "[": return ta(T.LeftBracket)
             case "]": return ta(T.RightBracket)
+            case "{": return ta(T.LeftBrace)
+            case "}": return ta(T.RightBrace)
             case ",": return ta(T.Comma)
             case ".": return ta(T.Dot)
             case "^": return ta(T.BitwiseXor)
@@ -337,6 +371,8 @@ class Tokenizer:
             case "/": return ta(T.Slash)
             case "*": return ta(T.Star)
             case ":": return ta(T.Colon)
+            case ";": return ta(T.SemiColon)
+            case "=": return ta(T.Equals)
 
             case "$":
                 if not self.advance() and self.char == "$": return ta(T.IpOrigin)
@@ -347,6 +383,9 @@ class Tokenizer:
             case "<":
                 if not self.advance() and self.char == "<": return ta(T.BitwiseShiftLeft)
                 else: return Token(T.LessThan)
+            case "!":
+                if not self.advance() and self.char == "=": return ta(T.NotEquals)
+                else: return Token(T.LogicalNot)
 
             case _: self.die(f"Unknown symbol {self.char}")
 

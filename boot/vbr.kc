@@ -145,13 +145,12 @@ read_cluster:
 
     MOV DL, [bsDriveNumber]
     POP AX
-    MOV DI, ES
-    CLI
-    MOV SS, DI
-    MOV SP, 8192
-    STI
     MOV ES, AX
     MOV DS, AX
+    CLI
+    MOV SS, AX
+    MOV SP, 0xFFFF
+    STI
     PUSH AX
     XOR AX, AX
     PUSH AX
@@ -247,4 +246,4 @@ error:
     HLT
     JMP $
 
-kernel_name: DB 'TKERNEL BIN'
+kernel_name: DB 'COMMAND EXE'
