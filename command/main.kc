@@ -1,16 +1,265 @@
-const BUFSIZE = 64;
 struct STRING = STRINGLEN, STRINGPTR;
+struct FILES = FILE_DRIVE, FILE_DATA_SECTOR, FILE_SECTORS_PER_CLUSTER, FILE_LBA_START, FILE_LBA_CUR, FILE_CLUSTER_CUR, FILE_FAT_SECTOR, FILE_DIR_OFF, FILE_SEEK, FILE_SIZE;
+const FILEDATA = FILES *! 2;
+const FILEDATASIZE = 512;
+const FILE = FILEDATASIZE + FILES *! 2;
 
-function main()
-(s[STRING], buf{BUFSIZE})
+
+const FAT_BYTES_PER_SECTOR = FILEDATA + 0x0B;
+const FAT_SECTORS_PER_CLUSTER = FILEDATA + 0x0D;
+const FAT_RESERVED_SECTORS = FILEDATA + 0x0E;
+const FAT_FATS = FILEDATA + 0x10;
+const FAT_ROOT_ENTRIES = FILEDATA + 0x11;
+const FAT_SECTORS_PER_FAT = FILEDATA + 0x16;
+const FAT_HIDDEN_SECTORS = FILEDATA + 0x1C;
+
+const FAT_DIR_CLUSTER = FILEDATA + 26;
+const FAT_DIR_SIZE = FILEDATA + 28;
+
+function main(drive, partition)
+(s[STRING], file{FILE}, dir, i, buf{8192})
 {
-    s[STRINGPTR] = buf;
-    while (1)
+    #MOV BX, 0
+    #MOV AX, 0x1112
+    #INT 0x10
+
+    format(print, "drive: %d, partition: %d\r\n", drive, partition);
+    open(":80;0/", file);
+    i = 0;
+    while (dir_next(file, s))
     {
-        print("> ");
-        input(s, BUFSIZE);
-        format(print, "hi %s! you are %d characters long\r\n", s, s[STRINGLEN]);
+        format(print, "file %d: %s\r\n", i, s);
+        i = i + 1;
     }
+
+    print("lets check out :80;0/TESTDIR1...\r\n");
+    open(":80;0/TESTDIR1", file);
+    i = 0;
+    while (dir_next(file, s))
+    {
+        format(print, "file %d: %s\r\n", i, s);
+        i = i + 1;
+    }
+    format(print, "lets run :80;0/TESTDIR1/TEST.EXE!\r\n");
+    open(":80;0/TESTDIT1/TEST.EXE", file);
+    exec(file);
+    CLI HLT
+}
+
+function exec(file)
+{
+    format(print, "HI!\r\n");
+}
+
+function read(file, n, buf)
+(i, x)
+{
+    i = 0;
+    # rename fILE_DIR_OFF to something more general and fitting
+    if (file[FILE_DIR_OFF] <$ 0) file[FILE_DIR_OFF] = 0;
+    n = min(n, file[FILE_SIZE]);
+    format(print, "%d < %d: %d\r\n", file[FILE_SEEK], file[FILE_SIZE], file[FILE_SEEK] <! file[FILE_SIZE]);
+    while (n and file[FILE_SEEK] <! file[FILE_SIZE])
+    {
+        if (file[FILE_SEEK] %! (file[FILE_SECTORS_PER_CLUSTER] *! 512) = 0 and file[FILE_SEEK] != 0)
+        {
+            if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return -1;
+            format(print, "old %d, ", file[FILE_CLUSTER_CUR]);
+            file[FILE_CLUSTER_CUR] = *(file + FILEDATA + file[FILE_CLUSTER_CUR] *! 2 %! 512);
+            file[FILE_DIR_OFF] = 0;
+            file[FILE_LBA_CUR] = ((file[FILE_CLUSTER_CUR] - 2) *! file[FILE_SECTORS_PER_CLUSTER]) + file[FILE_DATA_SECTOR];
+            format(print,"clus %d, lba %d\r\n", file[FILE_CLUSTER_CUR], file[FILE_LBA_CUR]);
+            if (file[FILE_CLUSTER_CUR] >=! 0xFFF8) return i;
+            if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
+        }
+        if (file[FILE_DIR_OFF] >=! FILEDATASIZE)
+        {
+            file[FILE_DIR_OFF] = 0;
+            file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + 1;
+            if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
+        }
+        x = min(min(n, file[FILE_SIZE] - file[FILE_SEEK]), FILEDATASIZE - file[FILE_DIR_OFF]);
+        memcpy(buf + i, file + FILEDATA + file[FILE_DIR_OFF], x);
+        i = i + x;
+        n = min(n - x, file[FILE_SIZE] - file[FILE_SEEK]);
+        file[FILE_SEEK] = file[FILE_SEEK] + x;
+        file[FILE_DIR_OFF] = file[FILE_DIR_OFF] + x;
+    }
+    print("bye\r\n");
+    return i;
+}
+
+function dir_next(file, out)
+{
+    file[FILE_DIR_OFF] = file[FILE_DIR_OFF] + 32;
+    if (file[FILE_DIR_OFF] >=! FILEDATASIZE)
+    {
+        file[FILE_DIR_OFF] = 0;
+        file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + 1;
+        sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA);
+    }
+    if (*(file + FILEDATA + file[FILE_DIR_OFF]) = 0) return 0;
+    out[STRINGLEN] = 11;
+    out[STRINGPTR] = file + FILEDATA + file[FILE_DIR_OFF];
+    return 1;
+}
+
+# we should make an openat for CWD
+# thats nicer i think , and for that i guess also make the file carry drive+part
+function open(path, file)
+(s[STRING], d[STRING], state, old, end, drive, partition, root_read)
+{
+    #format(print, "HI %s\r\n", path);
+    file[FILE_DIR_OFF] = -32;
+    state = 0;
+    old = state;
+    root_read = 0;
+    while (strtok(path, '/', s, &state))
+    {
+        #format(print, "%d %s\r\n", s[STRINGLEN], s);
+        if (s[STRINGPTR]{0} = ':')
+        {
+            s[STRINGPTR] = s[STRINGPTR] + 1;
+            #drive = atoi(s, &end);
+            drive = 0x80;
+            file[FILE_DRIVE] = drive;
+            end = 2;
+            state = old + end + 1;
+            JMP .c
+        }
+        if (s[STRINGPTR]{0} = ';')
+        {
+            s[STRINGPTR] = s[STRINGPTR] + 1;
+            #partition = atoi(s, &end);
+            partition = 0;
+            end = 1;
+            state = old + end + 1;
+            JMP .c
+        }
+
+#        format(print, "bruh %d, %d\r\n", root_read, !root_read);
+        if (s[STRINGLEN] = 0 and !root_read)
+        {
+            sector_read(drive, 0, 1, file + FILEDATA);
+            sector_read(drive, *(file + FILEDATA + 0x1BE + partition *! 16 + 8), 1, file + FILEDATA);
+            file[FILE_FAT_SECTOR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS);
+            file[FILE_LBA_CUR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS) + file{FAT_FATS} *! *(file + FAT_SECTORS_PER_FAT);
+            file[FILE_LBA_START] = file[FILE_LBA_CUR];
+            file[FILE_SECTORS_PER_CLUSTER] = file{FAT_SECTORS_PER_CLUSTER};
+            file[FILE_DATA_SECTOR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS) + file{FAT_FATS} *! *(file + FAT_SECTORS_PER_FAT) + ((*(file + FAT_ROOT_ENTRIES) *! 32) + (*(file + FAT_BYTES_PER_SECTOR) - 1)) /! *(file + FAT_BYTES_PER_SECTOR);
+            sector_read(drive, file[FILE_LBA_CUR], 1, file + FILEDATA);
+            root_read = 1;
+        }
+        else
+        {
+            while (dir_next(file, d))
+            {
+                if (fnamecmp(s, d))
+                {
+                    #format(print, "WOW %d\r\n", file[FILE_LBA_CUR]);
+                    file[FILE_CLUSTER_CUR] = *(file + file[FILE_DIR_OFF] + FAT_DIR_CLUSTER);
+                    file[FILE_LBA_CUR] = ((file[FILE_CLUSTER_CUR] - 2) *! file[FILE_SECTORS_PER_CLUSTER]) + file[FILE_DATA_SECTOR];
+                    file[FILE_LBA_START] = file[FILE_LBA_CUR];
+                    #format(print, "GUH %d, %d, %d, %d, %d\r\n", file[FILE_LBA_CUR], *(file + file[FILE_DIR_OFF] + FAT_DIR_CLUSTER) - 2, file[FILE_SECTORS_PER_CLUSTER], file[FILE_DATA_SECTOR], file[FILE_DIR_OFF]);
+                    file[FILE_SIZE] = *(file + file[FILE_DIR_OFF] + FAT_DIR_SIZE);
+                    sector_read(drive, file[FILE_LBA_CUR], 1, file + FILEDATA);
+                    file[FILE_DIR_OFF] = -32;
+                    file[FILE_SEEK] = 0;
+                    JMP .c
+                }
+            }
+            return 0;
+        }
+.c:
+        old = state;
+    }
+    return 1;
+}
+
+function fnamecmp(s1, s2)
+(i, i2, l, c1, c2)
+{
+    i = 0;
+    i2 = 0;
+    while (i <! 11)
+    {
+        c1 = i2 >=! s1[STRINGLEN] ? ' ' : s1[STRINGPTR]{i2};
+        if (c1 = '.')
+        {
+            if (i <! 7) i = 7;
+            c1 = ' ';
+        }
+        c2 = s2[STRINGPTR]{i};
+        if (c1 != c2) return 0;
+        i = i + 1;
+        i2 = i2 + 1;
+    }
+    return 1;
+}
+
+function min(x, y) return x <! y ? x : y;
+function max(x, y) return x >! y ? x : y;
+
+function strtok(s, delim, out, state)
+(start)
+{
+    if (*state >=! s[STRINGLEN]) return 0;
+    start = *state;
+    out[STRINGPTR] = s[STRINGPTR] + start;
+    while (s[STRINGPTR]{*state} != delim)
+    {
+        if (*state >=! s[STRINGLEN]) JMP .e;
+        *state = *state + 1;
+    }
+.e:
+    out[STRINGLEN] = *state - start;
+    *state = *state + 1;
+    return 1;
+}
+
+function sector_read(drive, lba, count, out)
+(tries, c, h, s, temp, sectors_per_track, number_of_heads)
+{
+    MOV AH, 8
+    MOV DL, [drive]
+    INT 0x13
+    MOV DL, DH
+    INC DL
+    MOV DH, 0
+    MOV [number_of_heads], DX
+    AND CX, 0x3F
+    MOV [sectors_per_track], CX
+
+    while (count)
+    {
+        tries = 5;
+.retry:
+        if (tries = 0) JMP .error;
+        tries = tries - 1;
+        temp = lba /! sectors_per_track;
+        h = temp %! number_of_heads;
+        c = temp /! number_of_heads;
+        s = (lba %! sectors_per_track + 1) | ((c >> 2) & 0xC0);
+        MOV AH, 2
+        MOV AL, 1
+        MOV CH, [c]
+        MOV DH, [h]
+        MOV CL, [s]
+        MOV BX, [out]
+        MOV DL, [drive]
+        INT 0x13
+        JNB .x
+        JMP .retry
+.x:
+        count = count - 1;
+        lba = lba + 1;
+        out = out + 512;
+    }
+    return 1;
+
+.error:
+    print("errorr..\r\n");
+    return 0;
 }
 
 function format(fn, fmt)
@@ -19,7 +268,7 @@ function format(fn, fmt)
     i = 0;
     start = 0;
     v = 2;
-    while (i < fmt[STRINGLEN])
+    while (i <! fmt[STRINGLEN])
     {
         if (fmt[STRINGPTR]{i} = '%')
         {
@@ -28,6 +277,7 @@ function format(fn, fmt)
             fn(s);
             if (fmt[STRINGPTR]{i + 1} = 's') fn(vararg(v));
             else if (fmt[STRINGPTR]{i + 1} = 'd') format_int(fn, vararg(v));
+            else if (fmt[STRINGPTR]{i + 1} = 'c') format_char(fn, vararg(v));
             start = i + 2;
             v = v + 1;
         }
@@ -44,13 +294,21 @@ function format_int(fn, int)
     s[STRINGLEN] = 4;
     s[STRINGPTR] = buf;
     i = 0;
-    while (i < 4)
+    while (i <! 4)
     {
         buf{i} = (int >> 12 & 0xF) + '0';
-        if (buf{i} > '9') buf{i} = buf{i} + 7;
+        if (buf{i} >! '9') buf{i} = buf{i} + 7;
         int = int << 4;
         i = i + 1;
     }
+    fn(s);
+}
+
+function format_char(fn, char)
+(s[STRING])
+{
+    s[STRINGLEN] = 1;
+    s[STRINGPTR] = &char;
     fn(s);
 }
 
@@ -61,12 +319,23 @@ vararg:
     MOV AX, [BP+SI+4]
     RET
 
+function memcpy(d, s, n)
+(i)
+{
+    i = 0;
+    while (i <! n)
+    {
+        d{i} = s{i};
+        i = i + 1;
+    }
+}
+
 function print(s)
 (i, len, c)
 {
     i = 0;
     len = s[STRINGLEN];
-    while (i < len)
+    while (i <! len)
     {
         c = s[STRINGPTR]{i};
         MOV AL, [c]
@@ -80,7 +349,7 @@ function input(outstr, maxsiz)
 (c, i)
 {
     i = 0;
-    while (i < maxsiz)
+    while (i <! maxsiz)
     {
 .b:
         MOV AH, 0x00

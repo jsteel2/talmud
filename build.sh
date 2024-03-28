@@ -9,6 +9,8 @@ mkdir -p build
 
 ./compilerpy/main.py build/command.exe command/main.kc
 
+./compilerpy/main.py build/hello.exe bin/hello.kc
+
 dd if=/dev/zero of=build/disk.img bs=1M count=32
 echo 'start=1, type=6, bootable' | sfdisk build/disk.img
 dd if=build/mbr.bin of=build/disk.img conv=notrunc
@@ -16,6 +18,12 @@ LOOP=`sudo losetup -f -P build/disk.img --show`
 sudo mkfs.vfat -F 16 "$LOOP"p1
 sudo mount "$LOOP"p1 /mnt
 sudo cp build/command.exe /mnt/COMMAND.EXE
+sudo touch /mnt/TESTF1.TXT
+sudo touch /mnt/TESTF3.TXT
+sudo mkdir /mnt/TESTDIR1
+sudo touch /mnt/TESTF2.TXT
+sudo mkdir /mnt/TESTDIR2
+sudo cp build/hello.exe /mnt/TESTDIR1/HELLO.EXE
 sudo umount /mnt
 sudo losetup -d "$LOOP"
 dd if=build/vbr.bin of=build/disk.img bs=1 seek=574 conv=notrunc

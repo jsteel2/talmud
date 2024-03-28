@@ -48,6 +48,7 @@ class Compiler:
     def statement(self):
         t = self.advance()
         match t.type:
+            case T.SemiColon: pass
             case T.Org: self.ip = self.origin = self.expression()
             case T.Add: self.grp1(0x00, 0)
             case T.Or: self.grp1(0x08, 1)
@@ -153,7 +154,38 @@ class Compiler:
             case T.Const: self.const()
             case T.Struct: self.struct()
             case T.If: self.if_()
+            case T.Return: self.ret()
+            case T.Star: self.deref_assign()
             case x: self.die(f"unexpected token {x}")
+
+    def deref_assign(self):
+        deref = 1
+        while self.match(T.Star).type: deref += 1
+        ident = self.consume(T.Identifier).value
+        f = self.assign(ident, True)
+        for i in range(deref):
+            if f and i == 0:
+                self.emit8(0x8B)
+                self.emit8(self.modrm(2, 3, 0b110))
+                x = 0 if ident not in self.idents else self.idents[ident].value
+                self.emit16(x) # MOV BX, [var]
+            else:
+                self.emit8(0x8B)
+                self.emit8(self.modrm(0, 3, 0b111)) # MOV BX, [BX]
+        self.emit8(0x53) # PUSH BX
+        self.kc_expression()
+        self.emit8(0x5B) # POP BX
+        self.emit8(0x89)
+        self.emit8(self.modrm(0, 0, 0b111)) # MOV [BX], AX
+        self.consume(T.SemiColon)
+
+    def ret(self):
+        self.kc_expression()
+        self.consume(T.SemiColon)
+        self.emit8(0x8B)
+        self.emit8(self.modrm(0b11, 4, 5)) # MOV SP, BP
+        self.emit8(0x5D) # POP BP
+        self.emit8(0xC3) # RET
 
     def const(self):
         ident = self.consume(T.Identifier).value
@@ -347,7 +379,7 @@ class Compiler:
         if ident in self.idents: self.die(f"redefined label {ident}")
         self.idents[ident] = Identifier(I.Label, self.ip)
 
-    def assign(self, ident):
+    def assign(self, ident, s=False):
         f = True
         b = False
         while not self.match(T.Equals).type:
@@ -391,6 +423,7 @@ class Compiler:
                 b = True
             else:
                 self.die("unexpected token")
+        if s: return f
         if not f:
             self.emit8(0x53) # PUSH BX
         self.kc_expression()
@@ -873,13 +906,41 @@ class Compiler:
         self.is_kc_expr = False
 
     def expression(self):
-        return self.equality()
+        return self.ternary()
+
+    def ternary(self):
+        x = self.logical_and()
+        if not self.is_kc_expr: return x
+        if self.match(T.Ternary).type:
+            br = self.ip
+            if self.first_pass: lbl = 0
+            else: lbl = self.bruh[self.ip]
+            self.emit8(0x85)
+            self.emit8(self.modrm(0b11, 0, 0)) # TEST AX, AX
+            self.emit8(0x75)
+            self.emit8(3) # JNZ +3
+            a = self.ip
+            self.emit8(0xE9)
+            self.emit16(lbl - a - 3) # JMP lbl
+            self.logical_and()
+            br3 = self.ip
+            if self.first_pass: lbl3 = 0
+            else: lbl3 = self.bruh[self.ip]
+            self.emit8(0xE9)
+            self.emit16(lbl3 - br3 - 3) # JMP lbl3
+            if self.first_pass: self.bruh[br] = self.ip
+            self.consume(T.Colon)
+            self.logical_and()
+            if self.first_pass: self.bruh[br3] = self.ip
+
+    def logical_and(self):
+        return self.binary(self.equality, T.LogicalAnd)
 
     def equality(self):
         return self.binary(self.comparison, T.Equals, T.NotEquals)
 
     def comparison(self):
-        return self.binary(self.bitwise, T.GreaterThan, T.LessThan, T.GreaterEquals, T.LessEquals)
+        return self.binary(self.bitwise, T.GreaterThanU, T.GreaterThanS, T.LessThanU, T.LessThanS, T.GreaterEqualsU, T.GreaterEqualsS, T.LessEqualsU, T.LessEqualsS)
 
     def bitwise(self):
         return self.binary(self.term, T.BitwiseShiftRight, T.BitwiseShiftLeft, T.BitwiseXor, T.BitwiseXor, T.BitwiseOr, T.BitwiseAnd)
@@ -888,7 +949,7 @@ class Compiler:
         return self.binary(self.factor, T.Plus, T.Minus)
 
     def factor(self):
-        return self.binary(self.unary, T.Modulo, T.Slash, T.Star)
+        return self.binary(self.unary, T.ModuloU, T.SlashU, T.StarU, T.ModuloS, T.SlashS, T.StarS)
 
     def c_binary(self, fn, *toks):
         r = fn()
@@ -901,15 +962,16 @@ class Compiler:
                 case T.BitwiseAnd: r &= fn()
                 case T.Plus: r += fn()
                 case T.Minus: r -= fn()
-                case T.Modulo: r %= fn()
-                case T.Slash: r //= fn()
-                case T.Star: r *= fn()
-                case T.GreaterThan: r = 1 if r > fn() else 0
-                case T.GreaterEquals: r = 1 if r >= fn() else 0
-                case T.LessThan: r = 1 if r < fn() else 0
-                case T.LessEquals: r = 1 if r <= fn() else 0
+                case T.ModuloS | T.ModuloU: r %= fn()
+                case T.SlashS | T.SlashU: r //= fn()
+                case T.StarS | T.StarU: r *= fn()
+                case T.GreaterThanS: r = 1 if r > fn() else 0
+                case T.GreaterEqualsS: r = 1 if r >= fn() else 0
+                case T.LessThanS: r = 1 if r < fn() else 0
+                case T.LessEqualsS: r = 1 if r <= fn() else 0
                 case T.Equals: r = int(r == fn())
                 case T.NotEquals: r = int(r != fn())
+                case _: self.die("AUGH")
         return r
 
     def kc_binary(self, fn, *toks):
@@ -931,7 +993,12 @@ class Compiler:
                     self.emit8(0xD3)
                     self.emit8(self.modrm(0b11, 4, 0)) # SHL AX, CL
                 case T.BitwiseXor: self.die("AA")
-                case T.BitwiseOr: self.die("AA")
+                case T.BitwiseOr:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x5A) # POP DX
+                    self.emit8(0x0B)
+                    self.emit8(self.modrm(0b11, 0, 2)) # OR AX, DX
                 case T.BitwiseAnd:
                     self.emit8(0x50) # PUSH AX
                     fn()
@@ -951,10 +1018,51 @@ class Compiler:
                     self.emit8(0x2B)
                     self.emit8(self.modrm(0b11, 2, 0)) # SUB DX, AX
                     self.emit8(0x92) # XCHG AX, DX
-                case T.Modulo: self.die("AA")
-                case T.Slash: self.die("AA")
-                case T.Star: self.die("AA")
-                case T.GreaterThan:
+                case T.ModuloU:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x59) # POP CX
+                    self.emit8(0x91) # XCHG AX, CX
+                    self.emit8(0xBA)
+                    self.emit16(0) # MOV DX, 0
+                    self.emit8(0xF7)
+                    self.emit8(self.modrm(0b11, 6, 1)) # DIV CX
+                    self.emit8(0x92) # XCHG AX, DX
+                case T.SlashU:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x59) # POP CX
+                    self.emit8(0x91) # XCHG AX, CX
+                    self.emit8(0xBA)
+                    self.emit16(0) # MOV DX, 0
+                    self.emit8(0xF7)
+                    self.emit8(self.modrm(0b11, 6, 1)) # DIV CX
+                case T.StarU:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x59) # POP CX
+                    self.emit8(0x91) # XCHG AX, CX
+                    self.emit8(0xBA)
+                    self.emit16(0) # MOV DX, 0
+                    self.emit8(0xF7)
+                    self.emit8(self.modrm(0b11, 4, 1)) # MUL CX
+                # we dont actually need jumps we can read the falgs register
+                # check how a c compiler does it!!
+                case T.GreaterThanU:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x5A) # POP DX
+                    self.emit8(0x3B)
+                    self.emit8(self.modrm(0b11, 2, 0)) # CMP DX, AX
+                    self.emit8(0x77)
+                    self.emit8(5) # JA +5
+                    self.emit8(0xB8)
+                    self.emit16(0) # MOV AX, 0
+                    self.emit8(0xEB)
+                    self.emit8(3) # JMP SHORT +3
+                    self.emit8(0xB8)
+                    self.emit16(1) # MOV AX, 1
+                case T.GreaterThanS:
                     self.emit8(0x50) # PUSH AX
                     fn()
                     self.emit8(0x5A) # POP DX
@@ -968,7 +1076,35 @@ class Compiler:
                     self.emit8(3) # JMP SHORT +3
                     self.emit8(0xB8)
                     self.emit16(1) # MOV AX, 1
-                case T.LessThan:
+                case T.GreaterEqualsS:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x5A) # POP DX
+                    self.emit8(0x3B)
+                    self.emit8(self.modrm(0b11, 2, 0)) # CMP DX, AX
+                    self.emit8(0x7D)
+                    self.emit8(5) # JGE +5
+                    self.emit8(0xB8)
+                    self.emit16(0) # MOV AX, 0
+                    self.emit8(0xEB)
+                    self.emit8(3) # JMP SHORT +3
+                    self.emit8(0xB8)
+                    self.emit16(1) # MOV AX, 1
+                case T.GreaterEqualsU:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x5A) # POP DX
+                    self.emit8(0x3B)
+                    self.emit8(self.modrm(0b11, 2, 0)) # CMP DX, AX
+                    self.emit8(0x73)
+                    self.emit8(5) # JAE +5
+                    self.emit8(0xB8)
+                    self.emit16(0) # MOV AX, 0
+                    self.emit8(0xEB)
+                    self.emit8(3) # JMP SHORT +3
+                    self.emit8(0xB8)
+                    self.emit16(1) # MOV AX, 1
+                case T.LessThanS:
                     self.emit8(0x50) # PUSH AX
                     fn()
                     self.emit8(0x5A) # POP DX
@@ -976,6 +1112,20 @@ class Compiler:
                     self.emit8(self.modrm(0b11, 2, 0)) # CMP DX, AX
                     self.emit8(0x7C)
                     self.emit8(5) # JL +5
+                    self.emit8(0xB8)
+                    self.emit16(0) # MOV AX, 0
+                    self.emit8(0xEB)
+                    self.emit8(3) # JMP SHORT +3
+                    self.emit8(0xB8)
+                    self.emit16(1) # MOV AX, 1
+                case T.LessThanU:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x5A) # POP DX
+                    self.emit8(0x3B)
+                    self.emit8(self.modrm(0b11, 2, 0)) # CMP DX, AX
+                    self.emit8(0x72)
+                    self.emit8(5) # JB +5
                     self.emit8(0xB8)
                     self.emit16(0) # MOV AX, 0
                     self.emit8(0xEB)
@@ -1010,6 +1160,21 @@ class Compiler:
                     self.emit8(3) # JMP SHORT +3
                     self.emit8(0xB8)
                     self.emit16(1) # MOV AX, 1
+                case T.LogicalAnd:
+                    self.emit8(0x85)
+                    self.emit8(self.modrm(0b11, 0, 0)) # TEST AX, AX
+                    br = self.ip
+                    if self.first_pass: lbl = 0
+                    else: lbl = self.bruh[self.ip]
+                    self.emit8(0x74)
+                    self.emit8(lbl - br - 2) # JZ lbl
+                    fn()
+                    self.emit8(0xEB)
+                    self.emit8(3) # JMP SHORT +3
+                    self.emit8(0xB8)
+                    self.emit16(0) # MOV AX, 0
+                    if self.first_pass: self.bruh[br] = self.ip
+                case _: self.die("AUGH")
 
     def binary(self, fn, *toks):
         if self.is_kc_expr: return self.kc_binary(fn, *toks)
@@ -1027,6 +1192,27 @@ class Compiler:
                 self.unary()
                 self.emit8(0xF7)
                 self.emit8(self.modrm(0b11, 3, 0)) # NEG AX
+            case T.LogicalNot:
+                self.advance()
+                self.unary()
+                self.emit8(0x85)
+                self.emit8(self.modrm(0b11, 0, 0)) # TEST AX, AX
+                self.emit8(0x9F) # LAHF
+                self.emit8(0x25)
+                self.emit16(1 << 14) # AND AX, 1 << 6
+            case T.BitwiseAnd:
+                self.advance()
+                ident = self.consume(T.Identifier).value
+                if ident not in self.idents or self.idents[ident].type != I.LocalVariable: self.die("unsupported")
+                self.emit8(0x8D)
+                self.emit8(self.modrm(2, 0, 0b110))
+                self.emit16(self.idents[ident].value) # LEA AX, [var]
+            case T.Star:
+                self.advance()
+                self.unary()
+                self.emit8(0x93) # XCHG BX, AX
+                self.emit8(0x8B)
+                self.emit8(self.modrm(0, 0, 0b111)) # MOV AX, [BX]
             case _: self.primary()
 
     def unary(self):
@@ -1094,9 +1280,8 @@ class Compiler:
                 self.emit8(0xB8)
                 self.emit16(x) # MOV AX, x
             case T.LeftParen:
-                v = self.expression()
+                self.expression()
                 self.consume(T.RightParen)
-                return v
             case x: self.die(f"Unexpected token {x}")
 
         while self.peek().type == T.LeftBracket or self.peek().type == T.LeftBrace:
