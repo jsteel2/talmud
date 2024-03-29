@@ -1,0 +1,7 @@
+vararg:
+    MOV BX, SP
+    MOV SI, [SS:BX+2]
+    SHL SI, 1
+    MOV AX, [BP+SI+4]
+    RET
+

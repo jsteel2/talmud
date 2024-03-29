@@ -1,0 +1,7 @@
+import "/lib/exe.kc"
+import "/lib/print.kc"
+
+function main()
+{
+    print("Hello, World!\r\n");
+}

@@ -37,6 +37,7 @@ class Compiler:
                 self.emit8(ord(c))
 
     def compile(self):
+        self.fils = set()
         self.prev = Token(None, None)
         self.cur = Token(None, None)
         self.advance()
@@ -156,7 +157,25 @@ class Compiler:
             case T.If: self.if_()
             case T.Return: self.ret()
             case T.Star: self.deref_assign()
+            case T.Import: self.import_()
             case x: self.die(f"unexpected token {x}")
+
+    def import_(self):
+        path = "." + self.consume(T.String).value
+        if path in self.fils: return
+        self.fils.add(path)
+        t = self.tokenizer
+        p = self.prev
+        c = self.cur
+        with open(path, "r") as f:
+            self.tokenizer = Tokenizer(f)
+            self.prev = Token(None, None)
+            self.cur = Token(None, None)
+            self.advance()
+            while not self.end(): self.statement()
+        self.tokenizer = t
+        self.prev = p
+        self.cur = c
 
     def deref_assign(self):
         deref = 1
@@ -901,9 +920,10 @@ class Compiler:
         return v
 
     def kc_expression(self):
+        a = self.is_kc_expr
         self.is_kc_expr = True
         self.expression()
-        self.is_kc_expr = False
+        if not a: self.is_kc_expr = False
 
     def expression(self):
         return self.ternary()

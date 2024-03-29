@@ -1,0 +1,60 @@
+import "/lib/string.kc"
+
+function minu(x, y) return x <! y ? x : y;
+function maxu(x, y) return x >! y ? x : y;
+function mins(x, y) return x <$ y ? x : y;
+function maxs(x, y) return x >$ y ? x : y;
+
+function strtok(s, delim, out, state)
+(start)
+{
+    if (*state >=! s[STRINGLEN]) return 0;
+    start = *state;
+    out[STRINGPTR] = s[STRINGPTR] + start;
+    while (s[STRINGPTR]{*state} != delim)
+    {
+        if (*state >=! s[STRINGLEN]) JMP .e;
+        *state = *state + 1;
+    }
+.e:
+    out[STRINGLEN] = *state - start;
+    *state = *state + 1;
+    return 1;
+}
+
+function memcpy(d, s, n, seg)
+{
+    if (seg = -1) MOV [seg], DS
+    MOV ES, [seg]
+    MOV CX, [n]
+    MOV SI, [s]
+    MOV DI, [d]
+    CLD
+    REPNZ MOVSB
+    MOV AX, DS
+    MOV ES, AX
+}
+
+function memmove(d, s, n, seg)
+{
+    if (seg = -1) MOV [seg], DS
+    if (d <! s)
+    {
+        return memcpy(d, s, n, seg);
+    }
+    else
+    {
+        MOV ES, [seg]
+        MOV CX, [n]
+        MOV SI, [s]
+        MOV DI, [d]
+        ADD SI, [n]
+        ADD DI, [n]
+        DEC SI
+        DEC DI
+        STD
+        REPNZ MOVSB
+        MOV AX, DS
+        MOV ES, AX
+    }
+}

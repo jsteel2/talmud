@@ -1,0 +1,196 @@
+import "/lib/disk.kc"
+import "/lib/util.kc"
+
+struct FILES = FILE_DRIVE, FILE_DATA_SECTOR, FILE_SECTORS_PER_CLUSTER, FILE_LBA_START, FILE_LBA_CUR, FILE_CLUSTER_CUR, FILE_FAT_SECTOR, FILE_DIR_OFF, FILE_SEEK, FILE_SIZE;
+const FILEDATA = FILES *! 2;
+const FILEDATASIZE = 512;
+const FILE = FILEDATASIZE + FILES *! 2;
+
+const FAT_BYTES_PER_SECTOR = FILEDATA + 0x0B;
+const FAT_SECTORS_PER_CLUSTER = FILEDATA + 0x0D;
+const FAT_RESERVED_SECTORS = FILEDATA + 0x0E;
+const FAT_FATS = FILEDATA + 0x10;
+const FAT_ROOT_ENTRIES = FILEDATA + 0x11;
+const FAT_SECTORS_PER_FAT = FILEDATA + 0x16;
+const FAT_HIDDEN_SECTORS = FILEDATA + 0x1C;
+
+const FAT_DIR_CLUSTER = FILEDATA + 26;
+const FAT_DIR_SIZE = FILEDATA + 28;
+
+function exec(file)
+(old, seg)
+{
+    MOV AX, DS
+    MOV [seg], AX
+    MOV [old], AX
+    seg = seg + 0x1000;
+    if (read(file, -2, 0, seg) = -1) return 0;
+    MOV AX, SP
+    MOV BX, BP
+    MOV CX, [old]
+    MOV DX, [seg]
+    MOV DS, DX
+    MOV ES, DX
+    CLI
+    MOV SS, DX
+    MOV SP, 0xFFFF
+    STI
+    PUSH DS
+    MOV AX, 0
+    PUSH AX
+    MOV BP, SP
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    CALL FAR [BP]
+    POP CX
+    POP BX
+    POP AX
+    POP DX
+    POP DX
+    MOV DS, CX
+    MOV ES, CX
+    CLI
+    MOV SS, CX
+    MOV SP, AX
+    STI
+    MOV BP, BX
+    return 1;
+}
+
+function read(file, n, buf, seg)
+(i, x)
+{
+    i = 0;
+    # rename fILE_DIR_OFF to something more general and fitting
+    if (file[FILE_DIR_OFF] <$ 0) file[FILE_DIR_OFF] = 0;
+    n = minu(n, file[FILE_SIZE]);
+    while (n and file[FILE_SEEK] <! file[FILE_SIZE])
+    {
+        if (file[FILE_SEEK] %! (file[FILE_SECTORS_PER_CLUSTER] *! 512) = 0 and file[FILE_SEEK] != 0)
+        {
+            if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return -1;
+            file[FILE_CLUSTER_CUR] = *(file + FILEDATA + file[FILE_CLUSTER_CUR] *! 2 %! 512);
+            file[FILE_DIR_OFF] = 0;
+            file[FILE_LBA_CUR] = ((file[FILE_CLUSTER_CUR] - 2) *! file[FILE_SECTORS_PER_CLUSTER]) + file[FILE_DATA_SECTOR];
+            if (file[FILE_CLUSTER_CUR] >=! 0xFFF8) return i;
+            if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
+        }
+        if (file[FILE_DIR_OFF] >=! FILEDATASIZE)
+        {
+            file[FILE_DIR_OFF] = 0;
+            file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + 1;
+            if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
+        }
+        x = minu(minu(n, file[FILE_SIZE] - file[FILE_SEEK]), FILEDATASIZE - file[FILE_DIR_OFF]);
+        memcpy(buf + i, file + FILEDATA + file[FILE_DIR_OFF], x, seg);
+        i = i + x;
+        n = minu(n - x, file[FILE_SIZE] - file[FILE_SEEK]);
+        file[FILE_SEEK] = file[FILE_SEEK] + x;
+        file[FILE_DIR_OFF] = file[FILE_DIR_OFF] + x;
+    }
+    return i;
+}
+
+function dir_next(file, out)
+{
+    file[FILE_DIR_OFF] = file[FILE_DIR_OFF] + 32;
+    if (file[FILE_DIR_OFF] >=! FILEDATASIZE)
+    {
+        file[FILE_DIR_OFF] = 0;
+        file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + 1;
+        sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA);
+    }
+    if (*(file + FILEDATA + file[FILE_DIR_OFF]) = 0) return 0;
+    out[STRINGLEN] = 11;
+    out[STRINGPTR] = file + FILEDATA + file[FILE_DIR_OFF];
+    return 1;
+}
+
+# we should make an openat for CWD
+# thats nicer i think , and for that i guess also make the file carry drive+part
+function open(path, file)
+(s[STRING], d[STRING], state, old, end, drive, partition, root_read)
+{
+    file[FILE_DIR_OFF] = -32;
+    state = 0;
+    old = state;
+    root_read = 0;
+    while (strtok(path, '/', s, &state))
+    {
+        if (s[STRINGPTR]{0} = ':')
+        {
+            s[STRINGPTR] = s[STRINGPTR] + 1;
+            #drive = atoi(s, &end);
+            drive = 0x80;
+            file[FILE_DRIVE] = drive;
+            end = 2;
+            state = old + end + 1;
+            JMP .c
+        }
+        if (s[STRINGPTR]{0} = ';')
+        {
+            s[STRINGPTR] = s[STRINGPTR] + 1;
+            #partition = atoi(s, &end);
+            partition = 0;
+            end = 1;
+            state = old + end + 1;
+            JMP .c
+        }
+
+        if (s[STRINGLEN] = 0 and !root_read)
+        {
+            sector_read(drive, 0, 1, file + FILEDATA);
+            sector_read(drive, *(file + FILEDATA + 0x1BE + partition *! 16 + 8), 1, file + FILEDATA);
+            file[FILE_FAT_SECTOR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS);
+            file[FILE_LBA_CUR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS) + file{FAT_FATS} *! *(file + FAT_SECTORS_PER_FAT);
+            file[FILE_LBA_START] = file[FILE_LBA_CUR];
+            file[FILE_SECTORS_PER_CLUSTER] = file{FAT_SECTORS_PER_CLUSTER};
+            file[FILE_DATA_SECTOR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS) + file{FAT_FATS} *! *(file + FAT_SECTORS_PER_FAT) + ((*(file + FAT_ROOT_ENTRIES) *! 32) + (*(file + FAT_BYTES_PER_SECTOR) - 1)) /! *(file + FAT_BYTES_PER_SECTOR);
+            sector_read(drive, file[FILE_LBA_CUR], 1, file + FILEDATA);
+            root_read = 1;
+        }
+        else
+        {
+            while (dir_next(file, d))
+            {
+                if (fnamecmp(s, d))
+                {
+                    file[FILE_CLUSTER_CUR] = *(file + file[FILE_DIR_OFF] + FAT_DIR_CLUSTER);
+                    file[FILE_LBA_CUR] = ((file[FILE_CLUSTER_CUR] - 2) *! file[FILE_SECTORS_PER_CLUSTER]) + file[FILE_DATA_SECTOR];
+                    file[FILE_LBA_START] = file[FILE_LBA_CUR];
+                    file[FILE_SIZE] = *(file + file[FILE_DIR_OFF] + FAT_DIR_SIZE);
+                    sector_read(drive, file[FILE_LBA_CUR], 1, file + FILEDATA);
+                    file[FILE_DIR_OFF] = -32;
+                    file[FILE_SEEK] = 0;
+                    JMP .c
+                }
+            }
+            return 0;
+        }
+.c:
+        old = state;
+    }
+    return 1;
+}
+
+function fnamecmp(s1, s2)
+(i, i2, l, c1, c2)
+{
+    i = 0;
+    i2 = 0;
+    while (i <! 11)
+    {
+        c1 = i2 >=! s1[STRINGLEN] ? ' ' : s1[STRINGPTR]{i2};
+        if (c1 = '.')
+        {
+            if (i <! 7) i = 7;
+            c1 = ' ';
+        }
+        c2 = s2[STRINGPTR]{i};
+        if (c1 != c2) return 0;
+        i = i + 1;
+        i2 = i2 + 1;
+    }
+    return 1;
+}
