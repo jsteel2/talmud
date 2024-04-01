@@ -3,14 +3,14 @@ import "/lib/fs.kc"
 import "/lib/print.kc"
 
 function main(drive, partition)
-(s[STRING], buf{256}, spl[STRING], state, argc, n, o)
+(s[STRING], buf{256}, argv[128 *! STRING], file{FILE}, spl[STRING], state, argc, n, o)
 {
     s[STRINGPTR] = buf;
     while (1)
     {
+.c:
         format(print, "%s>", ":80;0/");
         input(s, 256);
-        print("argv: ");
         state = 0;
         argc = 0;
         while (strtok(s, ' ', spl, &state))
@@ -26,10 +26,17 @@ function main(drive, partition)
                     spl[STRINGLEN] = n - o - 1;
                     state = n + 1;
                 }
-                format(print, "%s, ", spl);
+                argv[argc *! STRING + STRINGLEN] = spl[STRINGLEN];
+                argv[argc *! STRING + STRINGPTR] = spl[STRINGPTR];
                 argc = argc + 1;
             }
         }
-        format(print, "argc: %d\r\n", argc);
+        if (argc = 0) JMP .c
+        if (!open(argv, file))
+        {
+            format(print, "File '%s' not found.\r\n", argv);
+            JMP .c
+        }
+        exec(file, argc, argv);
     }
 }

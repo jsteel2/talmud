@@ -1,2 +1,7 @@
+SUB SP, 4
+MOV BP, SP
+MOV [BP], SI
+MOV [BP + 2], DI
 CALL main
+ADD SP, 4
 RETF

@@ -17,25 +17,42 @@ const FAT_HIDDEN_SECTORS = FILEDATA + 0x1C;
 const FAT_DIR_CLUSTER = FILEDATA + 26;
 const FAT_DIR_SIZE = FILEDATA + 28;
 
-function exec(file)
-(old, seg)
+function exec(file, argc, argv)
+(old, seg, nargv, sp, i)
 {
     MOV AX, DS
     MOV [seg], AX
     MOV [old], AX
     seg = seg + 0x1000;
     if (read(file, -2, 0, seg) = -1) return 0;
+    MOV DI, [argc]
+    SHL DI, 1
+    SHL DI, 1
+    NEG DI
+    MOV [nargv], DI
+    sp = nargv;
+    i = argc;
+    while (i)
+    {
+        i = i - 1;
+        sp = sp - argv[i *! STRING + STRINGLEN];
+        memcpy(sp, argv[i *! STRING + STRINGPTR], argv[i *! STRING + STRINGLEN], seg);
+        argv[i *! STRING + STRINGPTR] = sp;
+    }
+    memcpy(nargv, argv, argc *! 4, seg);
+    MOV SI, [argc]
+    MOV DI, [nargv]
     MOV AX, SP
     MOV BX, BP
     MOV CX, [old]
     MOV DX, [seg]
-    MOV DS, DX
     MOV ES, DX
+    MOV DS, DX
     CLI
+    MOV SP, [sp]
     MOV SS, DX
-    MOV SP, 0xFFFF
     STI
-    PUSH DS
+    PUSH ES
     MOV AX, 0
     PUSH AX
     MOV BP, SP
@@ -181,13 +198,13 @@ function fnamecmp(s1, s2)
     i2 = 0;
     while (i <! 11)
     {
-        c1 = i2 >=! s1[STRINGLEN] ? ' ' : s1[STRINGPTR]{i2};
+        c1 = upper(i2 >=! s1[STRINGLEN] ? ' ' : s1[STRINGPTR]{i2});
         if (c1 = '.')
         {
             if (i <! 7) i = 7;
             c1 = ' ';
         }
-        c2 = s2[STRINGPTR]{i};
+        c2 = upper(s2[STRINGPTR]{i});
         if (c1 != c2) return 0;
         i = i + 1;
         i2 = i2 + 1;

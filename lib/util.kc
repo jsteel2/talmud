@@ -4,6 +4,8 @@ function minu(x, y) return x <! y ? x : y;
 function maxu(x, y) return x >! y ? x : y;
 function mins(x, y) return x <$ y ? x : y;
 function maxs(x, y) return x >$ y ? x : y;
+function upper(c) return c >=! 'a' and c <=! 'z' ? c + 'A' - 'a' : c;
+function lower(c) return c >=! 'A' and c <=! 'Z' ? c - 'A' - 'a' : c;
 
 function strtok(s, delim, out, state)
 (start)

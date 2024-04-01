@@ -1124,6 +1124,34 @@ class Compiler:
                     self.emit8(3) # JMP SHORT +3
                     self.emit8(0xB8)
                     self.emit16(1) # MOV AX, 1
+                case T.LessEqualsS:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x5A) # POP DX
+                    self.emit8(0x3B)
+                    self.emit8(self.modrm(0b11, 2, 0)) # CMP DX, AX
+                    self.emit8(0x7E)
+                    self.emit8(5) # JlE +5
+                    self.emit8(0xB8)
+                    self.emit16(0) # MOV AX, 0
+                    self.emit8(0xEB)
+                    self.emit8(3) # JMP SHORT +3
+                    self.emit8(0xB8)
+                    self.emit16(1) # MOV AX, 1
+                case T.LessEqualsU:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x5A) # POP DX
+                    self.emit8(0x3B)
+                    self.emit8(self.modrm(0b11, 2, 0)) # CMP DX, AX
+                    self.emit8(0x76)
+                    self.emit8(5) # JBE +5
+                    self.emit8(0xB8)
+                    self.emit16(0) # MOV AX, 0
+                    self.emit8(0xEB)
+                    self.emit8(3) # JMP SHORT +3
+                    self.emit8(0xB8)
+                    self.emit16(1) # MOV AX, 1
                 case T.LessThanS:
                     self.emit8(0x50) # PUSH AX
                     fn()
@@ -1194,7 +1222,7 @@ class Compiler:
                     self.emit8(0xB8)
                     self.emit16(0) # MOV AX, 0
                     if self.first_pass: self.bruh[br] = self.ip
-                case _: self.die("AUGH")
+                case x: self.die(f"AUGH {x}")
 
     def binary(self, fn, *toks):
         if self.is_kc_expr: return self.kc_binary(fn, *toks)
