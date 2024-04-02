@@ -222,6 +222,7 @@ class Tokenizer:
                     case "b": s += "\b"
                     case "'": s += "'"
                     case '"': s += '"'
+                    case '\\': s += '\\'
                     case x: self.die(f"unknown escape char {x}")
             else: s += self.char
         if self.char != delim: self.die("unterminated string/char literal")

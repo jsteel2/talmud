@@ -218,7 +218,7 @@ function openat(cwd, path, file)
 }
 
 function fnamecmp(s1, s2)
-(i, i2, l, c1, c2)
+(s[STRING], x)
 {
     if (s1[STRINGPTR]{0} = '.')
     {
@@ -226,22 +226,23 @@ function fnamecmp(s1, s2)
         if (s1[STRINGLEN] = 2 and s2[STRINGPTR]{1} = '.') return 1;
         return s1[STRINGLEN] = 1;
     }
-    i = 0;
-    i2 = 0;
-    while (i <! 11)
+    s[STRINGPTR] = s1[STRINGPTR];
+    s[STRINGLEN] = strchr(s1, '.');
+    s2[STRINGLEN] = strchr(s2, ' ');
+    if (!stricmp(s, s2))
     {
-        c1 = upper(i2 >=! s1[STRINGLEN] ? ' ' : s1[STRINGPTR]{i2});
-        if (c1 = '.')
-        {
-            if (i <! 7) i = 7;
-            c1 = ' ';
-        }
-        c2 = upper(s2[STRINGPTR]{i});
-        if (c1 != c2) return 0;
-        i = i + 1;
-        i2 = i2 + 1;
+        s2[STRINGLEN] = 11;
+        return 0;
     }
-    return 1;
+    if (s[STRINGLEN] = s1[STRINGLEN]) return 1;
+    s[STRINGPTR] = s[STRINGPTR] + s[STRINGLEN] + 1;
+    s[STRINGLEN] = s1[STRINGLEN] - s[STRINGLEN] - 1;
+    s2[STRINGPTR] = s2[STRINGPTR] + 8;
+    s2[STRINGLEN] = strchr(s2, ' ');
+    x = stricmp(s, s2);
+    s2[STRINGLEN] = 11;
+    s2[STRINGPTR] = s2[STRINGPTR] - 8;
+    return x;
 }
 
 function path_append(base, app)

@@ -5,6 +5,18 @@ import "/lib/print.kc"
 function main(ign1, ign2, bootpath)
 (s[STRING], buf{256}, argv[128 *! STRING], file{FILE}, cwd{FILE}, ocwd{FILE}, spl[STRING], pat[STRING], patbuf{256}, state, argc, n, o, cd)
 {
+    print("\r
+i i i i i i i      mmmmmmm   mm   m      m    m m    m mmmm  \r
+I I I I I I I         #      ##   #      ##  ## #    # #   \"m\r
+I  \\ `+' /  I         #     #  #  #      # ## # #    # #    #\r
+ \\  `-+-'  /          #     #mm#  #      # \"\" # #    # #    #\r
+  `-__|__-'           #    #    # #mmmmm #    # \"mmmm\" #mmm\" \r
+      |\r
+------+------\r
+\r
+Welcome to TalmudOS <COMMAND.EXE>\r
+");
+
     if (!bootpath) bootpath = ":80;0/"; # we should get this from the bootloader instead but i dont have any space and i dont really care that much
     s[STRINGPTR] = buf;
     pat[STRINGPTR] = patbuf;
@@ -58,7 +70,7 @@ function main(ign1, ign2, bootpath)
         {
             return;
         }
-        if (!openat(cwd, argv, file))
+        if (!openat(cwd, argv, file) and openat(cwd, "/BIN", file) and !openat(file, argv, file))
         {
             format(print, "File '%s' not found.\r\n", argv);
             JMP .c

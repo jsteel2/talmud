@@ -11,6 +11,7 @@ mkdir -p build
 
 ./compilerpy/main.py build/echo.exe bin/echo.kc
 ./compilerpy/main.py build/dir.exe bin/dir.kc
+./compilerpy/main.py build/edlin.exe bin/edlin.kc
 
 dd if=/dev/zero of=build/disk.img bs=1M count=32
 echo 'start=1, type=6, bootable' | sfdisk build/disk.img
@@ -24,6 +25,7 @@ sudo mkdir /mnt/SRC
 sudo cp -r command bin lib boot /mnt/SRC
 sudo cp build/echo.exe /mnt/BIN/ECHO.EXE
 sudo cp build/dir.exe /mnt/BIN/DIR.EXE
+sudo cp build/edlin.exe /mnt/BIN/EDLIN.EXE
 sudo umount /mnt
 sudo losetup -d "$LOOP"
 dd if=build/vbr.bin of=build/disk.img bs=1 seek=574 conv=notrunc

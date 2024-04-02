@@ -8,7 +8,7 @@ function main(argc, argv, cwdpat)
     if (!openat(0, cwdpat, cwd))
     {
         print("what in gods name?\r\n");
-        CLI HLT
+        return;
     }
     i = 1;
     while (i <! argc)
@@ -17,7 +17,7 @@ function main(argc, argv, cwdpat)
         format(print, "\r\nDirectory of %s\r\n\r\n", pat);
         if (!openat(cwd, pat, dir))
         {
-            format(print, "Could not open '%s'\r\n.", pat);
+            format(print, "Could not open '%s'\r\n", pat);
             JMP .next
         }
         while (dir_next(dir, s))
