@@ -154,8 +154,6 @@ read_cluster:
     MOV SS, AX
     MOV SP, 0xFFFF
     STI
-    PUSH DI
-    PUSH DX
     PUSH AX
     PUSH AX
     XOR AX, AX

@@ -1,14 +1,15 @@
-JMP main
+import "/lib/exe.kc"
 import "/lib/fs.kc"
 import "/lib/print.kc"
 
-function main(drive, partition)
+function main(ign1, ign2, bootpath)
 (s[STRING], buf{256}, argv[128 *! STRING], file{FILE}, cwd{FILE}, ocwd{FILE}, spl[STRING], pat[STRING], patbuf{256}, state, argc, n, o, cd)
 {
+    if (!bootpath) bootpath = ":80;0/"; # we should get this from the bootloader instead but i dont have any space and i dont really care that much
     s[STRINGPTR] = buf;
     pat[STRINGPTR] = patbuf;
-    pat[STRINGLEN] = 6;
-    memcpy(patbuf, ":80;0/"[STRINGPTR], pat[STRINGLEN], -1);
+    pat[STRINGLEN] = bootpath[STRINGLEN];
+    memcpy(patbuf, bootpath[STRINGPTR], pat[STRINGLEN], -1);
     if (!openat(0, pat, cwd))
     {
         print("what in gods name?\r\n");
@@ -42,7 +43,7 @@ function main(drive, partition)
         if (argc = 0) JMP .c
         if (stricmp(argv, "CD"))
         {
-            if (argc = 1) cd = ":80;0/";
+            if (argc = 1) cd = bootpath;
             else cd = argv + STRING *! 2;
             memcpy(ocwd, cwd, FILE, -1);
             if (!openat(cwd, cd, cwd))
@@ -55,9 +56,7 @@ function main(drive, partition)
         }
         else if (stricmp(argv, "EXIT"))
         {
-            MOV SP, BP
-            POP BP
-            RETF
+            return;
         }
         if (!openat(cwd, argv, file))
         {
