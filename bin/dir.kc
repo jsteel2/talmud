@@ -2,15 +2,20 @@ import "/lib/exe.kc"
 import "/lib/print.kc"
 import "/lib/fs.kc"
 
-function main(argc, argv)
-(i, dir{FILE}, pat, s[STRING])
+function main(argc, argv, cwdpat)
+(i, dir{FILE}, cwd{FILE}, pat, s[STRING])
 {
+    if (!openat(0, cwdpat, cwd))
+    {
+        print("what in gods name?\r\n");
+        CLI HLT
+    }
     i = 1;
     while (i <! argc)
     {
         pat = argv + i *! STRING *! 2;
         format(print, "\r\nDirectory of %s\r\n\r\n", pat);
-        if (!open(pat, dir))
+        if (!openat(cwd, pat, dir))
         {
             format(print, "Could not open '%s'\r\n.", pat);
             JMP .next

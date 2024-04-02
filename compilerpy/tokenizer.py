@@ -23,6 +23,7 @@ class T(Enum):
     Import = auto()
 
     LogicalAnd = auto()
+    LogicalOr = auto()
     LogicalNot = auto()
 
     Byte = auto()
@@ -248,6 +249,7 @@ class Tokenizer:
             case "return": return Token(T.Return, ident)
             case "import": return Token(T.Import, ident)
             case "and": return Token(T.LogicalAnd, ident)
+            case "or": return Token(T.LogicalOr, ident)
             case "BYTE": return Token(T.Byte, ident)
             case "WORD": return Token(T.Word, ident)
             case "FAR": return Token(T.Far, ident)

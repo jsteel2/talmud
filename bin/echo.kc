@@ -3,7 +3,7 @@ import "/lib/print.kc"
 
 # consider making structs define size in bytes so we can get rid of * 2?
 
-function main(argc, argv)
+function main(argc, argv, cwdpat)
 (i)
 {
     i = 1;

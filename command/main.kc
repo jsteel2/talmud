@@ -3,13 +3,21 @@ import "/lib/fs.kc"
 import "/lib/print.kc"
 
 function main(drive, partition)
-(s[STRING], buf{256}, argv[128 *! STRING], file{FILE}, spl[STRING], state, argc, n, o)
+(s[STRING], buf{256}, argv[128 *! STRING], file{FILE}, cwd{FILE}, ocwd{FILE}, spl[STRING], pat[STRING], patbuf{256}, state, argc, n, o, cd)
 {
     s[STRINGPTR] = buf;
+    pat[STRINGPTR] = patbuf;
+    pat[STRINGLEN] = 6;
+    memcpy(patbuf, ":80;0/"[STRINGPTR], pat[STRINGLEN], -1);
+    if (!openat(0, pat, cwd))
+    {
+        print("what in gods name?\r\n");
+        CLI HLT
+    }
     while (1)
     {
 .c:
-        format(print, "%s>", ":80;0/");
+        format(print, "%s>", pat);
         input(s, 256);
         state = 0;
         argc = 0;
@@ -32,11 +40,24 @@ function main(drive, partition)
             }
         }
         if (argc = 0) JMP .c
-        if (!open(argv, file))
+        if (stricmp(argv, "CD"))
+        {
+            if (argc = 1) cd = ":80;0/";
+            else cd = argv + STRING *! 2;
+            memcpy(ocwd, cwd, FILE, -1);
+            if (!openat(cwd, cd, cwd))
+            {
+                format(print, "Directory '%s' not found.\r\n", cd);
+                memcpy(cwd, ocwd, FILE, -1);
+            }
+            else path_append(pat, cd);
+            JMP .c
+        }
+        if (!openat(cwd, argv, file))
         {
             format(print, "File '%s' not found.\r\n", argv);
             JMP .c
         }
-        exec(file, argc, argv);
+        exec(file, argc, argv, pat);
     }
 }

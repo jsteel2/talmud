@@ -1,7 +1,8 @@
-SUB SP, 4
+SUB SP, 6
 MOV BP, SP
 MOV [BP], SI
 MOV [BP + 2], DI
+MOV [BP + 4], AX
 CALL main
-ADD SP, 4
+ADD SP, 6
 RETF

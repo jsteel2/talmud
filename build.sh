@@ -20,8 +20,8 @@ sudo mkfs.vfat -F 16 "$LOOP"p1
 sudo mount "$LOOP"p1 /mnt
 sudo cp build/command.exe /mnt/COMMAND.EXE
 sudo mkdir /mnt/BIN
-sudo mkdir /mnt/STUFF
-seq 100 110 | xargs -I{} sudo touch /mnt/STUFF/FILE{}.LOL
+sudo mkdir /mnt/SRC
+sudo cp -r command bin lib boot /mnt/SRC
 sudo cp build/echo.exe /mnt/BIN/ECHO.EXE
 sudo cp build/dir.exe /mnt/BIN/DIR.EXE
 sudo umount /mnt

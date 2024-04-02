@@ -12,9 +12,10 @@ class Identifier:
         self.size = size
 
 class Compiler:
-    def __init__(self, instream, outstream):
+    def __init__(self, instream, outstream, filename="stdin"):
         self.tokenizer = Tokenizer(instream)
         self.outstream = outstream
+        self.filename = filename
 
     def run(self):
         self.idents = {}
@@ -167,8 +168,10 @@ class Compiler:
         t = self.tokenizer
         p = self.prev
         c = self.cur
+        fi = self.filename
         with open(path, "r") as f:
             self.tokenizer = Tokenizer(f)
+            self.filename = path
             self.prev = Token(None, None)
             self.cur = Token(None, None)
             self.advance()
@@ -176,6 +179,7 @@ class Compiler:
         self.tokenizer = t
         self.prev = p
         self.cur = c
+        self.filename = fi
 
     def deref_assign(self):
         deref = 1
@@ -199,8 +203,9 @@ class Compiler:
         self.consume(T.SemiColon)
 
     def ret(self):
-        self.kc_expression()
-        self.consume(T.SemiColon)
+        if not self.match(T.SemiColon).type:
+            self.kc_expression()
+            self.consume(T.SemiColon)
         self.emit8(0x8B)
         self.emit8(self.modrm(0b11, 4, 5)) # MOV SP, BP
         self.emit8(0x5D) # POP BP
@@ -371,16 +376,20 @@ class Compiler:
             e -= 1
             if self.match(T.Comma).type: continue
             break
+        b=False
         if self.first_pass: self.bruh[br] = i
         if self.first_pass: x = 0
         else:
             if ident in self.idents and self.idents[ident].type == I.Label:
                 x = self.idents[ident].value
+            else: b=True
         if ident in self.idents and self.idents[ident].type == I.LocalVariable:
             x = self.idents[ident].value
             self.emit8(0xFF)
             self.emit8(self.modrm(2, 2, 0b110))
             self.emit16(x) # CALL [var]
+        elif b:
+            self.die(f"undefined function {ident}")
         else:
             a = self.ip
             self.emit8(0xE8)
@@ -929,7 +938,7 @@ class Compiler:
         return self.ternary()
 
     def ternary(self):
-        x = self.logical_and()
+        x = self.logical_or()
         if not self.is_kc_expr: return x
         if self.match(T.Ternary).type:
             br = self.ip
@@ -952,6 +961,9 @@ class Compiler:
             self.consume(T.Colon)
             self.logical_and()
             if self.first_pass: self.bruh[br3] = self.ip
+
+    def logical_or(self):
+        return self.binary(self.logical_and, T.LogicalOr)
 
     def logical_and(self):
         return self.binary(self.equality, T.LogicalAnd)
@@ -1222,6 +1234,16 @@ class Compiler:
                     self.emit8(0xB8)
                     self.emit16(0) # MOV AX, 0
                     if self.first_pass: self.bruh[br] = self.ip
+                case T.LogicalOr:
+                    self.emit8(0x85)
+                    self.emit8(self.modrm(0b11, 0, 0)) # TEST AX, AX
+                    br = self.ip
+                    if self.first_pass: lbl = 0
+                    else: lbl = self.bruh[self.ip]
+                    self.emit8(0x75)
+                    self.emit8(lbl - br - 2) # JNZ lbl
+                    fn()
+                    if self.first_pass: self.bruh[br] = self.ip
                 case x: self.die(f"AUGH {x}")
 
     def binary(self, fn, *toks):
@@ -1295,7 +1317,9 @@ class Compiler:
         match t.type:
             case T.Identifier:
                 if t.value not in self.idents and self.first_pass: x = Identifier(I.Label, 0)
-                else: x = self.idents[t.value]
+                else: 
+                    try: x = self.idents[t.value]
+                    except KeyError: self.die(f"undefined function {t.value}")
                 if self.peek().type == T.LeftParen:
                     return self.call(t.value, True)
                 match x.type:
@@ -1393,4 +1417,4 @@ class Compiler:
         return t
 
     def die(self, err):
-        raise Exception(f"Parser error at line {self.tokenizer.line}, Column {self.tokenizer.column}: {err}")
+        raise Exception(f"Parser error at line {self.tokenizer.line}, Column {self.tokenizer.column} in file {self.filename}: {err}")
