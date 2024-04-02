@@ -53,6 +53,12 @@ function main(drive, partition)
             else path_append(pat, cd);
             JMP .c
         }
+        else if (stricmp(argv, "EXIT"))
+        {
+            MOV SP, BP
+            POP BP
+            RETF
+        }
         if (!openat(cwd, argv, file))
         {
             format(print, "File '%s' not found.\r\n", argv);

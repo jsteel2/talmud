@@ -245,15 +245,14 @@ function fnamecmp(s1, s2)
 }
 
 function path_append(base, app)
-(x, s[STRING], state)
+(s[STRING], state)
 {
     state = 0;
     if (app[STRINGPTR]{0} = ':' or app[STRINGPTR]{0} = ';' or app[STRINGPTR]{0} = '/')
     {
-        x = strchr(base, app[STRINGPTR]{0});
-        base[STRINGLEN] = strchr(app, '/') + x + 1;
-        state = base[STRINGLEN];
-        memcpy(base[STRINGPTR] + x, app[STRINGPTR], base[STRINGLEN], -1);
+        memcpy(base[STRINGPTR] + strchr(base, app[STRINGPTR]{0}), app[STRINGPTR], strchr(app, '/') - strchr(app, app[STRINGPTR]{0}), -1);
+        state = strchr(app, '/') + 1;
+        base[STRINGLEN] = strchr(base, '/') + 1;
     }
 
     while (strtok(app, '/', s, &state))
