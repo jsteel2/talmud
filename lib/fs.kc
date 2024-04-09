@@ -106,7 +106,7 @@ function read(file, n, buf, seg)
             if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
         }
         x = minu(minu(n, file[FILE_SIZE] - file[FILE_SEEK]), FILEDATASIZE - file[FILE_DIR_OFF]);
-        memcpy(buf + i, file + FILEDATA + file[FILE_DIR_OFF], x, seg);
+        if (buf or seg) memcpy(buf + i, file + FILEDATA + file[FILE_DIR_OFF], x, seg);
         i = i + x;
         n = minu(n - x, file[FILE_SIZE] - file[FILE_SEEK]);
         file[FILE_SEEK] = file[FILE_SEEK] + x;
@@ -115,7 +115,27 @@ function read(file, n, buf, seg)
     return i;
 }
 
+function seek(file, n)
+{
+    read(file, n, 0, 0);
+}
+
+function write()
+{
+    print("write unimplemented... lol");
+    CLI HLT
+}
+
 function dir_next(file, out)
+(x)
+{
+.again:
+    x = _dir_next(file, out);
+    if (x = 2) JMP .again
+    return x;
+}
+
+function _dir_next(file, out)
 {
 .again:
     file[FILE_DIR_OFF] = file[FILE_DIR_OFF] + 32;
@@ -125,15 +145,16 @@ function dir_next(file, out)
         file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + 1;
         sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA);
     }
-    if (*(file + FILEDATA + file[FILE_DIR_OFF]) = 0) return 0;
-    if (*(file + file[FILE_DIR_OFF] + FAT_DIR_ATTR) = 0x0F) JMP .again
+    if (file{FILEDATA + file[FILE_DIR_OFF]} = 0) return 0;
+    if (file{file[FILE_DIR_OFF] + FAT_DIR_ATTR} & 0x02) JMP .again
+    if (file{FILEDATA + file[FILE_DIR_OFF]} = 0xE5) return 2;
     out[STRINGLEN] = 11;
     out[STRINGPTR] = file + FILEDATA + file[FILE_DIR_OFF];
     return 1;
 }
 
-function openat(cwd, path, file)
-(s[STRING], d[STRING], state, old, end, drive, partition, root_read)
+function openat(cwd, path, file, create)
+(s[STRING], d[STRING], state, old, end, drive, partition, root_read, x)
 {
     file[FILE_DIR_OFF] = -32;
     state = 0;
@@ -180,9 +201,11 @@ function openat(cwd, path, file)
         else if (!strcmp(s, ".") and s[STRINGLEN] >! 0)
         {
             root_read = 1;
-            while (dir_next(file, d))
+            x = _dir_next(file, d);
+            while (x)
             {
-                if (fnamecmp(s, d))
+                if (x = 2 and create and state >=! path[STRINGLEN]) JMP .create
+                if (x = 1 and fnamecmp(s, d))
                 {
                     file[FILE_CLUSTER_CUR] = *(file + file[FILE_DIR_OFF] + FAT_DIR_CLUSTER);
                     if (file[FILE_CLUSTER_CUR] = 0)
@@ -208,6 +231,15 @@ function openat(cwd, path, file)
                     }
                     JMP .c
                 }
+                x = _dir_next(file, d);
+            }
+            if (create and state >=! path[STRINGLEN])
+            {
+.create:
+                pat_to_83(s, file + FILEDATA + file[FILE_DIR_OFF]);
+                file{FAT_DIR_ATTR} = 0;
+                print("create unimplemented... fixme");
+                CLI HLT
             }
             return 0;
         }
@@ -217,32 +249,24 @@ function openat(cwd, path, file)
     return 1;
 }
 
-function fnamecmp(s1, s2)
-(s[STRING], x)
+function pat_to_83(pat, f83)
+(x)
 {
-    if (s1[STRINGPTR]{0} = '.')
+    memset(f83, ' ', 11);
+    x = strchr(pat, '.');
+    memcpy(f83, pat[STRINGPTR], x, -1);
+    if (x != pat[STRINGLEN])
     {
-        if (s2[STRINGPTR]{0} != '.') return 0;
-        if (s1[STRINGLEN] = 2 and s2[STRINGPTR]{1} = '.') return 1;
-        return s1[STRINGLEN] = 1;
+        x = x + 1;
+        memcpy(f83 + 8, pat[STRINGPTR] + x, pat[STRINGLEN] - x, -1);
     }
-    s[STRINGPTR] = s1[STRINGPTR];
-    s[STRINGLEN] = strchr(s1, '.');
-    s2[STRINGLEN] = strchr(s2, ' ');
-    if (!stricmp(s, s2))
-    {
-        s2[STRINGLEN] = 11;
-        return 0;
-    }
-    if (s[STRINGLEN] = s1[STRINGLEN]) return 1;
-    s[STRINGPTR] = s[STRINGPTR] + s[STRINGLEN] + 1;
-    s[STRINGLEN] = s1[STRINGLEN] - s[STRINGLEN] - 1;
-    s2[STRINGPTR] = s2[STRINGPTR] + 8;
-    s2[STRINGLEN] = strchr(s2, ' ');
-    x = stricmp(s, s2);
-    s2[STRINGLEN] = 11;
-    s2[STRINGPTR] = s2[STRINGPTR] - 8;
-    return x;
+}
+
+function fnamecmp(s1, s2)
+(f83{11})
+{
+    pat_to_83(s1, f83);
+    return memicmp(f83, s2[STRINGPTR], 11);
 }
 
 function path_append(base, app)
@@ -251,6 +275,7 @@ function path_append(base, app)
     state = 0;
     if (app[STRINGPTR]{0} = ':' or app[STRINGPTR]{0} = ';' or app[STRINGPTR]{0} = '/')
     {
+        # actually this doesnt work cd :2 with base :80;0/ will set the dir to :20;0/
         memcpy(base[STRINGPTR] + strchr(base, app[STRINGPTR]{0}), app[STRINGPTR], strchr(app, '/') - strchr(app, app[STRINGPTR]{0}), -1);
         state = strchr(app, '/') + 1;
         base[STRINGLEN] = strchr(base, '/') + 1;

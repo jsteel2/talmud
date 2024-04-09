@@ -44,7 +44,7 @@ start:
     MOV SI, 0x7C00
     XOR DI, DI
     MOV DS, DI
-    REPNZ MOVSW
+    REPZ MOVSW
 
     PUSH ES
     MOV CL, main
@@ -158,7 +158,10 @@ read_cluster:
     PUSH AX
     XOR AX, AX
     PUSH AX
-    RETF
+    MOV BP, SP
+    SUB SP, 4
+    CALL FAR [BP]
+    JMP 0xFFFF:0
 
 read_sector:
     PUSH DI

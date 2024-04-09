@@ -1060,6 +1060,15 @@ class Compiler:
                     self.emit8(0xF7)
                     self.emit8(self.modrm(0b11, 6, 1)) # DIV CX
                     self.emit8(0x92) # XCHG AX, DX
+                case T.ModuloS:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x59) # POP CX
+                    self.emit8(0x91) # XCHG AX, CX
+                    self.emit8(0x99) # CWD
+                    self.emit8(0xF7)
+                    self.emit8(self.modrm(0b11, 7, 1)) # IDIV CX
+                    self.emit8(0x92) # XCHG AX, DX
                 case T.SlashU:
                     self.emit8(0x50) # PUSH AX
                     fn()
@@ -1069,6 +1078,14 @@ class Compiler:
                     self.emit16(0) # MOV DX, 0
                     self.emit8(0xF7)
                     self.emit8(self.modrm(0b11, 6, 1)) # DIV CX
+                case T.SlashS:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x59) # POP CX
+                    self.emit8(0x91) # XCHG AX, CX
+                    self.emit8(0x99) # CWD
+                    self.emit8(0xF7)
+                    self.emit8(self.modrm(0b11, 7, 1)) # IDIV CX
                 case T.StarU:
                     self.emit8(0x50) # PUSH AX
                     fn()

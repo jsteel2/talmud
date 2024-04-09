@@ -14,7 +14,7 @@ I  \\ `+' /  I         #     #  #  #      # ## # #    # #    #\r
       |\r
 ------+------\r
 \r
-Welcome to TalmudOS <COMMAND.EXE>\r
+Welcome to TalmudOS (Formerly ChucksOS) <COMMAND.EXE>\r
 ");
 
     if (!bootpath) bootpath = ":80;0/"; # we should get this from the bootloader instead but i dont have any space and i dont really care that much
@@ -22,7 +22,7 @@ Welcome to TalmudOS <COMMAND.EXE>\r
     pat[STRINGPTR] = patbuf;
     pat[STRINGLEN] = bootpath[STRINGLEN];
     memcpy(patbuf, bootpath[STRINGPTR], pat[STRINGLEN], -1);
-    if (!openat(0, pat, cwd))
+    if (!openat(0, pat, cwd, 0))
     {
         print("what in gods name?\r\n");
         CLI HLT
@@ -58,7 +58,7 @@ Welcome to TalmudOS <COMMAND.EXE>\r
             if (argc = 1) cd = bootpath;
             else cd = argv + STRING *! 2;
             memcpy(ocwd, cwd, FILE, -1);
-            if (!openat(cwd, cd, cwd))
+            if (!openat(cwd, cd, cwd, 0))
             {
                 format(print, "Directory '%s' not found.\r\n", cd);
                 memcpy(cwd, ocwd, FILE, -1);
@@ -70,7 +70,7 @@ Welcome to TalmudOS <COMMAND.EXE>\r
         {
             return;
         }
-        if (!openat(cwd, argv, file) and openat(cwd, "/BIN", file) and !openat(file, argv, file))
+        if (!openat(cwd, argv, file, 0) and openat(cwd, "/BIN", file, 0) and !openat(file, argv, file, 0))
         {
             format(print, "File '%s' not found.\r\n", argv);
             JMP .c

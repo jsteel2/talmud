@@ -3,28 +3,33 @@ import "/lib/print.kc"
 import "/lib/fs.kc"
 
 function main(argc, argv, cwdpat)
-(i, dir{FILE}, cwd{FILE}, pat, s[STRING])
+(i, cwd{FILE})
 {
-    if (!openat(0, cwdpat, cwd))
+    if (!openat(0, cwdpat, cwd, 0))
     {
         print("what in gods name?\r\n");
         return;
     }
+    if (argc = 1) return dir(cwd, ".");
     i = 1;
-    while (i <! argc)
+    while (i <! argc and dir(cwd, argv + i *! STRING *! 2))
     {
-        pat = argv + i *! STRING *! 2;
-        format(print, "\r\nDirectory of %s\r\n\r\n", pat);
-        if (!openat(cwd, pat, dir))
-        {
-            format(print, "Could not open '%s'\r\n", pat);
-            JMP .next
-        }
-        while (dir_next(dir, s))
-        {
-           format(print, "    %s\r\n", s);
-        }
-.next:
         i = i + 1;
     }
+}
+
+function dir(cwd, pat)
+(dirf{FILE}, s[STRING])
+{
+    format(print, "\r\nDirectory of %s\r\n\r\n", pat);
+    if (!openat(cwd, pat, dirf, 0))
+    {
+        format(print, "Could not open '%s'\r\n", pat);
+        return 0;
+    }
+    while (dir_next(dirf, s))
+    {
+       format(print, "    %s\r\n", s);
+    }
+    return 1;
 }
