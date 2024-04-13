@@ -98,8 +98,10 @@ function memcmp(x, y, n)
 .e: return 1;
 }
 
-function memset(d, c, n)
+function memset(d, c, n, seg)
 {
+    if (seg = -1) MOV [seg], DS
+    MOV ES, [seg]
     MOV DI, [d]
     MOV AL, [c]
     MOV CX, [n]

@@ -1,4 +1,14 @@
 function sector_read(drive, lba, count, out)
+{
+    return sector_do(drive, lba, count, out, 2);
+}
+
+function sector_write(drive, lba, count, in)
+{
+    return sector_do(drive, lba, count, in, 3);
+}
+
+function sector_do(drive, lba, count, out, ah)
 (tries, c, h, s, temp, sectors_per_track, number_of_heads)
 {
     MOV AH, 8
@@ -21,7 +31,7 @@ function sector_read(drive, lba, count, out)
         h = temp %! number_of_heads;
         c = temp /! number_of_heads;
         s = (lba %! sectors_per_track + 1) | ((c >> 2) & 0xC0);
-        MOV AH, 2
+        MOV AH, [ah]
         MOV AL, 1
         MOV CH, [c]
         MOV DH, [h]

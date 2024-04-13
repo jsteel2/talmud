@@ -121,6 +121,8 @@ class T(Enum):
     Lds = auto()
     Push = auto()
     Pop = auto()
+    Out = auto()
+    In = auto()
     Xchg = auto()
 
     Al = auto()
@@ -157,6 +159,7 @@ class T(Enum):
     BitwiseXor = auto()
     BitwiseOr = auto()
     BitwiseAnd = auto()
+    BitwiseNot = auto()
     GreaterThanS = auto()
     GreaterThanU = auto()
     LessThanS = auto()
@@ -346,6 +349,8 @@ class Tokenizer:
             case "LDS": return Token(T.Lds, ident)
             case "PUSH": return Token(T.Push, ident)
             case "POP": return Token(T.Pop, ident)
+            case "OUT": return Token(T.Out, ident)
+            case "IN": return Token(T.In, ident)
             case "AL": return Token(T.Al, ident)
             case "CL": return Token(T.Cl, ident)
             case "DL": return Token(T.Dl, ident)
@@ -385,6 +390,7 @@ class Tokenizer:
             case "^": return ta(T.BitwiseXor)
             case "|": return ta(T.BitwiseOr)
             case "&": return ta(T.BitwiseAnd)
+            case "~": return ta(T.BitwiseNot)
             case "+": return ta(T.Plus)
             case "-": return ta(T.Minus)
             case "%":

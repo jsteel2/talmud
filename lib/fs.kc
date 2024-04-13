@@ -1,7 +1,7 @@
 import "/lib/disk.kc"
 import "/lib/util.kc"
 
-struct FILES = FILE_DRIVE, FILE_PARTITION, FILE_DATA_SECTOR, FILE_SECTORS_PER_CLUSTER, FILE_LBA_START, FILE_LBA_CUR, FILE_CLUSTER_CUR, FILE_FAT_SECTOR, FILE_DIR_OFF, FILE_SEEK, FILE_SIZE;
+struct FILES = FILE_DRIVE, FILE_PARTITION, FILE_DATA_SECTOR, FILE_SECTORS_PER_CLUSTER, FILE_CLUSTER_START, FILE_LBA_CUR, FILE_ATTR_LBA, FILE_ATTR_OFF, FILE_CLUSTER_CUR, FILE_FAT_SECTOR, FILE_DIR_OFF, FILE_SEEK, FILE_SIZE;
 const FILEDATA = FILES *! 2;
 const FILEDATASIZE = 512;
 const FILE = FILEDATASIZE + FILES *! 2;
@@ -90,7 +90,19 @@ function read(file, n, buf, seg)
     n = minu(n, file[FILE_SIZE]);
     while (n and file[FILE_SEEK] <! file[FILE_SIZE])
     {
-        if (file[FILE_SEEK] %! (file[FILE_SECTORS_PER_CLUSTER] *! 512) = 0 and file[FILE_SEEK] != 0)
+        if (file[FILE_DIR_OFF] >=! FILEDATASIZE)
+        {
+            file[FILE_DIR_OFF] = 0;
+            file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + 1;
+            if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
+        }
+        x = minu(minu(n, file[FILE_SIZE] - file[FILE_SEEK]), FILEDATASIZE - file[FILE_DIR_OFF]);
+        memcpy(buf + i, file + FILEDATA + file[FILE_DIR_OFF], x, seg);
+        i = i + x;
+        n = minu(n - x, file[FILE_SIZE] - file[FILE_SEEK]);
+        file[FILE_SEEK] = file[FILE_SEEK] + x;
+        file[FILE_DIR_OFF] = file[FILE_DIR_OFF] + x;
+        if (file[FILE_SEEK] %! (file[FILE_SECTORS_PER_CLUSTER] *! 512) = 0)
         {
             if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return -1;
             file[FILE_CLUSTER_CUR] = *(file + FILEDATA + file[FILE_CLUSTER_CUR] *! 2 %! 512);
@@ -99,31 +111,88 @@ function read(file, n, buf, seg)
             if (file[FILE_CLUSTER_CUR] >=! 0xFFF8) return i;
             if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
         }
-        if (file[FILE_DIR_OFF] >=! FILEDATASIZE)
-        {
-            file[FILE_DIR_OFF] = 0;
-            file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + 1;
-            if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
-        }
-        x = minu(minu(n, file[FILE_SIZE] - file[FILE_SEEK]), FILEDATASIZE - file[FILE_DIR_OFF]);
-        if (buf or seg) memcpy(buf + i, file + FILEDATA + file[FILE_DIR_OFF], x, seg);
-        i = i + x;
-        n = minu(n - x, file[FILE_SIZE] - file[FILE_SEEK]);
-        file[FILE_SEEK] = file[FILE_SEEK] + x;
-        file[FILE_DIR_OFF] = file[FILE_DIR_OFF] + x;
     }
     return i;
 }
 
-function seek(file, n)
+function write(file, n, buf)
+(x, i)
 {
-    read(file, n, 0, 0);
+    i = 0;
+    if (file[FILE_DIR_OFF] <$ 0) file[FILE_DIR_OFF] = 0;
+    while (n)
+    {
+        if (file[FILE_DIR_OFF] >=! FILEDATASIZE)
+        {
+            file[FILE_DIR_OFF] = 0;
+            file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + 1;
+        }
+
+        x = minu(512, n);
+
+        if (x = 512 and file[FILE_DIR_OFF] = 0)
+        {
+            if (!sector_write(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, buf + i)) return -1;
+        }
+        else
+        {
+            x = minu(x, 512 - file[FILE_DIR_OFF]);
+            if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
+            memcpy(file + FILEDATA + file[FILE_DIR_OFF], buf + i, x, -1);
+            if (!sector_write(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
+        }
+
+        i = i + x;
+        file[FILE_SEEK] = file[FILE_SEEK] + x;
+        file[FILE_DIR_OFF] = file[FILE_DIR_OFF] + x;
+        n = n - x;
+        if (file[FILE_SEEK] %! (file[FILE_SECTORS_PER_CLUSTER] *! 512) = 0)
+        {
+            if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return -1;
+            file[FILE_CLUSTER_CUR] = *(file + FILEDATA + file[FILE_CLUSTER_CUR] *! 2 %! 512);
+            file[FILE_DIR_OFF] = 0;
+            file[FILE_LBA_CUR] = ((file[FILE_CLUSTER_CUR] - 2) *! file[FILE_SECTORS_PER_CLUSTER]) + file[FILE_DATA_SECTOR];
+            if (file[FILE_CLUSTER_CUR] >=! 0xFFF8) return i; # as in seek
+        }
+    }
+    file[FILE_SIZE] = maxu(file[FILE_SIZE], file[FILE_SEEK]);
+    if (!sector_read(file[FILE_DRIVE], file[FILE_ATTR_LBA], 1, file + FILEDATA)) return -1;
+    x = file + file[FILE_ATTR_OFF] + FAT_DIR_SIZE;
+    *x = file[FILE_SIZE];
+    if (!sector_write(file[FILE_DRIVE], file[FILE_ATTR_LBA], 1, file + FILEDATA)) return -1;
+    if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
+    return i;
 }
 
-function write()
+function seek(file, n)
+(doread)
 {
-    print("write unimplemented... lol");
-    CLI HLT
+    if (n = file[FILE_SEEK]) return 1;
+    doread = 0;
+    if (n <! file[FILE_SEEK])
+    {
+        file[FILE_CLUSTER_CUR] = file[FILE_CLUSTER_START];
+        file[FILE_SEEK] = 0;
+        if (n = 0) doread = 1;
+    }
+
+    while (file[FILE_SEEK] & ~2047 != n & ~2047)
+    {
+        if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return -1;
+        file[FILE_CLUSTER_CUR] = *(file + FILEDATA + file[FILE_CLUSTER_CUR] *! 2 %! 512);
+        if (file[FILE_CLUSTER_CUR] >=! 0xFFF8) return 0; # should allow to go further...
+        doread = 1;
+    }
+
+    file[FILE_LBA_CUR] = ((file[FILE_CLUSTER_CUR] - 2) *! file[FILE_SECTORS_PER_CLUSTER]) + file[FILE_DATA_SECTOR];
+    file[FILE_DIR_OFF] = n & 511;
+    if (doread or file[FILE_SEEK] & ~511 != n & ~511)
+    {
+        file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + ((n & 2047) - (file[FILE_SEEK] & 2047)) /$ 512;
+        if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return 0;
+    }
+    file[FILE_SEEK] = n;
+    return 1;
 }
 
 function dir_next(file, out)
@@ -191,7 +260,7 @@ function openat(cwd, path, file, create)
             sector_read(drive, *(file + FILEDATA + 0x1BE + partition *! 16 + 8), 1, file + FILEDATA);
             file[FILE_FAT_SECTOR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS);
             file[FILE_LBA_CUR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS) + file{FAT_FATS} *! *(file + FAT_SECTORS_PER_FAT);
-            file[FILE_LBA_START] = file[FILE_LBA_CUR];
+            file[FILE_CLUSTER_START] = 0;
             file[FILE_SECTORS_PER_CLUSTER] = file{FAT_SECTORS_PER_CLUSTER};
             file[FILE_DATA_SECTOR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS) + file{FAT_FATS} *! *(file + FAT_SECTORS_PER_FAT) + ((*(file + FAT_ROOT_ENTRIES) *! 32) + (*(file + FAT_BYTES_PER_SECTOR) - 1)) /! *(file + FAT_BYTES_PER_SECTOR);
             sector_read(drive, file[FILE_LBA_CUR], 1, file + FILEDATA);
@@ -208,13 +277,13 @@ function openat(cwd, path, file, create)
                 if (x = 1 and fnamecmp(s, d))
                 {
                     file[FILE_CLUSTER_CUR] = *(file + file[FILE_DIR_OFF] + FAT_DIR_CLUSTER);
+                    file[FILE_CLUSTER_START] = file[FILE_CLUSTER_CUR];
                     if (file[FILE_CLUSTER_CUR] = 0)
                     {
                         sector_read(drive, 0, 1, file + FILEDATA);
                         sector_read(drive, *(file + FILEDATA + 0x1BE + partition *! 16 + 8), 1, file + FILEDATA);
                         file[FILE_FAT_SECTOR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS);
                         file[FILE_LBA_CUR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS) + file{FAT_FATS} *! *(file + FAT_SECTORS_PER_FAT);
-                        file[FILE_LBA_START] = file[FILE_LBA_CUR];
                         file[FILE_SECTORS_PER_CLUSTER] = file{FAT_SECTORS_PER_CLUSTER};
                         file[FILE_DATA_SECTOR] = *(file + FAT_RESERVED_SECTORS) + *(file + FAT_HIDDEN_SECTORS) + file{FAT_FATS} *! *(file + FAT_SECTORS_PER_FAT) + ((*(file + FAT_ROOT_ENTRIES) *! 32) + (*(file + FAT_BYTES_PER_SECTOR) - 1)) /! *(file + FAT_BYTES_PER_SECTOR);
                         sector_read(drive, file[FILE_LBA_CUR], 1, file + FILEDATA);
@@ -222,8 +291,9 @@ function openat(cwd, path, file, create)
                     }
                     else
                     {
+                        file[FILE_ATTR_LBA] = file[FILE_LBA_CUR];
+                        file[FILE_ATTR_OFF] = file[FILE_DIR_OFF];
                         file[FILE_LBA_CUR] = ((file[FILE_CLUSTER_CUR] - 2) *! file[FILE_SECTORS_PER_CLUSTER]) + file[FILE_DATA_SECTOR];
-                        file[FILE_LBA_START] = file[FILE_LBA_CUR];
                         file[FILE_SIZE] = *(file + file[FILE_DIR_OFF] + FAT_DIR_SIZE);
                         sector_read(drive, file[FILE_LBA_CUR], 1, file + FILEDATA);
                         file[FILE_DIR_OFF] = -32;
@@ -252,7 +322,7 @@ function openat(cwd, path, file, create)
 function pat_to_83(pat, f83)
 (x)
 {
-    memset(f83, ' ', 11);
+    memset(f83, ' ', 11, -1);
     x = strchr(pat, '.');
     memcpy(f83, pat[STRINGPTR], x, -1);
     if (x != pat[STRINGLEN])

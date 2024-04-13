@@ -151,6 +151,8 @@ class Compiler:
             case T.Push: self.pushpop(True)
             case T.Pop: self.pushpop(False)
             case T.Xchg: self.xchg()
+            case T.Out: self.out()
+            case T.In: self.in_()
             case T.Function: self.function()
             case T.While: self.while_()
             case T.Const: self.const()
@@ -588,6 +590,18 @@ class Compiler:
         else:
             self.die("unsupported instruction")
 
+    def out(self):
+        self.consume(T.Dx)
+        self.consume(T.Comma)
+        self.consume(T.Al)
+        self.emit8(0xEE) # OUT DX, AL
+
+    def in_(self):
+        self.consume(T.Al)
+        self.consume(T.Comma)
+        self.consume(T.Dx)
+        self.emit8(0xEC) # IN AL, DX
+
     def grp1(self, base, reg):
         if (d := self.reg8()) != None:
             self.consume(T.Comma)
@@ -1024,7 +1038,12 @@ class Compiler:
                     self.emit8(0x91) # XCHG AX, CX
                     self.emit8(0xD3)
                     self.emit8(self.modrm(0b11, 4, 0)) # SHL AX, CL
-                case T.BitwiseXor: self.die("AA")
+                case T.BitwiseXor: 
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x5A) # POP DX
+                    self.emit8(0x33)
+                    self.emit8(self.modrm(0b11, 0, 2)) # XOR AX, DX
                 case T.BitwiseOr:
                     self.emit8(0x50) # PUSH AX
                     fn()
@@ -1294,6 +1313,11 @@ class Compiler:
                 self.emit8(0x8D)
                 self.emit8(self.modrm(2, 0, 0b110))
                 self.emit16(self.idents[ident].value) # LEA AX, [var]
+            case T.BitwiseNot:
+                self.advance()
+                self.unary()
+                self.emit8(0xF7)
+                self.emit8(self.modrm(0b11, 2, 0)) # NOT AX
             case T.Star:
                 self.advance()
                 self.unary()

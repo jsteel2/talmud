@@ -77,7 +77,7 @@ function main(argc, argv, cwdpat)
             if (upper(char) = 'Y')
             {
                 seek(file, 0);
-                write(file, buf, len);
+                write(file, len, buf);
             }
             return;
         }
