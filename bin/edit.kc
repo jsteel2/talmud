@@ -98,6 +98,7 @@ function main(argc, argv, cwdpat)
         }
         else if (scan = 0x50 and off + cursor_off <! len)
         {
+            i2 = cursor_off;
             i = 0;
             while (buf{off + cursor_off} != '\n')
             {
