@@ -8,7 +8,7 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
       - run: sudo apt update
-      - run: sudo apt install unix2dos
+      - run: sudo apt install dos2unix
       - run: ${{ github.workspace }}/build.sh
       - run: gzip build/disk.img
       - uses: actions/upload-artifact@v4
