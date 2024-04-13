@@ -1,9 +1,6 @@
 name: buil disk
 run-name: bild disk
-on: 
-  push:
-    tags:
-    - '*'
+on: [push]
 
 jobs:
   build:
@@ -17,6 +14,7 @@ jobs:
       - run: sudo apt install dos2unix
       - run: ${{ github.workspace }}/build.sh
       - run: gzip build/disk.img
+      - run: git tag $(git rev-parse HEAD)
       - uses: ncipollo/release-action@v1
         with:
           artifacts: "build/disk.img.gz"
