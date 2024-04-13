@@ -11,8 +11,14 @@ jobs:
       - run: sudo apt install dos2unix
       - run: ${{ github.workspace }}/build.sh
       - run: gzip build/disk.img
-      - uses: actions/upload-artifact@v4
-        id: build
+      - uses: actions/checkout@master
+      - name: Create release
+        uses: Roang-zero1/github-create-release-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload release artifacts
+        uses: Roang-zero1/github-upload-release-artifacts-action@v2
         with:
-          name: disk.img.gz
-          path: build/disk.img.gz
+          args: "build/disk.img"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
