@@ -1,12 +1,14 @@
+name: buil disk
+run-name: bild disk
+on: [push]
 jobs:
-  upload:
-    name: build disk image
-
+  build:
     runs-on: ubuntu-latest
-
     steps:
-    - run: ./build.sh
-    - uses: actions/upload-artifact@v4
-      with:
-        name: disk.img
-        path: build/disk.img
+      - run: ./build.sh
+      - run: gzip build/disk.img
+      - uses: actions/upload-artifact@v4
+        id: build
+        with:
+          name: disk.img.gz
+          path: build/disk.img.gz
