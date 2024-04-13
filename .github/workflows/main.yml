@@ -5,7 +5,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - run: ./build.sh
+      - run: ${{ github.workspace }}/build.sh
       - run: gzip build/disk.img
       - uses: actions/upload-artifact@v4
         id: build
