@@ -32,3 +32,4 @@ sudo losetup -d "$LOOP"
 dd if=build/vbr.bin of=build/disk.img bs=1 seek=574 conv=notrunc
 
 [ "$1" = "run" ] && qemu-system-i386 -hda build/disk.img -m 1M -cpu 486
+exit 0
