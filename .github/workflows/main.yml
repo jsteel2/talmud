@@ -5,6 +5,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
       - run: ${{ github.workspace }}/build.sh
       - run: gzip build/disk.img
       - uses: actions/upload-artifact@v4
