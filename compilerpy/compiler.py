@@ -1426,7 +1426,7 @@ class Compiler:
     def emit8(self, byte):
         self.ip += 1
         if self.first_pass: return
-        self.outstream.write((byte & 0xff).to_bytes())
+        self.outstream.write((byte & 0xff).to_bytes(1, "little"))
 
     def emit16(self, word):
         self.emit8(word)
