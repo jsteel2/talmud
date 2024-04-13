@@ -1,6 +1,12 @@
-steps:
-- run: ./build.sh
-- uses: actions/upload-artifact@v4
-  with:
-    name: my-artifact
-    path: build/disk.img
+jobs:
+  upload:
+    name: build disk image
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - run: ./build.sh
+    - uses: actions/upload-artifact@v4
+      with:
+        name: disk.img
+        path: build/disk.img
