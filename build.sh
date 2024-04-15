@@ -13,6 +13,7 @@ mkdir -p build
 ./compilerpy/main.py build/dir.exe bin/dir.kc
 ./compilerpy/main.py build/edit.exe bin/edit.kc
 ./compilerpy/main.py build/touch.exe bin/touch.kc
+./compilerpy/main.py build/del.exe bin/del.kc
 
 dd if=/dev/zero of=build/disk.img bs=1M count=32
 echo 'start=1, type=6, bootable' | sfdisk build/disk.img
@@ -29,6 +30,7 @@ sudo cp build/echo.exe /mnt/BIN/ECHO.EXE
 sudo cp build/dir.exe /mnt/BIN/DIR.EXE
 sudo cp build/edit.exe /mnt/BIN/EDIT.EXE
 sudo cp build/touch.exe /mnt/BIN/TOUCH.EXE
+sudo cp build/del.exe /mnt/BIN/DEL.EXE
 sudo umount /mnt
 sudo losetup -d "$LOOP"
 dd if=build/vbr.bin of=build/disk.img bs=1 seek=574 conv=notrunc

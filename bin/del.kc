@@ -1,0 +1,20 @@
+import "/lib/exe.kc"
+import "/lib/fs.kc"
+import "/lib/print.kc"
+
+function main(argc, argv, cwdpat)
+(cwd{FILE}, file{FILE}, i, f)
+{
+    if (argc = 1) return format(print, "Usage: %s <file>\r\n", argv);
+
+    if (!openat(0, cwdpat, cwd, 0)) return print("what in gods name?\r\n");
+
+    i = 1;
+    while (i <! argc)
+    {
+        f = argv + i *! STRING *! 2;
+        if (!openat(cwd, f, file, 0)) format(print, "File '%s' does not exist.\r\n", f);
+        if (!delete(file)) format(print, "Could not delete file '%s'.\r\n", f);
+        i = i + 1;
+    }
+}

@@ -81,6 +81,26 @@ function exec(file, argc, argv, cwdpat)
     return 1;
 }
 
+function delete(file)
+(clus, p)
+{
+    if (!sector_read(file[FILE_DRIVE], file[FILE_ATTR_LBA], 1, file + FILEDATA)) return 0;
+    file{FILEDATA + file[FILE_ATTR_OFF]} = 0xE5;
+    if (!sector_write(file[FILE_DRIVE], file[FILE_ATTR_LBA], 1, file + FILEDATA)) return 0;
+
+    clus = file[FILE_CLUSTER_START];
+    while (clus <! 0xFFF8)
+    {
+        if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (clus *! 2 /! 512), 1, file + FILEDATA)) return -1;
+        p = file + FILEDATA + clus *! 2 %! 512;
+        clus = *p;
+        *p = 0;
+        if (!sector_write(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (clus *! 2 /! 512), 1, file + FILEDATA)) return -1;
+    }
+
+    return 1;
+}
+
 function read(file, n, buf, seg)
 (i, x)
 {
