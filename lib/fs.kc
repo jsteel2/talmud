@@ -91,11 +91,11 @@ function delete(file)
     clus = file[FILE_CLUSTER_START];
     while (clus <! 0xFFF8)
     {
-        if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (clus *! 2 /! 512), 1, file + FILEDATA)) return -1;
+        if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (clus *! 2 /! 512), 1, file + FILEDATA)) return 0;
         p = file + FILEDATA + clus *! 2 %! 512;
         clus = *p;
         *p = 0;
-        if (!sector_write(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (clus *! 2 /! 512), 1, file + FILEDATA)) return -1;
+        if (!sector_write(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (clus *! 2 /! 512), 1, file + FILEDATA)) return 0;
     }
 
     return 1;
