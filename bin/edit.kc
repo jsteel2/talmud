@@ -27,7 +27,7 @@ function main(argc, argv, cwdpat)
     i = 0;
     row = 0;
     col = 0;
-    while (i <! minu(len, 80 *! 25))
+    while (i <! minu(len, 79 *! 25))
     {
         if (buf{i} = '\r')
         {
@@ -35,7 +35,7 @@ function main(argc, argv, cwdpat)
             col = 0;
         }
         col = col + 1;
-        if (col = 80)
+        if (col = 79)
         {
             col = 0;
             row = row + 1;

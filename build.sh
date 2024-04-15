@@ -12,6 +12,7 @@ mkdir -p build
 ./compilerpy/main.py build/echo.exe bin/echo.kc
 ./compilerpy/main.py build/dir.exe bin/dir.kc
 ./compilerpy/main.py build/edit.exe bin/edit.kc
+./compilerpy/main.py build/touch.exe bin/touch.kc
 
 dd if=/dev/zero of=build/disk.img bs=1M count=32
 echo 'start=1, type=6, bootable' | sfdisk build/disk.img
@@ -23,10 +24,11 @@ sudo cp build/command.exe /mnt/COMMAND.EXE
 sudo mkdir /mnt/BIN
 sudo mkdir /mnt/SRC
 sudo find command bin lib boot -type d -exec mkdir -p /mnt/SRC/{} \;
-sudo find command bin lib boot -type f -exec sh -c 'fold -s "{}" > "/mnt/SRC/{}"' \; -exec unix2dos /mnt/SRC/{} \;
+sudo find command bin lib boot -type f -exec sh -c 'fold -w 79 -s "{}" > "/mnt/SRC/{}"' \; -exec unix2dos /mnt/SRC/{} \;
 sudo cp build/echo.exe /mnt/BIN/ECHO.EXE
 sudo cp build/dir.exe /mnt/BIN/DIR.EXE
 sudo cp build/edit.exe /mnt/BIN/EDIT.EXE
+sudo cp build/touch.exe /mnt/BIN/TOUCH.EXE
 sudo umount /mnt
 sudo losetup -d "$LOOP"
 dd if=build/vbr.bin of=build/disk.img bs=1 seek=574 conv=notrunc

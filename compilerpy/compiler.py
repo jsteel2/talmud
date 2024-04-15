@@ -367,7 +367,7 @@ class Compiler:
         self.emit16(c * 2) # SUB SP, c * 2
         i = 0
         e = c
-        while not self.match(T.RightParen).type:
+        while self.peek().type != T.RightParen:
             self.kc_expression()
             self.emit8(0x8B)
             self.emit8(self.modrm(0b11, 3, 4)) # MOV BX, SP
