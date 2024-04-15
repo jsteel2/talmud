@@ -346,10 +346,11 @@ function openat(cwd, path, file, create)
                 *x = file[FILE_CLUSTER_CUR];
                 memset(file + FAT_DIR_SIZE + file[FILE_DIR_OFF], 0, 4, -1);
                 if (!sector_write(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return 0;
+                if (cwd) memcpy(cwd + FILEDATA + file[FILE_DIR_OFF], file + FILEDATA + file[FILE_DIR_OFF], 32, -1);
                 file[FILE_ATTR_LBA] = file[FILE_LBA_CUR];
                 file[FILE_ATTR_OFF] = file[FILE_DIR_OFF];
                 file[FILE_LBA_CUR] = ((file[FILE_CLUSTER_CUR] - 2) *! file[FILE_SECTORS_PER_CLUSTER]) + file[FILE_DATA_SECTOR];
-                file[FILE_SIZE] = *(file + file[FILE_DIR_OFF] + FAT_DIR_SIZE);
+                file[FILE_SIZE] = 0;
                 file[FILE_DIR_OFF] = -32;
                 file[FILE_SEEK] = 0;
                 if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return 0;
