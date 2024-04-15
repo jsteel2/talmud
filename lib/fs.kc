@@ -352,10 +352,10 @@ function openat(cwd, path, file, create)
                 file[FILE_SIZE] = *(file + file[FILE_DIR_OFF] + FAT_DIR_SIZE);
                 file[FILE_DIR_OFF] = -32;
                 file[FILE_SEEK] = 0;
-                if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return -1;
+                if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return 0;
                 x = file + FILEDATA + file[FILE_CLUSTER_CUR] *! 2 %! 512;
                 *x = 0xFFF8;
-                if (!sector_write(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return -1;
+                if (!sector_write(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return 0;
                 return 1;
             }
             return 0;
