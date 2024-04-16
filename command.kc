@@ -3,7 +3,7 @@ import "/lib/fs.kc"
 import "/lib/print.kc"
 
 function main(ign1, ign2, bootpath)
-(s[STRING], buf{256}, argv[128 *! STRING], file{FILE}, cwd{FILE}, ocwd{FILE}, spl[STRING], pat[STRING], patbuf{256}, state, argc, n, o, cd)
+(s[STRING], buf{256}, argv[128 *! STRING], file{FILE}, cwd{FILE}, ocwd{FILE}, spl[STRING], pat[STRING], patbuf{256}, state, argc, n, o, cd, prog[STRING])
 {
     print("\r
 i i i i i i i      mmmmmmm   mm   m      m    m m    m mmmm  \r
@@ -70,7 +70,15 @@ Welcome to TalmudOS (Formerly ChucksOS) <COMMAND.EXE>\r
         {
             return;
         }
-        if (!openat(cwd, argv, file, 0) and openat(cwd, "/BIN", file, 0) and !openat(file, argv, file, 0))
+        memcpy(prog, argv, STRING *! 2, -1);
+        if (strchr(prog, '.') = prog[STRINGLEN])
+        {
+            memcpy(ocwd, prog[STRINGPTR], prog[STRINGLEN], -1);
+            memcpy(ocwd + prog[STRINGLEN], ".EXE"[STRINGPTR], 4, -1);
+            prog[STRINGLEN] = prog[STRINGLEN] + 4;
+            prog[STRINGPTR] = ocwd;
+        }
+        if (!openat(cwd, prog, file, 0) and openat(cwd, "/BIN", file, 0) and !openat(file, prog, file, 0))
         {
             format(print, "File '%s' not found.\r\n", argv);
             JMP .c

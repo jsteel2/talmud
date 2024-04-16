@@ -403,6 +403,11 @@ function pat_to_83(pat, f83)
 function fnamecmp(s1, s2)
 (f83{11})
 {
+    if (s1[STRINGPTR]{0} = '.' and s2[STRINGPTR]{0} = '.')
+    {
+        if (s1[STRINGLEN] = 1 and s2[STRINGPTR]{1} = ' ') return 1;
+        if (s1[STRINGLEN] = 2 and s1[STRINGPTR]{1} = '.' and s2[STRINGPTR]{1} = '.') return 1;
+    }
     pat_to_83(s1, f83);
     return memicmp(f83, s2[STRINGPTR], 11);
 }
