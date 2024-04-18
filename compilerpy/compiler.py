@@ -569,12 +569,16 @@ class Compiler:
                 case T.Ss: off += 0x16
                 case T.Ds: off += 0x1E
             self.emit8(off)
-        elif (ssmrmd := self.mem()) != None and push:
+        elif (ssmrmd := self.mem()) != None:
             size, seg, mod, rm, disp = ssmrmd
-            if size != 16 and size != 0: self.die("operand size mismatch")
+            if size != 16 and size != None: self.die("operand size mismatch")
             if seg != None: self.emit8(seg)
-            self.emit8(0xFF)
-            self.emit8(self.modrm(mod, 6, rm))
+            if push:
+                self.emit8(0xFF)
+                self.emit8(self.modrm(mod, 6, rm)) # PUSH Ev
+            else:
+                self.emit8(0x8F)
+                self.emit8(self.modrm(mod, 0, rm)) # POP Ev
             if disp != None: self.emit16(disp)
         else:
             self.die("unsupported instruction")
@@ -653,7 +657,8 @@ class Compiler:
                 self.emit8(self.modrm(mod, s, rm))
                 if disp != None: self.emit16(disp)
             else:
-                s = self.imm8() if size == 8 else self.imm16()
+                if size == 8: s = self.imm8()
+                else: s = self.imm16()
                 if seg != None: self.emit8(seg)
                 if size == 8: self.emit8(0x80)
                 elif size == 16: self.emit8(0x81)

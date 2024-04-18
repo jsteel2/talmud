@@ -151,3 +151,36 @@ function atoi(s, end)
 .e:
     return n >> 4;
 }
+
+function rand(seed)
+{
+    *seed = *seed *! 75 + 74;
+    return *seed;
+}
+
+function time(hi)
+{
+    MOV AH, 0
+    INT 0x1A
+    MOV BX, [hi]
+    CMP WORD [BX], 0
+    JZ .e
+    MOV [BX], CX
+.e: MOV AX, DX
+}
+
+function sleep(ticks)
+(fromLo, fromHi, toLo, toHi)
+{
+    fromLo = time(&fromHi);
+    toLo = fromLo;
+    toHi = fromHi;
+    MOV AX, [ticks]
+    ADD [toLo], AX
+    ADC WORD [toHi], 0
+    while (fromLo != toLo or fromHi != toHi)
+    {
+        HLT
+        fromLo = time(&fromHi);
+    }
+}

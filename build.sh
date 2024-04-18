@@ -9,8 +9,9 @@ mkdir -p build/fs/bin
 [ `stat -c %s build/vbr.bin` -gt 448 ] && echo "VBR too large" && exit 1
 
 echo command.kc bin/*.kc | tr ' ' $'\n' | xargs -I{} -P `nproc` sh -c './compilerpy/main.py build/fs/`echo {} | sed "s/kc/exe/"` "{}"'
-find command.kc bin lib boot -type d -exec mkdir -p build/fs/SRC/{} \;
-find command.kc bin lib boot -type f -exec sh -c 'fold -w 79 -s "{}" > "build/fs/SRC/{}"' \; -exec unix2dos build/fs/SRC/{} \;
+find command.kc bin lib boot -type d -exec mkdir -p build/fs/src/{} \;
+find command.kc bin lib boot -type f -exec sh -c 'fold -w 79 -s "{}" > "build/fs/SRC/{}"' \; -exec unix2dos build/fs/src/{} \;
+cp -r stuff build/fs/stuff
 
 dd if=/dev/zero of=build/disk.img bs=1M count=32
 echo 'start=1, type=6, bootable' | sfdisk build/disk.img
