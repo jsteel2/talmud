@@ -11,6 +11,7 @@ mkdir -p build/fs/bin
 echo command.kc bin/*.kc | tr ' ' $'\n' | xargs -I{} -P `nproc` sh -c './compilerpy/main.py build/fs/`echo {} | sed "s/kc/exe/"` "{}"'
 find command.kc bin lib boot -type d -exec mkdir -p build/fs/SRC/{} \;
 find command.kc bin lib boot -type f -exec sh -c 'fold -w 79 -s "{}" > "build/fs/SRC/{}"' \; -exec unix2dos build/fs/SRC/{} \;
+cp -r stuff build/fs/stuff
 
 dd if=/dev/zero of=build/disk.img bs=1M count=32
 echo 'start=1, type=6, bootable' | sfdisk build/disk.img

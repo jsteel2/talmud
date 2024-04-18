@@ -1,0 +1,350 @@
+import "/lib/exe.kc"
+import "/lib/fs.kc"
+import "/lib/print.kc"
+
+# doesnt really work properly.
+
+function main(argc, argv, cwdpat)
+(file{FILE}, ram{4096}, pc, regs{16}, rpl{8}, i, instr, op, seed, scale, delay, sound, instrs, key, t, t2, t3, x, y, n, c, c2, fucking{64 *! 32})
+{
+    if (argc = 1) return format(print, "Usage: %s <rom file>.\r\n", argv);
+    memset(ram, 0, 4096, -1);
+    if (!openat(0, cwdpat, file, 0)) return print("damn.\r\n");
+    if (!openat(file, argv + STRING *! 2, file, 0)) return print("ROM file not found.\r\n");
+    if (!read(file, 4096 - 0x200, ram + 0x200, -1)) return print("Could not read file.\r\n");
+
+    memcpy(ram + 0x50, font, font_end - font, -1);
+
+    MOV AX, 0x13
+    INT 0x10
+
+    seed = time(0);
+
+    MOV AX, 0xA000
+    MOV ES, AX
+    pc = 0x200;
+    scale = 5;
+    delay = 0;
+    sound = 0;
+    instrs = 0;
+    memset(fucking, 0, 64 *! 32, -1);
+    key = 0;
+    memset(regs, 0, 16, -1);
+    memset(rpl, 0, 8, -1);
+    while (1)
+    {
+        instr = (ram{pc} << 8) | ram{pc + 1};
+        op = (instr & 0xF000) >> 12;
+        pc = pc + 2;
+
+        if (op = 0x0)
+        {
+            if (instr = 0x00E0)
+            {
+                MOV AX, 0x13
+                INT 0x10
+                memset(fucking, 0, 64 *! 32, -1);
+            }
+            else if (instr = 0x00EE)
+            {
+                POP [pc]
+            }
+            else
+            {
+                JMP .end
+            }
+        }
+        else if (op = 0x1)
+        {
+            pc = (instr & 0x0FFF);
+        }
+        else if (op = 0x2)
+        {
+            PUSH [pc]
+            pc = (instr & 0x0FFF);
+        }
+        else if (op = 0x3)
+        {
+            if (regs{(instr & 0x0F00) >> 8} = instr & 0x00FF) pc = pc + 2;
+        }
+        else if (op = 0x4)
+        {
+            if (regs{(instr & 0x0F00) >> 8} != instr & 0x00FF) pc = pc + 2;
+        }
+        else if (op = 0x5)
+        {
+            if (regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x00F0) >> 4}) pc = pc + 2;
+        }
+        else if (op = 0x6)
+        {
+            regs{(instr & 0x0F00) >> 8} = instr & 0x00FF;
+        }
+        else if (op = 0x7)
+        {
+            t = (instr & 0x0F00) >> 8;
+            regs{t} = regs{t} + (instr & 0x00FF);
+        }
+        else if (op = 0x8)
+        {
+            op = instr & 0x000F;
+            if (op = 0)
+            {
+                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x00F0) >> 4};
+            }
+            else if (op = 1)
+            {
+                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} | regs{(instr & 0x00F0) >> 4};
+            }
+            else if (op = 2)
+            {
+                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} & regs{(instr & 0x00F0) >> 4};
+            }
+            else if (op = 3)
+            {
+                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} ^ regs{(instr & 0x00F0) >> 4};
+            }
+            else if (op = 4)
+            {
+                t = regs{(instr & 0x0F00) >> 8} + regs{(instr & 0x00F0) >> 4};
+                if (t >! 0xFF) regs{0xF} = 1;
+                else regs{0xF} = 0;
+                regs{(instr & 0x0F00) >> 8} = t;
+            }
+            else if (op = 5)
+            {
+                if (regs{(instr & 0x0F00) >> 8} >=! regs{(instr & 0x00F0) >> 4}) regs{0xF} = 1;
+                else regs{0xF} = 0;
+                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} - regs{(instr & 0x00F0) >> 4};
+            }
+            else if (op = 6)
+            {
+                regs{0xF} = regs{(instr & 0x0F00) >> 8} & 1;
+                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} >> 1;
+            }
+            else if (op = 7)
+            {
+                if (regs{(instr & 0x00F0) >> 4} >=! regs{(instr & 0x0F00) >> 8}) regs{0xF} = 1;
+                else regs{0xF} = 0;
+                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x00F0) >> 4} - regs{(instr & 0x0F00) >> 8};
+            }
+            else if (op = 0xE)
+            {
+                regs{0xF} = (regs{(instr & 0x0F00) >> 8} & 0x80) >> 7;
+                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} << 1;
+            }
+            else
+            {
+                JMP .end
+            }
+        }
+        else if (op = 0x9)
+        {
+            if (regs{(instr & 0x0F00) >> 8} != regs{(instr & 0x00F0) >> 4}) pc = pc + 2;
+        }
+        else if (op = 0xA)
+        {
+            i = instr & 0x0FFF;
+        }
+        else if (op = 0xB)
+        {
+            pc = regs{0} + (instr & 0x0FFF);
+        }
+        else if (op = 0xC)
+        {
+            regs{(instr & 0x0F00) >> 8} = rand(&seed) & (instr & 0x00FF);
+        }
+        else if (op = 0xD)
+        {
+            y = regs{(instr & 0x00F0) >> 4} & 31;
+            n = instr & 0x000F;
+            regs{0xF} = 0;
+            c = 0;
+            while (c <! n)
+            {
+                x = regs{(instr & 0x0F00) >> 8} & 63;
+                t = ram{i + c};
+                c2 = 0;
+                while (c2 <! 8)
+                {
+                    t2 = y *! 320 *! scale + x *! scale;
+                    t3 = fucking{y *! 64 + x};
+                    if (t & (0x80 >> c2))
+                    {
+                        if (t3)
+                        {
+                            regs{0xF} = 1;
+                            set_pixel(t2, 0, scale);
+                            fucking{y *! 64 + x} = 0;
+                        }
+                        else
+                        {
+                            set_pixel(t2, 0xF, scale);
+                            fucking{y *! 64 + x} = 1;
+                        }
+                    }
+                    c2 = c2 + 1;
+                    x = x + 1;
+                    if (x >! 63) JMP .drawnext
+                }
+.drawnext:
+                c = c + 1;
+                y = y + 1;
+                if (y >! 31) JMP .drawend
+            }
+.drawend:
+        }
+        else if (op = 0xE)
+        {
+            op = instr & 0x00FF;
+            if (op = 0x9E)
+            {
+                if (key = regs{(instr & 0x0F00) >> 8}) pc = pc + 2;
+            }
+            else if (op = 0xA1)
+            {
+                if (key != regs{(instr & 0x0F00) >> 8}) pc = pc + 2;
+            }
+            else
+            {
+                JMP .end
+            }
+        }
+        else if (op = 0xF)
+        {
+            op = instr & 0x00FF;
+            if (op = 0x07)
+            {
+                regs{(instr & 0x0F00) >> 8} = delay;
+            }
+            else if (op = 0x0A)
+            {
+                key = get_key();
+                if (key = 0xFF) JMP .end
+                regs{(instr & 0x0F00) >> 8} = key;
+            }
+            else if (op = 0x15)
+            {
+                delay = regs{(instr & 0x0F00) >> 8};
+            }
+            else if (op = 0x1E)
+            {
+                i = i + regs{(instr & 0x0F00) >> 8};
+            }
+            else if (op = 0x29)
+            {
+                i = 0x50 + regs{(instr & 0x0F00) >> 8} *! 5;
+            }
+            else if (op = 0x33)
+            {
+                t = regs{(instr & 0x0F00) >> 8};
+                ram{i} = t /! 100;
+                t = t %! 100;
+                ram{i + 1} = t /! 10;
+                ram{i + 2} = t %! 10;
+            }
+            else if (op = 0x55)
+            {
+                memcpy(ram + i, regs, (((instr & 0x0F00) >> 8) + 1), -1);
+            }
+            else if (op = 0x65)
+            {
+                memcpy(regs, ram + i, (((instr & 0x0F00) >> 8) + 1), -1);
+            }
+            else if (op = 0x75)
+            {
+                memcpy(rpl, regs, (((instr & 0x0F00) >> 8) + 1), -1);
+            }
+            else if (op = 0x85)
+            {
+                memcpy(regs, rpl, (((instr & 0x0F00) >> 8) + 1), -1);
+            }
+            else
+            {
+                JMP .end
+            }
+        }
+        else
+        {
+            JMP .end
+        }
+
+        instrs = instrs + 1;
+        if (instrs = 50)
+        {
+            sleep(1);
+            instrs = 0;
+
+            if (delay != 0) delay = delay - 1;
+            if (sound != 0) sound = sound - 1;
+            if (key_pressed())
+            {
+                key = get_key();
+                if (key = 0xFF) JMP .end
+            }
+        }
+    }
+
+.end:
+    MOV AX, 0x02
+    INT 0x10
+}
+
+function set_pixel(pos, color, size)
+(i)
+{
+    i = 0;
+    while (i <! size)
+    {
+        memset(pos, color, size, 0xA000);
+        pos = pos + 320;
+        i = i + 1;
+    }
+}
+
+function get_key()
+(scan)
+{
+    scan = 0;
+    MOV AH, 0
+    INT 0x16
+    MOV [scan], AH
+    return keyboard{scan};
+}
+
+function key_pressed()
+{
+    MOV AH, 1
+    INT 0x16
+    JZ .e
+    return 1;
+.e: return 0;
+}
+
+keyboard:
+DB 0, 0xFF
+DB 1, 2, 3, 0xC
+DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+DB 4, 5, 6, 0xD
+DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+DB 7, 8, 9, 0xE
+DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+DB 0xA, 0, 0xB, 0xF
+
+font:
+DB 0xF0, 0x90, 0x90, 0x90, 0xF0 # 0
+DB 0x20, 0x60, 0x20, 0x20, 0x70 # 1
+DB 0xF0, 0x10, 0xF0, 0x80, 0xF0 # 2
+DB 0xF0, 0x10, 0xF0, 0x10, 0xF0 # 3
+DB 0x90, 0x90, 0xF0, 0x10, 0x10 # 4
+DB 0xF0, 0x80, 0xF0, 0x10, 0xF0 # 5
+DB 0xF0, 0x80, 0xF0, 0x90, 0xF0 # 6
+DB 0xF0, 0x10, 0x20, 0x40, 0x40 # 7
+DB 0xF0, 0x90, 0xF0, 0x90, 0xF0 # 8
+DB 0xF0, 0x90, 0xF0, 0x10, 0xF0 # 9
+DB 0xF0, 0x90, 0xF0, 0x90, 0x90 # A
+DB 0xE0, 0x90, 0xE0, 0x90, 0xE0 # B
+DB 0xF0, 0x80, 0x80, 0x80, 0xF0 # C
+DB 0xE0, 0x90, 0x90, 0x90, 0xE0 # D
+DB 0xF0, 0x80, 0xF0, 0x80, 0xF0 # E
+DB 0xF0, 0x80, 0xF0, 0x80, 0x80 # F
+font_end:
