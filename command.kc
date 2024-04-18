@@ -2,6 +2,8 @@ import "/lib/exe.kc"
 import "/lib/fs.kc"
 import "/lib/print.kc"
 
+# This whole thing is nasty. fix it up sometime!
+
 function main(ign1, ign2, bootpath)
 (s[STRING], buf{256}, argv[128 *! STRING], file{FILE}, cwd{FILE}, ocwd{FILE}, spl[STRING], pat[STRING], patbuf{256}, state, argc, n, o, cd, prog[STRING])
 {
@@ -84,5 +86,6 @@ Welcome to TalmudOS (Formerly ChucksOS) <COMMAND.EXE>\r
             JMP .c
         }
         exec(file, argc, argv, pat);
+        openat(0, pat, cwd, 0); # in case the process changed it.
     }
 }

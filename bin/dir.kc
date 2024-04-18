@@ -12,8 +12,9 @@ function main(argc, argv, cwdpat)
     }
     if (argc = 1) return dir(cwd, ".");
     i = 1;
-    while (i <! argc and dir(cwd, argv + i *! STRING *! 2))
+    while (i <! argc)
     {
+        dir(cwd, argv + i *! STRING *! 2);
         i = i + 1;
     }
 }
