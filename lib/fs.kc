@@ -285,8 +285,8 @@ function _dir_next(file, out)
         sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA);
     }
     if (file{FILEDATA + file[FILE_DIR_OFF]} = 0) return 0;
-    if (file{file[FILE_DIR_OFF] + FAT_DIR_ATTR} & 0x02) JMP .again
     if (file{FILEDATA + file[FILE_DIR_OFF]} = 0xE5) return 2;
+    if (file{file[FILE_DIR_OFF] + FAT_DIR_ATTR} & 0x02) JMP .again
     out[STRINGLEN] = 11;
     out[STRINGPTR] = file + FILEDATA + file[FILE_DIR_OFF];
     return 1;
@@ -379,7 +379,7 @@ function openat(cwd, path, file, create)
 .create:
                 if (x = 0) memset(file + FILEDATA + file[FILE_DIR_OFF] + 32, 0, 1, -1); # FIXME make this work across sectors
                 pat_to_83(s, file + FILEDATA + file[FILE_DIR_OFF]);
-                file{FAT_DIR_ATTR} = 0;
+                file{file[FILE_DIR_OFF] + FAT_DIR_ATTR} = 0;
                 file[FILE_CLUSTER_CUR] = find_free_cluster(file);
                 x = file + file[FILE_DIR_OFF] + FAT_DIR_CLUSTER;
                 *x = file[FILE_CLUSTER_CUR];
