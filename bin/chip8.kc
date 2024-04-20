@@ -2,50 +2,54 @@ import "/lib/exe.kc"
 import "/lib/fs.kc"
 import "/lib/print.kc"
 
-# doesnt really work properly.
+# still a little buggy. wont run danm8ku!
 
 function main(argc, argv, cwdpat)
-(file{FILE}, ram{4096}, pc, regs{16}, rpl{8}, i, instr, op, seed, scale, delay, sound, instrs, key, t, t2, t3, x, y, n, c, c2, fucking{64 *! 32})
+(file{FILE}, ram{4096}, pc, regs{16}, rpl{8}, fb{64 *! 32 /! 8}, seed, key, delay, sound, instr, instrs, op, x, y, n, nn, nnn, i, c, c2, t)
 {
     if (argc = 1) return format(print, "Usage: %s <rom file>.\r\n", argv);
-    memset(ram, 0, 4096, -1);
     if (!openat(0, cwdpat, file, 0)) return print("damn.\r\n");
     if (!openat(file, argv + STRING *! 2, file, 0)) return print("ROM file not found.\r\n");
-    if (!read(file, 4096 - 0x200, ram + 0x200, -1)) return print("Could not read file.\r\n");
+
+    memset(ram, 0, 4096, -1);
+    memset(regs, 0, 16, -1);
+    memset(rpl, 0, 8, -1);
+
+    if (read(file, 4096 - 0x200, ram + 0x200, -1) = -1) return print("Could not read file.\r\n");
 
     memcpy(ram + 0x50, font, font_end - font, -1);
 
-    MOV AX, 0x13
+    MOV AX, 0x11
     INT 0x10
 
     seed = time(0);
 
-    MOV AX, 0xA000
-    MOV ES, AX
     pc = 0x200;
-    scale = 5;
+    instrs = 0;
+    key = 0xFE;
     delay = 0;
     sound = 0;
-    instrs = 0;
-    memset(fucking, 0, 64 *! 32, -1);
-    key = 0;
-    memset(regs, 0, 16, -1);
-    memset(rpl, 0, 8, -1);
+    memset(fb, 0, 64 *! 32 /! 8, -1);
     while (1)
     {
         instr = (ram{pc} << 8) | ram{pc + 1};
         op = (instr & 0xF000) >> 12;
+        x = (instr & 0x0F00) >> 8;
+        y = (instr & 0x00F0) >> 4;
+        nnn = instr & 0x0FFF;
+        nn = nnn & 0x00FF;
+        n = nn & 0x000F;
         pc = pc + 2;
 
-        if (op = 0x0)
+        if (op = 0)
         {
-            if (instr = 0x00E0)
+            if (nnn = 0x0E0)
             {
-                MOV AX, 0x13
+                MOV AX, 0x11
                 INT 0x10
-                memset(fucking, 0, 64 *! 32, -1);
+                memset(fb, 0, 64 *! 32 /! 8, -1);
             }
-            else if (instr = 0x00EE)
+            else if (nnn = 0x0EE)
             {
                 POP [pc]
             }
@@ -54,137 +58,132 @@ function main(argc, argv, cwdpat)
                 JMP .end
             }
         }
-        else if (op = 0x1)
+        else if (op = 1)
         {
-            pc = (instr & 0x0FFF);
+            pc = nnn;
         }
-        else if (op = 0x2)
+        else if (op = 2)
         {
             PUSH [pc]
-            pc = (instr & 0x0FFF);
+            pc = nnn;
         }
-        else if (op = 0x3)
+        else if (op = 3)
         {
-            if (regs{(instr & 0x0F00) >> 8} = instr & 0x00FF) pc = pc + 2;
+            if (regs{x} = nn) pc = pc + 2;
         }
-        else if (op = 0x4)
+        else if (op = 4)
         {
-            if (regs{(instr & 0x0F00) >> 8} != instr & 0x00FF) pc = pc + 2;
+            if (regs{x} != nn) pc = pc + 2;
         }
-        else if (op = 0x5)
+        else if (op = 5)
         {
-            if (regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x00F0) >> 4}) pc = pc + 2;
+            if (regs{x} = regs{y}) pc = pc + 2;
         }
-        else if (op = 0x6)
+        else if (op = 6)
         {
-            regs{(instr & 0x0F00) >> 8} = instr & 0x00FF;
+            regs{x} = nn;
         }
-        else if (op = 0x7)
+        else if (op = 7)
         {
-            t = (instr & 0x0F00) >> 8;
-            regs{t} = regs{t} + (instr & 0x00FF);
+            regs{x} = regs{x} + nn;
         }
-        else if (op = 0x8)
+        else if (op = 8)
         {
-            op = instr & 0x000F;
-            if (op = 0)
+            if (n = 0)
             {
-                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x00F0) >> 4};
+                regs{x} = regs{y};
             }
-            else if (op = 1)
+            else if (n = 1)
             {
-                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} | regs{(instr & 0x00F0) >> 4};
+                regs{x} = regs{x} | regs{y};
             }
-            else if (op = 2)
+            else if (n = 2)
             {
-                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} & regs{(instr & 0x00F0) >> 4};
+                regs{x} = regs{x} & regs{y};
             }
-            else if (op = 3)
+            else if (n = 3)
             {
-                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} ^ regs{(instr & 0x00F0) >> 4};
+                regs{x} = regs{x} ^ regs{y};
             }
-            else if (op = 4)
+            else if (n = 4)
             {
-                t = regs{(instr & 0x0F00) >> 8} + regs{(instr & 0x00F0) >> 4};
+                t = regs{x} + regs{y};
                 if (t >! 0xFF) regs{0xF} = 1;
                 else regs{0xF} = 0;
-                regs{(instr & 0x0F00) >> 8} = t;
+                regs{x} = t;
             }
-            else if (op = 5)
+            else if (n = 5)
             {
-                if (regs{(instr & 0x0F00) >> 8} >=! regs{(instr & 0x00F0) >> 4}) regs{0xF} = 1;
-                else regs{0xF} = 0;
-                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} - regs{(instr & 0x00F0) >> 4};
+                if (regs{x} >=! regs{y}) t = 1;
+                else t = 0;
+                regs{x} = regs{x} - regs{y};
+                regs{0xF} = t;
             }
-            else if (op = 6)
+            else if (n = 6)
             {
-                regs{0xF} = regs{(instr & 0x0F00) >> 8} & 1;
-                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} >> 1;
+                regs{0xF} = regs{x} & 1;
+                regs{x} = regs{x} >> 1;
             }
-            else if (op = 7)
+            else if (n = 7)
             {
-                if (regs{(instr & 0x00F0) >> 4} >=! regs{(instr & 0x0F00) >> 8}) regs{0xF} = 1;
-                else regs{0xF} = 0;
-                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x00F0) >> 4} - regs{(instr & 0x0F00) >> 8};
+                if (regs{y} >=! regs{x}) t = 1;
+                else t = 0;
+                regs{x} = regs{y} - regs{x};
+                regs{0xF} = t;
             }
-            else if (op = 0xE)
+            else if (n = 0xE)
             {
-                regs{0xF} = (regs{(instr & 0x0F00) >> 8} & 0x80) >> 7;
-                regs{(instr & 0x0F00) >> 8} = regs{(instr & 0x0F00) >> 8} << 1;
+                regs{0xF} = regs{x} >> 7;
+                regs{x} = regs{x} << 1;
             }
             else
             {
                 JMP .end
             }
         }
-        else if (op = 0x9)
+        else if (op = 9)
         {
-            if (regs{(instr & 0x0F00) >> 8} != regs{(instr & 0x00F0) >> 4}) pc = pc + 2;
+            if (regs{x} != regs{y}) pc = pc + 2;
         }
         else if (op = 0xA)
         {
-            i = instr & 0x0FFF;
+            i = nnn;
         }
         else if (op = 0xB)
         {
-            pc = regs{0} + (instr & 0x0FFF);
+            pc = regs{0} + nnn;
         }
         else if (op = 0xC)
         {
-            regs{(instr & 0x0F00) >> 8} = rand(&seed) & (instr & 0x00FF);
+            regs{x} = rand(&seed) & nn;
         }
         else if (op = 0xD)
         {
-            y = regs{(instr & 0x00F0) >> 4} & 31;
-            n = instr & 0x000F;
+            x = regs{x} & 63;
+            y = regs{y} & 31;
             regs{0xF} = 0;
             c = 0;
             while (c <! n)
             {
-                x = regs{(instr & 0x0F00) >> 8} & 63;
-                t = ram{i + c};
+                t = x;
                 c2 = 0;
                 while (c2 <! 8)
                 {
-                    t2 = y *! 320 *! scale + x *! scale;
-                    t3 = fucking{y *! 64 + x};
-                    if (t & (0x80 >> c2))
+                    if (ram{i + c} & (0x80 >> c2))
                     {
-                        if (t3)
+                        if (fb{(y *! 64 + t) /! 8} & (0x80 >> (y *! 64 + t) %! 8))
                         {
                             regs{0xF} = 1;
-                            set_pixel(t2, 0, scale);
-                            fucking{y *! 64 + x} = 0;
+                            set_pixel(t, y, 0, fb);
                         }
                         else
                         {
-                            set_pixel(t2, 0xF, scale);
-                            fucking{y *! 64 + x} = 1;
+                            set_pixel(t, y, 1, fb);
                         }
                     }
                     c2 = c2 + 1;
-                    x = x + 1;
-                    if (x >! 63) JMP .drawnext
+                    t = t + 1;
+                    if (t >! 63) JMP .drawnext
                 }
 .drawnext:
                 c = c + 1;
@@ -195,14 +194,14 @@ function main(argc, argv, cwdpat)
         }
         else if (op = 0xE)
         {
-            op = instr & 0x00FF;
-            if (op = 0x9E)
+            if (nn = 0x9E)
             {
-                if (key = regs{(instr & 0x0F00) >> 8}) pc = pc + 2;
+                if (key = regs{x}) pc = pc + 2;
             }
-            else if (op = 0xA1)
+            else if (nn = 0xA1)
             {
-                if (key != regs{(instr & 0x0F00) >> 8}) pc = pc + 2;
+                if (key != regs{x}) pc = pc + 2;
+                else key = 0xFE;
             }
             else
             {
@@ -211,52 +210,52 @@ function main(argc, argv, cwdpat)
         }
         else if (op = 0xF)
         {
-            op = instr & 0x00FF;
-            if (op = 0x07)
+            if (nn = 0x07)
             {
-                regs{(instr & 0x0F00) >> 8} = delay;
+                regs{x} = delay;
             }
-            else if (op = 0x0A)
+            else if (nn = 0x0A)
             {
                 key = get_key();
+                while (key = 0xFE) key = get_key();
                 if (key = 0xFF) JMP .end
-                regs{(instr & 0x0F00) >> 8} = key;
+                regs{x} = key;
             }
-            else if (op = 0x15)
+            else if (nn = 0x15)
             {
-                delay = regs{(instr & 0x0F00) >> 8};
+                delay = regs{x};
             }
-            else if (op = 0x1E)
+            else if (nn = 0x1E)
             {
-                i = i + regs{(instr & 0x0F00) >> 8};
+                i = i + regs{x};
             }
-            else if (op = 0x29)
+            else if (nn = 0x29)
             {
-                i = 0x50 + regs{(instr & 0x0F00) >> 8} *! 5;
+                i = 0x50 + regs{x} *! 5;
             }
-            else if (op = 0x33)
+            else if (nn = 0x33)
             {
-                t = regs{(instr & 0x0F00) >> 8};
+                t = regs{x};
                 ram{i} = t /! 100;
                 t = t %! 100;
                 ram{i + 1} = t /! 10;
                 ram{i + 2} = t %! 10;
             }
-            else if (op = 0x55)
+            else if (nn = 0x55)
             {
-                memcpy(ram + i, regs, (((instr & 0x0F00) >> 8) + 1), -1);
+                memcpy(ram + i, regs, x + 1, -1);
             }
-            else if (op = 0x65)
+            else if (nn = 0x65)
             {
-                memcpy(regs, ram + i, (((instr & 0x0F00) >> 8) + 1), -1);
+                memcpy(regs, ram + i, x + 1, -1);
             }
-            else if (op = 0x75)
+            else if (nn = 0x75)
             {
-                memcpy(rpl, regs, (((instr & 0x0F00) >> 8) + 1), -1);
+                memcpy(ram + i, rpl, maxu(8, x + 1), -1);
             }
-            else if (op = 0x85)
+            else if (nn = 0x85)
             {
-                memcpy(regs, rpl, (((instr & 0x0F00) >> 8) + 1), -1);
+                memcpy(rpl, ram + i, maxu(8, x + 1), -1);
             }
             else
             {
@@ -269,13 +268,13 @@ function main(argc, argv, cwdpat)
         }
 
         instrs = instrs + 1;
-        if (instrs = 50)
+        if (instrs = 55)
         {
             sleep(1);
             instrs = 0;
+            if (delay != 0) delay = maxs(0, delay - 4);
+            if (sound != 0) sound = maxs(0, sound - 4);
 
-            if (delay != 0) delay = delay - 1;
-            if (sound != 0) sound = sound - 1;
             if (key_pressed())
             {
                 key = get_key();
@@ -289,15 +288,18 @@ function main(argc, argv, cwdpat)
     INT 0x10
 }
 
-function set_pixel(pos, color, size)
-(i)
+function set_pixel(x, y, on, fb)
+(p, c)
 {
-    i = 0;
-    while (i <! size)
+    p = y *! 64 + x;
+    fb{p /! 8} = fb{p /! 8} ^ (1 << 7 - p %! 8);
+    p = (y + 7) *! 640 + x + 7;
+    c = 0;
+    while (c <! 8)
     {
-        memset(pos, color, size, 0xA000);
-        pos = pos + 320;
-        i = i + 1;
+        memset(p, on *! 0xFF, 1, 0xA000);
+        c = c + 1;
+        p = p + 80;
     }
 }
 
@@ -308,6 +310,7 @@ function get_key()
     MOV AH, 0
     INT 0x16
     MOV [scan], AH
+    if (keyboard + scan >! keyboard_end) return 0xFE;
     return keyboard{scan};
 }
 
@@ -321,14 +324,15 @@ function key_pressed()
 }
 
 keyboard:
-DB 0, 0xFF
+DB 0xFE, 0xFF
 DB 1, 2, 3, 0xC
-DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+DB 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE
 DB 4, 5, 6, 0xD
-DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+DB 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE
 DB 7, 8, 9, 0xE
-DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+DB 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE
 DB 0xA, 0, 0xB, 0xF
+keyboard_end:
 
 font:
 DB 0xF0, 0x90, 0x90, 0x90, 0xF0 # 0
