@@ -6,6 +6,8 @@ function mins(x, y) return x <$ y ? x : y;
 function maxs(x, y) return x >$ y ? x : y;
 function upper(c) return c >=! 'a' and c <=! 'z' ? c + 'A' - 'a' : c;
 function lower(c) return c >=! 'A' and c <=! 'Z' ? c - 'A' - 'a' : c;
+function isnum(c) return c >=! '0' and c <=! '9';
+function ishex(c) return isnum(c) or upper(c) >=! 'A' and upper(c) <=! 'F';
 function abs(x) return x <$ 0 ? -x : x;
 
 function strtok(s, delim, out, state)
@@ -140,8 +142,8 @@ function atoi(s, end)
     while (*end <! s[STRINGLEN])
     {
         n = n << 4;
-        if (c >=! '0' and c <=! '9') n = n + c - '0';
-        else if (upper(c) >=! 'A' and upper(c) <=! 'F') n = n + upper(c) - 'A';
+        if (isnum(c)) n = n + c - '0';
+        else if (ishex(c)) n = n + 10 + upper(c) - 'A';
         else JMP .e
         *end = *end + 1;
         c = s[STRINGPTR]{*end};

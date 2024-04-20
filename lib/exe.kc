@@ -1,3 +1,4 @@
+MOV [spsave], SP
 SUB SP, 6
 MOV BP, SP
 MOV [BP], SI
@@ -6,3 +7,9 @@ MOV [BP + 4], AX
 CALL main
 ADD SP, 6
 RETF
+
+exit:
+    MOV SP, [spsave]
+    RETF
+
+spsave: DW 0

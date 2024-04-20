@@ -1119,6 +1119,15 @@ class Compiler:
                     self.emit16(0) # MOV DX, 0
                     self.emit8(0xF7)
                     self.emit8(self.modrm(0b11, 4, 1)) # MUL CX
+                case T.StarS:
+                    self.emit8(0x50) # PUSH AX
+                    fn()
+                    self.emit8(0x59) # POP CX
+                    self.emit8(0x91) # XCHG AX, CX
+                    self.emit8(0xBA)
+                    self.emit16(0) # MOV DX, 0
+                    self.emit8(0xF7)
+                    self.emit8(self.modrm(0b11, 5, 1)) # IMUL CX
                 # we dont actually need jumps we can read the falgs register
                 # check how a c compiler does it!!
                 case T.GreaterThanU:
