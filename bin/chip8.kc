@@ -2,10 +2,8 @@ import "/lib/exe.kc"
 import "/lib/fs.kc"
 import "/lib/print.kc"
 
-# still a little buggy. wont run danm8ku!
-
 function main(argc, argv, cwdpat)
-(file{FILE}, ram{4096}, pc, regs{16}, rpl{8}, fb{64 *! 32 /! 8}, seed, key, delay, sound, instr, instrs, op, x, y, n, nn, nnn, i, c, c2, t)
+(file{FILE}, ram{4096}, pc, regs{16}, rpl{8}, fb{64 *! 32 /! 8}, seed, key, delay, instr, instrs, op, x, y, n, nn, nnn, i, c, c2, t)
 {
     if (argc = 1) return format(print, "Usage: %s <rom file>.\r\n", argv);
     if (!openat(0, cwdpat, file, 0)) return print("damn.\r\n");
@@ -28,7 +26,6 @@ function main(argc, argv, cwdpat)
     instrs = 0;
     key = 0xFE;
     delay = 0;
-    sound = 0;
     memset(fb, 0, 64 *! 32 /! 8, -1);
     while (1)
     {
@@ -121,8 +118,9 @@ function main(argc, argv, cwdpat)
             }
             else if (n = 6)
             {
-                regs{0xF} = regs{x} & 1;
+                t = regs{x} & 1;
                 regs{x} = regs{x} >> 1;
+                regs{0xF} = t;
             }
             else if (n = 7)
             {
@@ -133,8 +131,9 @@ function main(argc, argv, cwdpat)
             }
             else if (n = 0xE)
             {
-                regs{0xF} = regs{x} >> 7;
+                t = regs{x} >> 7;
                 regs{x} = regs{x} << 1;
+                regs{0xF} = t;
             }
             else
             {
@@ -225,6 +224,10 @@ function main(argc, argv, cwdpat)
             {
                 delay = regs{x};
             }
+            else if (nn = 0x18)
+            {
+                # sound... dont care!
+            }
             else if (nn = 0x1E)
             {
                 i = i + regs{x};
@@ -273,12 +276,12 @@ function main(argc, argv, cwdpat)
             sleep(1);
             instrs = 0;
             if (delay != 0) delay = maxs(0, delay - 4);
-            if (sound != 0) sound = maxs(0, sound - 4);
 
             if (key_pressed())
             {
                 key = get_key();
                 if (key = 0xFF) JMP .end
+                seed = time(0) *! key;
             }
         }
     }
