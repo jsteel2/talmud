@@ -24,11 +24,7 @@ Welcome to TalmudOS (Formerly ChucksOS) <COMMAND.EXE>\r
     pat[STRINGPTR] = patbuf;
     pat[STRINGLEN] = bootpath[STRINGLEN];
     memcpy(patbuf, bootpath[STRINGPTR], pat[STRINGLEN], -1);
-    if (!openat(0, pat, cwd, 0))
-    {
-        print("what in gods name?\r\n");
-        CLI HLT
-    }
+    if (!openat(0, pat, cwd, 0)) return print("what in gods name?\r\n");
     while (1)
     {
 .c:

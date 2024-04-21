@@ -180,7 +180,7 @@ function sleep(ticks)
     MOV AX, [ticks]
     ADD [toLo], AX
     ADC WORD [toHi], 0
-    while (fromLo != toLo or fromHi != toHi)
+    while (fromLo <! toLo and fromHi <=! toHi)
     {
         HLT
         fromLo = time(&fromHi);
