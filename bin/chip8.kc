@@ -105,9 +105,9 @@ function main(argc, argv, cwdpat)
             else if (n = 4)
             {
                 t = regs{x} + regs{y};
+                regs{x} = t;
                 if (t >! 0xFF) regs{0xF} = 1;
                 else regs{0xF} = 0;
-                regs{x} = t;
             }
             else if (n = 5)
             {

@@ -8,7 +8,7 @@ mkdir -p build/fs/bin
 ./compilerpy/main.py build/vbr.bin boot/vbr.kc
 [ `stat -c %s build/vbr.bin` -gt 448 ] && echo "VBR too large" && exit 1
 
-echo command.kc bin/*.kc | tr ' ' $'\n' | xargs -I{} -P `nproc` sh -c './compilerpy/main.py build/fs/`echo {} | sed "s/kc/exe/"` "{}"'
+echo command.kc bin/*.kc | tr ' ' '\n' | xargs -I{} -P `nproc` sh -c './compilerpy/main.py build/fs/`echo {} | sed "s/kc/exe/"` "{}"'
 find command.kc bin lib boot -type d -exec mkdir -p build/fs/SRC/{} \;
 find command.kc bin lib boot -type f -exec sh -c 'fold -w 79 -s "{}" > "build/fs/SRC/{}"' \; -exec unix2dos build/fs/SRC/{} \;
 cp -r stuff build/fs/stuff
