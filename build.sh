@@ -17,7 +17,7 @@ dd if=/dev/zero of=build/disk.img bs=1M count=32
 echo 'start=1, type=6, bootable' | sfdisk build/disk.img
 dd if=build/mbr.bin of=build/disk.img conv=notrunc
 mkfs.vfat -F 16 --offset 1 -h 1 build/disk.img
-mcopy -i build/disk.img@@512 build/fs/* ::/
+mcopy -s -i build/disk.img@@512 build/fs/* ::/
 dd if=build/vbr.bin of=build/disk.img bs=1 seek=574 conv=notrunc
 
 [ "$1" = "run" ] && qemu-system-i386 -hda build/disk.img -m 1M -cpu 486
