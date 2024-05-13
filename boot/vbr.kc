@@ -92,7 +92,7 @@ main:
 
 find_name:
     MOV SI, kernel_name
-    MOV CL, 11
+    MOV CX, 11
     CMP BYTE [ES:DI], CH
     JZ .find_name_error
     PUSH DI
