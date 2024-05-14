@@ -1,7 +1,7 @@
 import "/lib/disk.kc"
 import "/lib/util.kc"
 
-struct FILES = FILE_DRIVE, FILE_PARTITION, FILE_DATA_SECTOR, FILE_SECTORS_PER_CLUSTER, FILE_CLUSTER_START, FILE_LBA_CUR, FILE_ATTR_LBA, FILE_ATTR_OFF, FILE_CLUSTER_CUR, FILE_CLUSTER_DIR, FILE_FAT_SECTOR, FILE_DIR_OFF, FILE_SEEK, FILE_SIZE;
+struct FILES = FILE_DRIVE, FILE_PARTITION, FILE_DATA_SECTOR, FILE_SECTORS_PER_CLUSTER, FILE_CLUSTER_START, FILE_LBA_CUR, FILE_ATTR_LBA, FILE_ATTR_OFF, FILE_CLUSTER_CUR, FILE_CLUSTER_DIR, FILE_FAT_SECTOR, FILE_DIR_OFF, FILE_SEEK, FILE_SEEK_HI, FILE_SIZE, FILE_SIZE_HI;
 const FILEDATA = FILES *! 2;
 const FILEDATASIZE = 512;
 const FILE = FILEDATASIZE + FILES *! 2;
@@ -119,14 +119,18 @@ function mkdir(file)
     return write(file, 65, buf) != -1;
 }
 
+# TODO: make write/seek/whatever also support files >64K
 function read(file, n, buf, seg)
-(i, x)
+(i, x, size)
 {
     i = 0;
     # rename fILE_DIR_OFF to something more general and fitting
     if (file[FILE_DIR_OFF] <$ 0) file[FILE_DIR_OFF] = 0;
-    n = minu(n, file[FILE_SIZE]);
-    while (n and file[FILE_SEEK] <! file[FILE_SIZE])
+    if (file[FILE_SEEK_HI] + 1 = file[FILE_SIZE_HI] and 0xffff - file[FILE_SEEK] + file[FILE_SIZE] >=! file[FILE_SIZE]) size = file[FILE_SIZE];
+    else if (file[FILE_SEEK_HI] != file[FILE_SIZE_HI]) size = 0xffff;
+    else size = file[FILE_SIZE];
+    n = minu(n, size);
+    while (n and (file[FILE_SEEK] <! size or file[FILE_SEEK_HI] <=! file[FILE_SIZE_HI]))
     {
         if (file[FILE_DIR_OFF] >=! FILEDATASIZE)
         {
@@ -134,11 +138,14 @@ function read(file, n, buf, seg)
             file[FILE_LBA_CUR] = file[FILE_LBA_CUR] + 1;
             if (!sector_read(file[FILE_DRIVE], file[FILE_LBA_CUR], 1, file + FILEDATA)) return -1;
         }
-        x = minu(minu(n, file[FILE_SIZE] - file[FILE_SEEK]), FILEDATASIZE - file[FILE_DIR_OFF]);
+        if (file[FILE_SEEK_HI] = file[FILE_SIZE_HI]) x = minu(minu(n, size - file[FILE_SEEK]), FILEDATASIZE - file[FILE_DIR_OFF]);
+        else x = minu(n, FILEDATASIZE - file[FILE_DIR_OFF]);
         memcpy(buf + i, file + FILEDATA + file[FILE_DIR_OFF], x, seg);
         i = i + x;
-        n = minu(n - x, file[FILE_SIZE] - file[FILE_SEEK]);
+        if (file[FILE_SEEK_HI] = file[FILE_SIZE_HI]) n = minu(n - x, size - file[FILE_SEEK]);
+        else n = n - x;
         file[FILE_SEEK] = file[FILE_SEEK] + x;
+        if (file[FILE_SEEK] <! x) file[FILE_SEEK_HI] = file[FILE_SEEK_HI] + 1;
         file[FILE_DIR_OFF] = file[FILE_DIR_OFF] + x;
         if (file[FILE_SEEK] %! (file[FILE_SECTORS_PER_CLUSTER] *! 512) = 0)
         {
@@ -366,9 +373,11 @@ function openat(cwd, path, file, create)
                         file[FILE_ATTR_OFF] = file[FILE_DIR_OFF];
                         file[FILE_LBA_CUR] = ((file[FILE_CLUSTER_CUR] - 2) *! file[FILE_SECTORS_PER_CLUSTER]) + file[FILE_DATA_SECTOR];
                         file[FILE_SIZE] = *(file + file[FILE_DIR_OFF] + FAT_DIR_SIZE);
+                        file[FILE_SIZE_HI] = *(file + file[FILE_DIR_OFF] + FAT_DIR_SIZE + 2);
                         sector_read(drive, file[FILE_LBA_CUR], 1, file + FILEDATA);
                         file[FILE_DIR_OFF] = -32;
                         file[FILE_SEEK] = 0;
+                        file[FILE_SEEK_HI] = 0;
                     }
                     JMP .c
                 }
@@ -392,6 +401,7 @@ function openat(cwd, path, file, create)
                 file[FILE_SIZE] = 0;
                 file[FILE_DIR_OFF] = -32;
                 file[FILE_SEEK] = 0;
+                file[FILE_SEEK_HI] = 0;
                 if (!sector_read(file[FILE_DRIVE], file[FILE_FAT_SECTOR] + (file[FILE_CLUSTER_CUR] *! 2 /! 512), 1, file + FILEDATA)) return 0;
                 x = file + FILEDATA + file[FILE_CLUSTER_CUR] *! 2 %! 512;
                 *x = 0xFFF8;

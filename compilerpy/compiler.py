@@ -141,6 +141,7 @@ class Compiler:
             case T.Dd: self.dx(self.emit32, self.imm32)
             case T.Rb: self.ip += self.expression()
             case T.Pad: self.pad()
+            case T.Align: self.align()
             case T.Int: self.int()
             case T.Inc: self.incdec(0x40, 0)
             case T.Dec: self.incdec(0x48, 1)
@@ -190,10 +191,18 @@ class Compiler:
         f = self.assign(ident, True)
         for i in range(deref):
             if f and i == 0:
-                self.emit8(0x8B)
-                self.emit8(self.modrm(2, 3, 0b110))
+                t = I.Label if ident not in self.idents else self.idents[ident].type
                 x = 0 if ident not in self.idents else self.idents[ident].value
-                self.emit16(x) # MOV BX, [var]
+                if t == I.LocalVariable:
+                    self.emit8(0x8B)
+                    self.emit8(self.modrm(2, 3, 0b110))
+                    self.emit16(x) # MOV BX, [var]
+                elif t == I.Label:
+                    self.emit8(0x8D)
+                    self.emit8(self.modrm(0, 3, 0b110))
+                    self.emit16(x) # LEA BX, [label]
+                else:
+                    raise Exception("idk")
             else:
                 self.emit8(0x8B)
                 self.emit8(self.modrm(0, 3, 0b111)) # MOV BX, [BX]
@@ -415,10 +424,18 @@ class Compiler:
         while not self.match(T.Equals).type:
             if self.match(T.LeftBracket).type:
                 if f:
-                    self.emit8(0x8B)
-                    self.emit8(self.modrm(2, 3, 0b110))
+                    t = I.Label if ident not in self.idents else self.idents[ident].type
                     x = 0 if ident not in self.idents else self.idents[ident].value
-                    self.emit16(x) # MOV BX, [var]
+                    if t == I.LocalVariable:
+                        self.emit8(0x8B)
+                        self.emit8(self.modrm(2, 3, 0b110))
+                        self.emit16(x) # MOV BX, [var]
+                    elif t == I.Label:
+                        self.emit8(0x8D)
+                        self.emit8(self.modrm(0, 3, 0b110))
+                        self.emit16(x) # LEA BX, [label]
+                    else:
+                        raise Exception("idk")
                 else:
                     self.emit8(0x8B)
                     self.emit8(self.modrm(0, 3, 0b111)) # MOV BX, [BX]
@@ -435,10 +452,18 @@ class Compiler:
                 b = False
             elif self.match(T.LeftBrace).type:
                 if f:
-                    self.emit8(0x8B)
-                    self.emit8(self.modrm(2, 3, 0b110))
+                    t = I.Label if ident not in self.idents else self.idents[ident].type
                     x = 0 if ident not in self.idents else self.idents[ident].value
-                    self.emit16(x) # MOV BX, [var]
+                    if t == I.LocalVariable:
+                        self.emit8(0x8B)
+                        self.emit8(self.modrm(2, 3, 0b110))
+                        self.emit16(x) # MOV BX, [var]
+                    elif t == I.Label:
+                        self.emit8(0x8D)
+                        self.emit8(self.modrm(0, 3, 0b110))
+                        self.emit16(x) # LEA BX, [label]
+                    else:
+                        raise Exception("idk")
                 else:
                     self.emit8(0x8B)
                     self.emit8(self.modrm(0, 3, 0b111)) # MOV BX, [BX]
@@ -487,6 +512,10 @@ class Compiler:
         self.consume(T.Comma)
         b = self.imm8()
         for _ in range(times): self.emit8(b)
+
+    def align(self):
+        alignment = self.expression()
+        for _ in range(alignment - self.ip % alignment): self.emit8(0)
 
     def int(self):
         v = self.imm8()
@@ -1383,8 +1412,9 @@ class Compiler:
                         self.emit8(self.modrm(2, 0, 0b110))
                         self.emit16(x.value) # MOV AX, [var]
                     case I.Label:
-                        self.emit8(0xB8)
-                        self.emit16(x.value) # MOV AX, label
+                        self.emit8(0x8D)
+                        self.emit8(self.modrm(0, 0, 0b110))
+                        self.emit16(x.value) # LEA AX, [label]
                     case x: self.die("ugh")
             case T.Number:
                 self.emit8(0xB8)

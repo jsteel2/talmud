@@ -12,6 +12,7 @@ class T(Enum):
     Dd = auto()
     Rb = auto()
     Pad = auto()
+    Align = auto()
 
     Const = auto()
     Struct = auto()
@@ -244,6 +245,7 @@ class Tokenizer:
             case "DD": return Token(T.Dd, ident)
             case "RB": return Token(T.Rb, ident)
             case "PAD": return Token(T.Pad, ident)
+            case "ALIGN": return Token(T.Align, ident)
             case "const": return Token(T.Const, ident)
             case "struct": return Token(T.Struct, ident)
             case "function": return Token(T.Function, ident)
