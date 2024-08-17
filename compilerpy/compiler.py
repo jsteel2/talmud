@@ -191,7 +191,7 @@ class Compiler:
         for (num, ip) in sorted(self.cur_switch_cases, key=lambda x: x[0]):
             while cur < num:
                 cur += 1
-                self.emit16(0x9090) # NOP NOP
+                self.emit16(0 if self.first_pass else self.bruh[j])
             self.emit16(ip)
             cur += 1
         self.cur_switch_cases = s
