@@ -20,6 +20,8 @@ class Compiler:
     def run(self):
         self.idents = {}
         self.cur_label = ""
+        self.cur_switch_cases = None
+        self.cur_switch_break = None
         self.bruh = {}
         self.strs = {}
         self.str_off = 0
@@ -162,7 +164,52 @@ class Compiler:
             case T.Return: self.ret()
             case T.Star: self.deref_assign()
             case T.Import: self.import_()
+            case T.Switch: self.switch()
+            case T.Break: self.break_()
+            case T.Case: self.case()
             case x: self.die(f"unexpected token {x}")
+
+    def switch(self):
+        self.consume(T.LeftParen)
+        self.kc_expression()
+        self.consume(T.RightParen)
+        self.emit8(0xD1)
+        j = self.ip
+        self.emit8(self.modrm(0b11, 4, 0)) # SHL AX, 1
+        self.emit8(0x93) # XCHG BX, AX
+        self.emit8(0xFF)
+        self.emit8(self.modrm(0b10, 4, 0b111))
+        a = self.ip
+        self.emit16(self.bruh[self.ip] if not self.first_pass else 0) # JMP [BX+table]
+        s = self.cur_switch_cases
+        b = self.cur_switch_break
+        self.cur_switch_cases = []
+        self.cur_switch_break = 0 if self.first_pass else self.bruh[j]
+        self.statements()
+        self.bruh[a] = self.ip
+        cur = 0
+        for (num, ip) in sorted(self.cur_switch_cases, key=lambda x: x[0]):
+            while cur < num:
+                cur += 1
+                self.emit16(0x9090) # NOP NOP
+            self.emit16(ip)
+            cur += 1
+        self.cur_switch_cases = s
+        self.bruh[j] = self.ip
+
+    def case(self):
+        if self.cur_switch_cases == None: self.die("case outside of switch")
+        num = self.expression()
+        self.consume(T.Colon)
+        self.cur_switch_cases.append((num, self.ip))
+        self.statement()
+
+    def break_(self):
+        if self.cur_switch_break == None: self.die("break outside of switch")
+        a = self.ip
+        self.consume(T.SemiColon)
+        self.emit8(0xE9)
+        self.emit16(self.cur_switch_break - a - 3) # JMP break
 
     def import_(self):
         path = "." + self.consume(T.String).value
