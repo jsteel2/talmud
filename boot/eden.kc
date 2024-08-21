@@ -1,0 +1,43 @@
+ORG 0x500
+
+IN AL, 0x92
+OR AL, 2
+OUT 0x92, AL
+
+CLI
+PUSH DS
+
+LGDT [gdtinfo]
+
+MOV EAX, CR0
+OR AL, 1
+MOV CR0, EAX
+JMP 0x8:pmode
+
+pmode:
+    MOV BX, 0x10
+    MOV DS, BX
+
+    AND AL, 0xFE
+    MOV CR0, EAX
+    JMP 0x0:unreal
+
+unreal:
+    POP DS
+    STI
+
+    MOV BX, 0x0F01
+    MOV EAX, 0xB8000
+    MOV [EAX], BX
+
+    JMP $
+
+gdtinfo:
+    DW gdt_end - gdt - 1
+    DD gdt
+
+gdt:
+    DD 0, 0
+    DB 0xff, 0xff, 0, 0, 0, 0x9A, 0x8F
+    DB 0xff, 0xff, 0, 0, 0, 0x92, 0xCF
+gdt_end:
