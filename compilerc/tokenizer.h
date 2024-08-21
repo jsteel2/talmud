@@ -14,10 +14,23 @@ typedef struct
 
 typedef enum
 {
-    TEND, TERROR, TNUM, TIDENT, TCHARS, TSTRING
+    TERROR, TEND, TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
+
+    TORG,
+
+    TLOGICALOR, TLOGICALAND,
+
+    TQMARK, TCOLON, TEQUALS, TNOTEQUALS, TGREATERTHANU, TGREATERTHANS, TLESSTHANU, TLESSTHANS, TGREATEREQUALSU, TGREATEREQUALSS, TLESSEQUALSU, TLESSEQUALSS, TSHIFTRIGHT, TSHIFTLEFT, TBITWISEXOR, TBITWISEOR, TBITWISEAND, TPLUS, TMINUS, TMODULOU, TMODULOS, TSLASHU, TSLASHS, TSTARU, TSTARS, TSTAR, TLEFTPAREN, TRIGHTPAREN
 } TokenType;
 
-void tokenizer_reset(Tokenizer *t);
+typedef struct
+{
+    TokenType type;
+    void *value;
+} Token;
+
+void tokenizer_init(Tokenizer *t, char *src);
 TokenType tokenizer_token(Tokenizer *t, void *value);
+TokenType die(Tokenizer *t, char *fmt, ...);
 
 #endif

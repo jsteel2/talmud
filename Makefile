@@ -17,7 +17,7 @@ build/disk.img: build/mbr.bin build/vbr.bin $(EXE)
 	mkfs.vfat -F 32 --offset 1 -h 1 build/disk.img
 	mcopy -s -i build/disk.img@@512 build/fs/* ::/
 
-.PHONY: clean run
+.PHONY: clean run build/compiler
 
 clean:
 	rm -rf build

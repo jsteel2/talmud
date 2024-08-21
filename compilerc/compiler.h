@@ -8,11 +8,16 @@
 
 typedef struct
 {
-    Tokenizer tokenizer;
+    Tokenizer t;
     uint8_t *outbin;
     size_t outbin_len;
     size_t outbin_size;
     bool is_first_pass;
+    Token cur;
+    Token next;
+    size_t ip;
+    size_t org;
+    bool is_const_expr;
 } Compiler;
 
 void compiler_init(Compiler *c);

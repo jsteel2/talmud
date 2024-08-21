@@ -5,18 +5,22 @@
 #include <stdarg.h>
 #include "tokenizer.h"
 
-void tokenizer_reset(Tokenizer *t)
+#define SLEN(x) x, (sizeof(x) - 1)
+
+void tokenizer_init(Tokenizer *t, char *src)
 {
     t->pos = 0;
     t->line = 0;
     t->col = 0;
+    t->src = src;
 }
 
-TokenType tokenizer_error(char *fmt, ...)
+TokenType die(Tokenizer *t, char *fmt, ...)
 {
+    fprintf(stderr, "at col %lu line %lu: ", t->col, t->line);
     va_list v;
     va_start(v, fmt);
-    vfprintf(stderr, fmt, v); // print t->col and t->line aswell
+    vfprintf(stderr, fmt, v);
     va_end(v);
     fputc('\n', stderr);
     return TERROR;
@@ -33,6 +37,7 @@ TokenType tokenizer_number_token(Tokenizer *t, uint64_t *value)
 
 TokenType tokenizer_ident_token(Tokenizer *t, char **value)
 {
+    char *start = &t->src[t->pos];
     size_t len = 0;
     do
     {
@@ -40,8 +45,15 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
         t->pos++;
         t->col++;
     } while (isalnum(t->src[t->pos]) || t->src[t->pos] == '_');
-    *value = strndup(&t->src[t->pos], len);
-    return TIDENT;
+
+    switch (start[0])
+    {
+        case 'O':
+            return strncmp(start, SLEN("ORG")) == 0 ? TORG : TIDENT;
+        default:
+            *value = strndup(start, len);
+            return TIDENT;
+    }
 }
 
 TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
@@ -53,7 +65,7 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
 
     *value = malloc(len);
 
-    for (int i = 0; i < len; i++)
+    for (size_t i = 0; i < len; i++)
     {
         t->col++;
         if (t->src[t->pos++] == '\\')
@@ -68,7 +80,7 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
                 case '\'': (*value)[i] = '\''; break;
                 case '"': (*value)[i] = '"'; break;
                 case '\\': (*value)[i] = '\\'; break;
-                default: return tokenizer_error("unknown escape %c", t->src[t->pos - 1]);
+                default: return die(t, "unknown escape %c", t->src[t->pos - 1]);
             }
         }
         else
@@ -82,10 +94,19 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
 
 TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
 {
+    (void)value;
     t->col++;
     switch (t->src[t->pos++])
     {
-        default: return tokenizer_error("unknown symbol %c", t->src[t->pos - 1]);
+        case '*':
+            if (t->src[t->pos++] == '!') return TSTARU;
+            else if (t->src[t->pos] == '$') return TSTARS;
+            return TSTAR;
+        case '(': return TLEFTPAREN;
+        case ')': return TRIGHTPAREN;
+        case '-': return TMINUS;
+        case '+': return TPLUS;
+        default: return die(t, "unknown symbol %c", t->src[t->pos - 1]);
     }
 }
 

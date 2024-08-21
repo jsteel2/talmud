@@ -13,14 +13,14 @@ int main(int argc, char *argv[])
     FILE *srcfile = fopen(argv[1], "r");
     if (!srcfile)
     {
-        printf("Could not open srcfile %s\r\n", argv[1]);
+        fprintf(stderr, "Could not open srcfile %s\r\n", argv[1]);
         return -1;
     }
 
     FILE *outfile = fopen(argv[2], "wb");
     if (!outfile)
     {
-        printf("Could not open outfile %s\r\n", argv[2]);
+        fprintf(stderr, "Could not open outfile %s\r\n", argv[2]);
         return -1;
     }
 
@@ -29,7 +29,11 @@ int main(int argc, char *argv[])
     fseek(srcfile, 0, SEEK_SET);
 
     char *src = malloc(srcsize + 1);
-    fread(src, sizeof(char), srcsize, srcfile);
+    if (!fread(src, sizeof(char), srcsize, srcfile))
+    {
+        fprintf(stderr, "Could not read srcfile %s\r\n", argv[1]);
+        return -1;
+    }
     src[srcsize] = 0;
 
     Compiler compiler;
@@ -38,5 +42,8 @@ int main(int argc, char *argv[])
     size_t outbin_size;
     uint8_t *outbin = compile(&compiler, src, &outbin_size);
     free(src);
+    if (!outbin) return -1;
     fwrite(outbin, sizeof(uint8_t), outbin_size, outfile);
+
+    return 0;
 }
