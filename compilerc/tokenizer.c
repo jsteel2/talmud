@@ -48,8 +48,26 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
 
     switch (start[0])
     {
+        case 'A':
+            return strncmp(start, SLEN("AX")) == 0 ? TAX : TIDENT;
+        case 'C':
+            return strncmp(start, SLEN("CLI")) == 0 ? TCLI : TIDENT;
+        case 'D':
+            return strncmp(start, SLEN("DS")) == 0 ? TDS : TIDENT;
+        case 'E':
+            return strncmp(start, SLEN("ES")) == 0 ? TES : TIDENT;
+        case 'M':
+            return strncmp(start, SLEN("MOV")) == 0 ? TMOV : TIDENT;
         case 'O':
             return strncmp(start, SLEN("ORG")) == 0 ? TORG : TIDENT;
+        case 'S':
+            return strncmp(start, SLEN("STI")) == 0 ? TSTI :
+                strncmp(start, SLEN("SS")) == 0 ? TSS : TIDENT;
+        case 'U':
+            return strncmp(start, SLEN("USE16")) == 0 ? TUSE16 :
+                strncmp(start, SLEN("USE32")) == 0 ? TUSE32 : TIDENT;
+        case 'X':
+            return strncmp(start, SLEN("XOR")) == 0 ? TXOR : TIDENT;
         default:
             *value = strndup(start, len);
             return TIDENT;
@@ -100,12 +118,17 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
     {
         case '*':
             if (t->src[t->pos++] == '!') return TSTARU;
-            else if (t->src[t->pos] == '$') return TSTARS;
+            else if (t->src[t->pos - 1] == '$') return TSTARS;
             return TSTAR;
+        case '/':
+            if (t->src[t->pos++] == '!') return TSLASHU;
+            else if (t->src[t->pos - 1] == '$') return TSLASHS;
+            return die(t, "invalid symbol %c", t->src[t->pos - 1]);
         case '(': return TLEFTPAREN;
         case ')': return TRIGHTPAREN;
         case '-': return TMINUS;
         case '+': return TPLUS;
+        case ',': return TCOMMA;
         default: return die(t, "unknown symbol %c", t->src[t->pos - 1]);
     }
 }

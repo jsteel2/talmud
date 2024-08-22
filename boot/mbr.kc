@@ -1,4 +1,5 @@
 ORG 0x7C00
+USE16
 
 CLI
 XOR AX, AX
@@ -18,8 +19,7 @@ MOV SI, newline
 CALL puts
 
 SUB BX, '1'
-MOV CL, 4
-SHL BX, CL
+SHL BX, 4
 ADD BX, PT
 
 MOV DH, [BX + 1]

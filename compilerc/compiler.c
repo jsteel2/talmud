@@ -3,6 +3,7 @@
 #include "compiler.h"
 
 #define HANDLE(x) if (!(x)) return false
+#define MODRM(mod, reg, rm) (((mod) << 6) | ((reg) << 3) | (rm))
 
 void compiler_init(Compiler *c)
 {
@@ -41,6 +42,21 @@ bool compiler_end(Compiler *c)
     return c->next.type == TEND;
 }
 
+bool compiler_emit8(Compiler *c, uint8_t byte)
+{
+    c->ip++;
+    if (c->is_first_pass) return true;
+
+    c->outbin[c->outbin_len++] = byte;
+    if (c->outbin_len >= c->outbin_size)
+    {
+        c->outbin_size *= 2;
+        c->outbin = realloc(c->outbin, c->outbin_size);
+        if (!c->outbin) return false;
+    }
+    return true;
+}
+
 bool compiler_expr(Compiler *c, size_t *res);
 
 bool compiler_primary(Compiler *c, size_t *res)
@@ -59,10 +75,10 @@ bool compiler_unary(Compiler *c, size_t *res)
 {
     if (c->is_const_expr)
     {
-        ssize_t e = 1;
+        int64_t e = 1;
         while (compiler_match(c, TMINUS)) e *= -1;
         HANDLE(compiler_primary(c, res));
-        *res = (ssize_t)*res * e;
+        *res = (int64_t)*res * e;
         return true;
     }
 
@@ -90,19 +106,19 @@ bool compiler_binary(Compiler *c, size_t *res, bool (*fn)(Compiler *c, size_t *r
                 case TPLUS: *res += r; break;
                 case TMINUS: *res -= r; break;
                 case TMODULOU: *res %= r; break;
-                case TMODULOS: *res = (ssize_t)*res % (ssize_t)r; break;
+                case TMODULOS: *res = (int64_t)*res % (int64_t)r; break;
                 case TSLASHU: *res /= r; break;
-                case TSLASHS: *res = (ssize_t)*res / (ssize_t)r; break;
+                case TSLASHS: *res = (int64_t)*res / (int64_t)r; break;
                 case TSTARU: *res *= r; break;
-                case TSTARS: *res = (ssize_t)*res * (ssize_t)r; break;
+                case TSTARS: *res = (int64_t)*res * (int64_t)r; break;
                 case TGREATERTHANU: *res = *res > r; break;
-                case TGREATERTHANS: *res = (ssize_t)*res > (ssize_t)r; break;
+                case TGREATERTHANS: *res = (int64_t)*res > (int64_t)r; break;
                 case TGREATEREQUALSU: *res = *res >= r; break;
-                case TGREATEREQUALSS: *res = (ssize_t)*res >= (ssize_t)r; break;
+                case TGREATEREQUALSS: *res = (int64_t)*res >= (int64_t)r; break;
                 case TLESSTHANU: *res = *res < r; break;
-                case TLESSTHANS: *res = (ssize_t)*res < (ssize_t)r; break;
+                case TLESSTHANS: *res = (int64_t)*res < (int64_t)r; break;
                 case TLESSEQUALSU: *res = *res <= r; break;
-                case TLESSEQUALSS: *res = (ssize_t)*res <= (ssize_t)r; break;
+                case TLESSEQUALSS: *res = (int64_t)*res <= (int64_t)r; break;
                 case TEQUALS: *res = *res == r; break;
                 case TNOTEQUALS: *res = *res != r; break;
                 default: return die(&c->t, "compiler_binary: Unimplemented");
@@ -185,11 +201,62 @@ bool compiler_const_expr(Compiler *c, size_t *res)
     return ret;
 }
 
+int compiler_regx(Compiler *c, TokenType begin, TokenType end)
+{
+    if ((c->next.type < begin && c->next.type > end) || !compiler_advance(c)) return -1;
+
+    return c->cur.type - begin;
+}
+
+#define compiler_reg16(c) compiler_regx(c, TAX, TDI)
+#define compiler_seg(c) compiler_regx(c, TES, TDS)
+
+bool compiler_grp1(Compiler *c, uint8_t base, uint8_t reg)
+{
+    (void)reg;
+    int d, s;
+    if ((d = compiler_reg16(c)) >= 0)
+    {
+        HANDLE(compiler_consume(c, TCOMMA));
+        if ((s = compiler_reg16(c)) >= 0)
+        {
+            HANDLE(compiler_emit8(c, base + 3));
+            HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
+            return true;
+        }
+    }
+    return die(&c->t, "compiler_grp1: Unimplemented");
+}
+
+bool compiler_mov(Compiler *c)
+{
+    int d, s;
+
+    if ((d = compiler_seg(c)) >= 0)
+    {
+        HANDLE(compiler_consume(c, TCOMMA));
+        if ((s = compiler_reg16(c)) >= 0)
+        {
+            HANDLE(compiler_emit8(c, 0x8E));
+            HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
+            return true;
+        }
+    }
+
+    return die(&c->t, "compiler_mov: Unimplemented");
+}
+
 bool compiler_statement(Compiler *c)
 {
     switch (compiler_advance(c))
     {
         case TORG: HANDLE(compiler_const_expr(c, &c->org)); c->ip = c->org; break;
+        case TCLI: HANDLE(compiler_emit8(c, 0xFA)); break;
+        case TMOV: HANDLE(compiler_mov(c)); break;
+        case TSTI: HANDLE(compiler_emit8(c, 0xFB)); break;
+        case TUSE16: c->use32 = false; break;
+        case TUSE32: c->use32 = true; break;
+        case TXOR: HANDLE(compiler_grp1(c, 0x30, 6)); break;
         default: return die(&c->t, "Unexpected token %d", c->cur.type);
     }
     return true;
@@ -204,6 +271,7 @@ bool compiler_pass(Compiler *c, bool is_first_pass)
     HANDLE(compiler_advance(c));
 
     c->ip = c->org = 0;
+    c->use32 = true;
 
     while (!compiler_end(c)) HANDLE(compiler_statement(c));
 
@@ -212,8 +280,8 @@ bool compiler_pass(Compiler *c, bool is_first_pass)
 
 uint8_t *compile(Compiler *c, char *src, size_t *outbin_len)
 {
-    c->outbin = malloc(1024);
     c->outbin_size = 1024;
+    c->outbin = malloc(c->outbin_size);
     c->outbin_len = 0;
 
     tokenizer_init(&c->t, src);

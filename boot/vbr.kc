@@ -1,1 +1,3 @@
 # adapted BootProg boot32.asm
+
+USE16

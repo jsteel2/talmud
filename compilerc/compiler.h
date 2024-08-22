@@ -18,6 +18,7 @@ typedef struct
     size_t ip;
     size_t org;
     bool is_const_expr;
+    bool use32;
 } Compiler;
 
 void compiler_init(Compiler *c);
