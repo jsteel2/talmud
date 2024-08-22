@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "tokenizer.h"
+#include "map.h"
 
 typedef struct
 {
@@ -19,9 +20,11 @@ typedef struct
     size_t org;
     bool is_const_expr;
     bool use32;
+    Map idents;
 } Compiler;
 
-void compiler_init(Compiler *c);
+bool compiler_init(Compiler *c);
+void compiler_free(Compiler *c);
 uint8_t *compile(Compiler *c, char *src, size_t *outbin_len);
 
 #endif

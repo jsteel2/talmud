@@ -49,20 +49,29 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
     switch (start[0])
     {
         case 'A':
-            return strncmp(start, SLEN("AX")) == 0 ? TAX : TIDENT;
+            return strncmp(start, SLEN("AX")) == 0 ? TAX :
+                strncmp(start, SLEN("AH")) == 0 ? TAH :
+                strncmp(start, SLEN("AL")) == 0 ? TAL : TIDENT;
+        case 'B':
+            return strncmp(start, SLEN("BX")) == 0 ? TBX :
+                strncmp(start, SLEN("BL")) == 0 ? TBL : TIDENT;
         case 'C':
-            return strncmp(start, SLEN("CLI")) == 0 ? TCLI : TIDENT;
+            return strncmp(start, SLEN("CALL")) == 0 ? TCALL :
+                strncmp(start, SLEN("CLI")) == 0 ? TCLI : TIDENT;
         case 'D':
             return strncmp(start, SLEN("DS")) == 0 ? TDS : TIDENT;
         case 'E':
             return strncmp(start, SLEN("ES")) == 0 ? TES : TIDENT;
+        case 'I':
+            return strncmp(start, SLEN("INT")) == 0 ? TINT : TIDENT;
         case 'M':
             return strncmp(start, SLEN("MOV")) == 0 ? TMOV : TIDENT;
         case 'O':
             return strncmp(start, SLEN("ORG")) == 0 ? TORG : TIDENT;
         case 'S':
             return strncmp(start, SLEN("STI")) == 0 ? TSTI :
-                strncmp(start, SLEN("SS")) == 0 ? TSS : TIDENT;
+                strncmp(start, SLEN("SS")) == 0 ? TSS :
+                strncmp(start, SLEN("SI")) == 0 ? TSI : TIDENT;
         case 'U':
             return strncmp(start, SLEN("USE16")) == 0 ? TUSE16 :
                 strncmp(start, SLEN("USE32")) == 0 ? TUSE32 : TIDENT;

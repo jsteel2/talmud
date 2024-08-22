@@ -5,9 +5,19 @@
 #define HANDLE(x) if (!(x)) return false
 #define MODRM(mod, reg, rm) (((mod) << 6) | ((reg) << 3) | (rm))
 
-void compiler_init(Compiler *c)
+bool compiler_init(Compiler *c)
 {
-    (void)c;
+    c->outbin = NULL;
+    return map_init(&c->idents);
+}
+
+void compiler_free(Compiler *c)
+{
+    map_free(&c->idents);
+    free(c->outbin);
+
+    if (c->cur.type == TIDENT || c->cur.type == TSTRING || c->cur.type == TCHARS) free(c->cur.value);
+    if (c->next.type == TIDENT || c->next.type == TSTRING || c->next.type == TCHARS) free(c->next.value);
 }
 
 TokenType compiler_advance(Compiler *c)
@@ -57,14 +67,42 @@ bool compiler_emit8(Compiler *c, uint8_t byte)
     return true;
 }
 
+bool compiler_emit16(Compiler *c, uint16_t word)
+{
+    HANDLE(compiler_emit8(c, word & 0xff));
+    return compiler_emit8(c, word >> 8);
+}
+
+size_t compiler_relative(Compiler *c, size_t absolute, size_t opsize)
+{
+    return absolute - c->ip - opsize;
+}
+
 bool compiler_expr(Compiler *c, size_t *res);
 
 bool compiler_primary(Compiler *c, size_t *res)
 {
     switch (compiler_advance(c))
     {
-        case TNUM: *res = (size_t)c->cur.value; break;
-        case TLEFTPAREN: HANDLE(compiler_expr(c, res)); HANDLE(compiler_consume(c, TRIGHTPAREN)); break;
+        case TNUM:
+            *res = (size_t)c->cur.value;
+            break;
+        case TLEFTPAREN:
+            HANDLE(compiler_expr(c, res));
+            HANDLE(compiler_consume(c, TRIGHTPAREN));
+            break;
+        case TIDENT:
+            if (c->is_first_pass)
+            {
+                *res = 0;
+                free(c->cur.value);
+                c->cur.value = NULL;
+                break;
+            }
+            if (!map_get(&c->idents, c->cur.value, res)) return die(&c->t, "undefined identifier %s", (char *)c->cur.value);
+            free(c->cur.value);
+            c->cur.value = NULL;
+            break;
         default: return die(&c->t, "Unexpected token %d", c->cur.type);
     }
 
@@ -201,24 +239,40 @@ bool compiler_const_expr(Compiler *c, size_t *res)
     return ret;
 }
 
-int compiler_regx(Compiler *c, TokenType begin, TokenType end)
+bool compiler_regx(Compiler *c, size_t *res, TokenType begin, TokenType end)
 {
-    if ((c->next.type < begin && c->next.type > end) || !compiler_advance(c)) return -1;
+    if (c->next.type < begin || c->next.type > end || !compiler_advance(c)) return false;
 
-    return c->cur.type - begin;
+    *res = c->cur.type - begin;
+    return true;
 }
 
-#define compiler_reg16(c) compiler_regx(c, TAX, TDI)
-#define compiler_seg(c) compiler_regx(c, TES, TDS)
+#define compiler_reg16(c, res) compiler_regx(c, res, TAX, TDI)
+#define compiler_reg8(c, res) compiler_regx(c, res, TAL, TBH)
+#define compiler_seg(c, res) compiler_regx(c, res, TES, TDS)
+
+bool compiler_imm8(Compiler *c, size_t *imm)
+{
+    HANDLE(compiler_const_expr(c, imm));
+    if (!c->is_first_pass && *imm > 0xff) return die(&c->t, "immediate too large");
+    return true;
+}
+
+bool compiler_imm16(Compiler *c, size_t *imm)
+{
+    HANDLE(compiler_const_expr(c, imm));
+    if (!c->is_first_pass && *imm > 0xffff) return die(&c->t, "immediate too large");
+    return true;
+}
 
 bool compiler_grp1(Compiler *c, uint8_t base, uint8_t reg)
 {
     (void)reg;
-    int d, s;
-    if ((d = compiler_reg16(c)) >= 0)
+    size_t d, s;
+    if (compiler_reg16(c, &d))
     {
         HANDLE(compiler_consume(c, TCOMMA));
-        if ((s = compiler_reg16(c)) >= 0)
+        if (compiler_reg16(c, &s))
         {
             HANDLE(compiler_emit8(c, base + 3));
             HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
@@ -230,12 +284,40 @@ bool compiler_grp1(Compiler *c, uint8_t base, uint8_t reg)
 
 bool compiler_mov(Compiler *c)
 {
-    int d, s;
+    size_t d, s;
 
-    if ((d = compiler_seg(c)) >= 0)
+    if (compiler_reg16(c, &d))
     {
         HANDLE(compiler_consume(c, TCOMMA));
-        if ((s = compiler_reg16(c)) >= 0)
+        if (compiler_imm16(c, &s))
+        {
+            HANDLE(compiler_emit8(c, 0xC7));
+            HANDLE(compiler_emit8(c, MODRM(0b11, 0, d)));
+            HANDLE(compiler_emit16(c, s));
+            return true;
+        }
+    }
+    else if (compiler_reg8(c, &d))
+    {
+        HANDLE(compiler_consume(c, TCOMMA));
+        if (compiler_reg8(c, &s))
+        {
+            HANDLE(compiler_emit8(c, 0x8A));
+            HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
+            return true;
+        }
+        else if (compiler_imm8(c, &s))
+        {
+            HANDLE(compiler_emit8(c, 0xC6));
+            HANDLE(compiler_emit8(c, MODRM(0b11, 0, d)));
+            HANDLE(compiler_emit8(c, s));
+            return true;
+        }
+    }
+    else if (compiler_seg(c, &d))
+    {
+        HANDLE(compiler_consume(c, TCOMMA));
+        if (compiler_reg16(c, &s))
         {
             HANDLE(compiler_emit8(c, 0x8E));
             HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
@@ -246,12 +328,39 @@ bool compiler_mov(Compiler *c)
     return die(&c->t, "compiler_mov: Unimplemented");
 }
 
+bool compiler_jmp(Compiler *c, uint8_t op, uint8_t opfar, uint8_t reg)
+{
+    size_t x;
+    (void)opfar;
+    (void)reg;
+
+    if (compiler_imm16(c, &x))
+    {
+        HANDLE(compiler_emit8(c, op));
+        HANDLE(compiler_emit16(c, compiler_relative(c, x, 3))); // FIXME: this doesnt seem to emit the right address
+        return true;
+    }
+
+    return die(&c->t, "compiler_jmp: Unimplemented");
+}
+
+bool compiler_int(Compiler *c)
+{
+    size_t x;
+    HANDLE(compiler_imm8(c, &x));
+    HANDLE(compiler_emit8(c, 0xCD));
+    HANDLE(compiler_emit8(c, x));
+    return true;
+}
+
 bool compiler_statement(Compiler *c)
 {
     switch (compiler_advance(c))
     {
         case TORG: HANDLE(compiler_const_expr(c, &c->org)); c->ip = c->org; break;
+        case TCALL: HANDLE(compiler_jmp(c, 0xE8, 0x9A, 2)); break;
         case TCLI: HANDLE(compiler_emit8(c, 0xFA)); break;
+        case TINT: HANDLE(compiler_int(c)); break;
         case TMOV: HANDLE(compiler_mov(c)); break;
         case TSTI: HANDLE(compiler_emit8(c, 0xFB)); break;
         case TUSE16: c->use32 = false; break;

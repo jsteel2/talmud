@@ -37,13 +37,14 @@ int main(int argc, char *argv[])
     src[srcsize] = 0;
 
     Compiler compiler;
-    compiler_init(&compiler);
+    if (!compiler_init(&compiler)) return -1;
 
     size_t outbin_size;
     uint8_t *outbin = compile(&compiler, src, &outbin_size);
     free(src);
     if (!outbin) return -1;
     fwrite(outbin, sizeof(uint8_t), outbin_size, outfile);
+    compiler_free(&compiler);
 
     return 0;
 }
