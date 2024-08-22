@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include "compiler.h"
 
 #define HANDLE(x) if (!(x)) return false
@@ -86,6 +87,16 @@ bool compiler_primary(Compiler *c, size_t *res)
     {
         case TNUM:
             *res = (size_t)c->cur.value;
+            break;
+        case TCHARS:
+            *res = 0;
+            for (size_t i = 0; i < strlen(c->cur.value); i++)
+            {
+                *res <<= 8;
+                *res |= ((char *)c->cur.value)[i];
+            }
+            free(c->cur.value);
+            c->cur.value = NULL;
             break;
         case TLEFTPAREN:
             HANDLE(compiler_expr(c, res));
@@ -267,7 +278,6 @@ bool compiler_imm16(Compiler *c, size_t *imm)
 
 bool compiler_grp1(Compiler *c, uint8_t base, uint8_t reg)
 {
-    (void)reg;
     size_t d, s;
     if (compiler_reg16(c, &d))
     {
@@ -278,8 +288,34 @@ bool compiler_grp1(Compiler *c, uint8_t base, uint8_t reg)
             HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
             return true;
         }
+        else if (compiler_imm16(c, &s))
+        {
+            HANDLE(compiler_emit8(c, 0x81));
+            HANDLE(compiler_emit8(c, MODRM(0b11, reg, d)));
+            HANDLE(compiler_emit16(c, s));
+            return true;
+        }
     }
     return die(&c->t, "compiler_grp1: Unimplemented");
+}
+
+bool compiler_grp2(Compiler *c, uint8_t reg)
+{
+    size_t d, s;
+
+    if (compiler_reg16(c, &d))
+    {
+        HANDLE(compiler_consume(c, TCOMMA));
+        if (compiler_imm8(c, &s))
+        {
+            HANDLE(compiler_emit8(c, 0xC1));
+            HANDLE(compiler_emit8(c, MODRM(0b11, reg, d)));
+            HANDLE(compiler_emit8(c, s));
+            return true;
+        }
+    }
+
+    return die(&c->t, "compiler_grp2: Unimplemented");
 }
 
 bool compiler_mov(Compiler *c)
@@ -358,11 +394,14 @@ bool compiler_statement(Compiler *c)
     switch (compiler_advance(c))
     {
         case TORG: HANDLE(compiler_const_expr(c, &c->org)); c->ip = c->org; break;
+        case TADD: HANDLE(compiler_grp1(c, 0x00, 0)); break;
         case TCALL: HANDLE(compiler_jmp(c, 0xE8, 0x9A, 2)); break;
         case TCLI: HANDLE(compiler_emit8(c, 0xFA)); break;
         case TINT: HANDLE(compiler_int(c)); break;
         case TMOV: HANDLE(compiler_mov(c)); break;
+        case TSHL: HANDLE(compiler_grp2(c, 4)); break;
         case TSTI: HANDLE(compiler_emit8(c, 0xFB)); break;
+        case TSUB: HANDLE(compiler_grp1(c, 0x28, 5)); break;
         case TUSE16: c->use32 = false; break;
         case TUSE32: c->use32 = true; break;
         case TXOR: HANDLE(compiler_grp1(c, 0x30, 6)); break;

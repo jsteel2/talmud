@@ -49,7 +49,8 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
     switch (start[0])
     {
         case 'A':
-            return strncmp(start, SLEN("AX")) == 0 ? TAX :
+            return strncmp(start, SLEN("ADD")) == 0 ? TADD :
+                strncmp(start, SLEN("AX")) == 0 ? TAX :
                 strncmp(start, SLEN("AH")) == 0 ? TAH :
                 strncmp(start, SLEN("AL")) == 0 ? TAL : TIDENT;
         case 'B':
@@ -70,6 +71,8 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             return strncmp(start, SLEN("ORG")) == 0 ? TORG : TIDENT;
         case 'S':
             return strncmp(start, SLEN("STI")) == 0 ? TSTI :
+                strncmp(start, SLEN("SUB")) == 0 ? TSUB :
+                strncmp(start, SLEN("SHL")) == 0 ? TSHL :
                 strncmp(start, SLEN("SS")) == 0 ? TSS :
                 strncmp(start, SLEN("SI")) == 0 ? TSI : TIDENT;
         case 'U':
@@ -87,7 +90,7 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
 {
     t->pos++;
     t->col++;
-    char *end = strchr(&t->src[t->pos], '"' ? type == TSTRING : '\'');
+    char *end = strchr(&t->src[t->pos], type == TSTRING ? '"' : '\'');
     size_t len = end - &t->src[t->pos];
 
     *value = malloc(len);
@@ -100,10 +103,10 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
             t->col++;
             switch (t->src[t->pos++])
             {
-                case '\r': (*value)[i] = '\r'; break;
-                case '\n': (*value)[i] = '\n'; break;
-                case '\t': (*value)[i] = '\t'; break;
-                case '\b': (*value)[i] = '\b'; break;
+                case 'r': (*value)[i] = '\r'; break;
+                case 'n': (*value)[i] = '\n'; break;
+                case 't': (*value)[i] = '\t'; break;
+                case 'b': (*value)[i] = '\b'; break;
                 case '\'': (*value)[i] = '\''; break;
                 case '"': (*value)[i] = '"'; break;
                 case '\\': (*value)[i] = '\\'; break;
@@ -115,6 +118,9 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
             (*value)[i] = t->src[t->pos];
         }
     }
+
+    t->col++;
+    t->pos++;
 
     return type;
 }
