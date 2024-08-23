@@ -6,6 +6,7 @@ XOR AX, AX
 MOV DS, AX
 MOV ES, AX
 MOV SS, AX
+MOV SP, PT - 16
 STI
 
 MOV SI, prompt
@@ -13,8 +14,10 @@ CALL puts
 
 MOV AH, 0x00
 INT 0x16
+MOV AH, 0x0E
+INT 0x10
 XOR BX, BX
-MOV AL, BL
+MOV BL, AL
 MOV SI, newline
 CALL puts
 

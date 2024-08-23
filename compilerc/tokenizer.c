@@ -49,41 +49,80 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
     switch (start[0])
     {
         case 'A':
-            return strncmp(start, SLEN("ADD")) == 0 ? TADD :
-                strncmp(start, SLEN("AX")) == 0 ? TAX :
-                strncmp(start, SLEN("AH")) == 0 ? TAH :
-                strncmp(start, SLEN("AL")) == 0 ? TAL : TIDENT;
+            if (strncmp(start, SLEN("ADD")) == 0) return TADD;
+            if (strncmp(start, SLEN("AX")) == 0) return TAX;
+            if (strncmp(start, SLEN("AH")) == 0) return TAH;
+            if (strncmp(start, SLEN("AL")) == 0) return TAL;
+            goto d;
         case 'B':
-            return strncmp(start, SLEN("BX")) == 0 ? TBX :
-                strncmp(start, SLEN("BL")) == 0 ? TBL : TIDENT;
+            if (strncmp(start, SLEN("BYTE")) == 0) return TBYTE;
+            if (strncmp(start, SLEN("BX")) == 0) return TBX;
+            if (strncmp(start, SLEN("BL")) == 0) return TBL;
+            goto d;
         case 'C':
-            return strncmp(start, SLEN("CALL")) == 0 ? TCALL :
-                strncmp(start, SLEN("CLI")) == 0 ? TCLI : TIDENT;
+            if (strncmp(start, SLEN("CALL")) == 0) return TCALL;
+            if (strncmp(start, SLEN("CLI")) == 0) return TCLI;
+            if (strncmp(start, SLEN("CH")) == 0) return TCH;
+            if (strncmp(start, SLEN("CL")) == 0) return TCL;
+            goto d;
         case 'D':
-            return strncmp(start, SLEN("DS")) == 0 ? TDS : TIDENT;
+            if (strncmp(start, SLEN("DS")) == 0) return TDS;
+            if (strncmp(start, SLEN("DH")) == 0) return TDH;
+            if (strncmp(start, SLEN("DI")) == 0) return TDI;
+            if (strncmp(start, SLEN("DB")) == 0) return TDB;
+            goto d;
         case 'E':
-            return strncmp(start, SLEN("ES")) == 0 ? TES : TIDENT;
+            if (strncmp(start, SLEN("ES")) == 0) return TES;
+            goto d;
         case 'I':
-            return strncmp(start, SLEN("INT")) == 0 ? TINT : TIDENT;
+            if (strncmp(start, SLEN("INT")) == 0) return TINT;
+            goto d;
+        case 'J':
+            if (strncmp(start, SLEN("JMP")) == 0) return TJMP;
+            if (strncmp(start, SLEN("JZ")) == 0) return TJZ;
+            if (strncmp(start, SLEN("JB")) == 0) return TJB;
+            goto d;
+        case 'L':
+            if (strncmp(start, SLEN("LODSB")) == 0) return TLODSB;
+            goto d;
         case 'M':
-            return strncmp(start, SLEN("MOV")) == 0 ? TMOV : TIDENT;
+            if (strncmp(start, SLEN("MOV")) == 0) return TMOV;
+            goto d;
         case 'O':
-            return strncmp(start, SLEN("ORG")) == 0 ? TORG : TIDENT;
+            if (strncmp(start, SLEN("ORG")) == 0) return TORG;
+            goto d;
+        case 'P':
+            if (strncmp(start, SLEN("PUSH")) == 0) return TPUSH;
+            if (strncmp(start, SLEN("POP")) == 0) return TPOP;
+            goto d;
+        case 'R':
+            if (strncmp(start, SLEN("RET")) == 0) return TRET;
+            if (strncmp(start, SLEN("RB")) == 0) return TRB;
+            goto d;
         case 'S':
-            return strncmp(start, SLEN("STI")) == 0 ? TSTI :
-                strncmp(start, SLEN("SUB")) == 0 ? TSUB :
-                strncmp(start, SLEN("SHL")) == 0 ? TSHL :
-                strncmp(start, SLEN("SS")) == 0 ? TSS :
-                strncmp(start, SLEN("SI")) == 0 ? TSI : TIDENT;
+            if (strncmp(start, SLEN("STI")) == 0) return TSTI;
+            if (strncmp(start, SLEN("SUB")) == 0) return TSUB;
+            if (strncmp(start, SLEN("SHL")) == 0) return TSHL;
+            if (strncmp(start, SLEN("SS")) == 0) return TSS;
+            if (strncmp(start, SLEN("SP")) == 0) return TSP;
+            if (strncmp(start, SLEN("SI")) == 0) return TSI;
+            goto d;
+        case 'T':
+            if (strncmp(start, SLEN("TEST")) == 0) return TTEST;
+            goto d;
         case 'U':
-            return strncmp(start, SLEN("USE16")) == 0 ? TUSE16 :
-                strncmp(start, SLEN("USE32")) == 0 ? TUSE32 : TIDENT;
+            if (strncmp(start, SLEN("USE16")) == 0) return TUSE16;
+            if (strncmp(start, SLEN("USE32")) == 0) return TUSE32;
+            goto d;
         case 'X':
-            return strncmp(start, SLEN("XOR")) == 0 ? TXOR : TIDENT;
-        default:
-            *value = strndup(start, len);
-            return TIDENT;
+            if (strncmp(start, SLEN("XOR")) == 0) return TXOR;
+            goto d;
+        default: goto d;
     }
+
+d:
+    *value = strndup(start, len);
+    return TIDENT;
 }
 
 TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
@@ -93,9 +132,10 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
     char *end = strchr(&t->src[t->pos], type == TSTRING ? '"' : '\'');
     size_t len = end - &t->src[t->pos];
 
-    *value = malloc(len);
+    *value = malloc(len + 1);
 
-    for (size_t i = 0; i < len; i++)
+    size_t i = 0;
+    while (&t->src[t->pos] < end)
     {
         t->col++;
         if (t->src[t->pos++] == '\\')
@@ -103,21 +143,22 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
             t->col++;
             switch (t->src[t->pos++])
             {
-                case 'r': (*value)[i] = '\r'; break;
-                case 'n': (*value)[i] = '\n'; break;
-                case 't': (*value)[i] = '\t'; break;
-                case 'b': (*value)[i] = '\b'; break;
-                case '\'': (*value)[i] = '\''; break;
-                case '"': (*value)[i] = '"'; break;
-                case '\\': (*value)[i] = '\\'; break;
+                case 'r': (*value)[i++] = '\r'; break;
+                case 'n': (*value)[i++] = '\n'; break;
+                case 't': (*value)[i++] = '\t'; break;
+                case 'b': (*value)[i++] = '\b'; break;
+                case '\'': (*value)[i++] = '\''; break;
+                case '"': (*value)[i++] = '"'; break;
+                case '\\': (*value)[i++] = '\\'; break;
                 default: return die(t, "unknown escape %c", t->src[t->pos - 1]);
             }
         }
         else
         {
-            (*value)[i] = t->src[t->pos];
+            (*value)[i++] = t->src[t->pos - 1];
         }
     }
+    (*value)[i] = 0;
 
     t->col++;
     t->pos++;
@@ -139,11 +180,18 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
             if (t->src[t->pos++] == '!') return TSLASHU;
             else if (t->src[t->pos - 1] == '$') return TSLASHS;
             return die(t, "invalid symbol %c", t->src[t->pos - 1]);
+        case '$':
+            if (t->src[t->pos++] == '$') return TORIGIN;
+            return TIP;
         case '(': return TLEFTPAREN;
         case ')': return TRIGHTPAREN;
+        case '[': return TLEFTBRACKET;
+        case ']': return TRIGHTBRACKET;
         case '-': return TMINUS;
         case '+': return TPLUS;
         case ',': return TCOMMA;
+        case '.': return TDOT;
+        case ':': return TCOLON;
         default: return die(t, "unknown symbol %c", t->src[t->pos - 1]);
     }
 }
