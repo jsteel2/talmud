@@ -1,13 +1,11 @@
 ORG 0x7C00
 USE16
 
-CLI
 XOR AX, AX
 MOV DS, AX
 MOV ES, AX
 MOV SS, AX
 MOV SP, PT - 16
-STI
 
 MOV SI, prompt
 CALL puts

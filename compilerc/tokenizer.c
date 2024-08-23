@@ -46,6 +46,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
         t->col++;
     } while (isalnum(t->src[t->pos]) || t->src[t->pos] == '_');
 
+    // FIXME: check if ident length matches token length
     switch (start[0])
     {
         case 'A':
