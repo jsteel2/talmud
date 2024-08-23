@@ -2,4 +2,12 @@
 
 USE16
 
+MOV AH, 0x0E
+MOV AL, 'V'
+INT 0x10
+MOV AL, 'B'
+INT 0x10
+MOV AL, 'R'
+INT 0x10
+
 JMP $

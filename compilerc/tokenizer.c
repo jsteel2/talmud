@@ -53,52 +53,52 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (strncmp(start, SLEN("AX")) == 0) return TAX;
             if (strncmp(start, SLEN("AH")) == 0) return TAH;
             if (strncmp(start, SLEN("AL")) == 0) return TAL;
-            goto d;
+            break;
         case 'B':
             if (strncmp(start, SLEN("BYTE")) == 0) return TBYTE;
             if (strncmp(start, SLEN("BX")) == 0) return TBX;
             if (strncmp(start, SLEN("BL")) == 0) return TBL;
-            goto d;
+            break;
         case 'C':
             if (strncmp(start, SLEN("CALL")) == 0) return TCALL;
             if (strncmp(start, SLEN("CLI")) == 0) return TCLI;
             if (strncmp(start, SLEN("CH")) == 0) return TCH;
             if (strncmp(start, SLEN("CL")) == 0) return TCL;
-            goto d;
+            break;
         case 'D':
             if (strncmp(start, SLEN("DS")) == 0) return TDS;
             if (strncmp(start, SLEN("DH")) == 0) return TDH;
             if (strncmp(start, SLEN("DI")) == 0) return TDI;
             if (strncmp(start, SLEN("DB")) == 0) return TDB;
-            goto d;
+            break;
         case 'E':
             if (strncmp(start, SLEN("ES")) == 0) return TES;
-            goto d;
+            break;
         case 'I':
             if (strncmp(start, SLEN("INT")) == 0) return TINT;
-            goto d;
+            break;
         case 'J':
             if (strncmp(start, SLEN("JMP")) == 0) return TJMP;
             if (strncmp(start, SLEN("JZ")) == 0) return TJZ;
             if (strncmp(start, SLEN("JB")) == 0) return TJB;
-            goto d;
+            break;
         case 'L':
             if (strncmp(start, SLEN("LODSB")) == 0) return TLODSB;
-            goto d;
+            break;
         case 'M':
             if (strncmp(start, SLEN("MOV")) == 0) return TMOV;
-            goto d;
+            break;
         case 'O':
             if (strncmp(start, SLEN("ORG")) == 0) return TORG;
-            goto d;
+            break;
         case 'P':
             if (strncmp(start, SLEN("PUSH")) == 0) return TPUSH;
             if (strncmp(start, SLEN("POP")) == 0) return TPOP;
-            goto d;
+            break;
         case 'R':
             if (strncmp(start, SLEN("RET")) == 0) return TRET;
             if (strncmp(start, SLEN("RB")) == 0) return TRB;
-            goto d;
+            break;
         case 'S':
             if (strncmp(start, SLEN("STI")) == 0) return TSTI;
             if (strncmp(start, SLEN("SUB")) == 0) return TSUB;
@@ -106,21 +106,20 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (strncmp(start, SLEN("SS")) == 0) return TSS;
             if (strncmp(start, SLEN("SP")) == 0) return TSP;
             if (strncmp(start, SLEN("SI")) == 0) return TSI;
-            goto d;
+            break;
         case 'T':
             if (strncmp(start, SLEN("TEST")) == 0) return TTEST;
-            goto d;
+            break;
         case 'U':
             if (strncmp(start, SLEN("USE16")) == 0) return TUSE16;
             if (strncmp(start, SLEN("USE32")) == 0) return TUSE32;
-            goto d;
+            break;
         case 'X':
             if (strncmp(start, SLEN("XOR")) == 0) return TXOR;
-            goto d;
-        default: goto d;
+            break;
+        default: break;
     }
 
-d:
     *value = strndup(start, len);
     return TIDENT;
 }
