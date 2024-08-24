@@ -905,6 +905,7 @@ bool compiler_statement(Compiler *c)
         case TMOVSW: HANDLE(compiler_emit8(c, 0xA5)); break;
         case TMOV: HANDLE(compiler_mov(c)); break;
         case TMUL: HANDLE(compiler_grp3(c, 4)); break;
+        case TPUSHAD: HANDLE(compiler_emit16(c, 0x6066)); break;
         case TPUSHF: HANDLE(compiler_emit8(c, 0x9C)); break;
         case TPUSH: HANDLE(compiler_pushpop(c, true)); break;
         case TPOPF: HANDLE(compiler_emit8(c, 0x9D)); break;

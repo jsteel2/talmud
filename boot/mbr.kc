@@ -5,22 +5,26 @@ XOR AX, AX
 MOV DS, AX
 MOV ES, AX
 MOV SS, AX
-MOV SP, PT - 16
 
 MOV SI, prompt
 CALL puts
 
 MOV AH, 0x00
 INT 0x16
+MOV CL, AL
 MOV AH, 0x0E
 INT 0x10
-XOR BX, BX
-MOV BL, AL
-MOV SI, newline
-CALL puts
+MOV AL, 0xD
+INT 0x10
+MOV AL, 0xA
+INT 0x10
 
-SUB BX, '1'
-SHL BX, 4
+XOR AX, AX
+MOV AL, CL
+SUB AX, '1'
+MOV DI, AX
+SHL AX, 4
+MOV BX, AX
 ADD BX, PT
 
 MOV DH, [BX + 1]
@@ -45,7 +49,6 @@ puts:
     RET
 
 prompt: DB 'Enter partition number (1-4): ', 0
-newline: DB '\r\n', 0
 
 RB 446 - ($ - $$)
 PT:

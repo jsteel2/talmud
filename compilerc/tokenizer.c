@@ -125,6 +125,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("ORG") == len && strncmp(start, SLEN("ORG")) == 0) return TORG;
             break;
         case 'P':
+            if (LEN("PUSHAD") == len && strncmp(start, SLEN("PUSHAD")) == 0) return TPUSHAD;
             if (LEN("PUSHF") == len && strncmp(start, SLEN("PUSHF")) == 0) return TPUSHF;
             if (LEN("POPAD") == len && strncmp(start, SLEN("POPAD")) == 0) return TPOPAD;
             if (LEN("PUSH") == len && strncmp(start, SLEN("PUSH")) == 0) return TPUSH;

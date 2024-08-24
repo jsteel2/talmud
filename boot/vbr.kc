@@ -1,6 +1,7 @@
 # adapted BootProg boot32.asm
 
 ORG 0
+USE16
 
 RB 3
 bsOemName: RB 8
@@ -70,7 +71,7 @@ RootDirReadContinue:
     POP ES
     PUSHF
 
-    MOV DI, BX
+    XOR DI, DI
 
     MOVZX AX, BYTE [bpbSectorsPerCluster]
     MUL WORD [bpbBytesPerSector]
@@ -114,7 +115,7 @@ FileReadContinue:
     XOR SP, SP
     MOV BH, 5
     PUSH AX
-    PUSH BX
+    PUSH 0
     RETF
 
 ReadCluster:
@@ -133,8 +134,8 @@ ReadCluster:
     POP ES
 
     IMUL DI, DX, 4
-    AND BYTE [ES:BX + DI + 3], 0x0F
-    MOV EBP, [ES:BX + DI]
+    AND BYTE [ES:DI + 3], 0x0F
+    MOV EBP, [ES:DI]
 
     MOVZX EAX, BYTE [bpbNumberOfFATs]
     MUL DWORD [bsSectorsPerFAT32]
@@ -150,17 +151,19 @@ ReadSector:
     MOV DI, 5
 
 ReadSectorRetry:
+    PUSHAD
+    
     MOVZX EDX, WORD [bpbReservedSectors]
     ADD EAX, EDX
 
     XOR DX, DX
     ADD EAX, [bpbHiddenSectors]
-    ADC DX, BX
+    ADC DX, 0
 
     PUSH EDX
     PUSH EAX
     PUSH ES
-    PUSH BX
+    PUSH 0
     PUSH 1
     PUSH 16
 
