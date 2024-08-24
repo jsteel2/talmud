@@ -9,7 +9,7 @@ build/%.bin: boot/%.kc build/compiler
 	build/compiler $< $@
 
 build/fs/%.exe: boot/%.kc build/compiler
-	echo not yet > $@
+	build/compiler $< $@
 
 build/disk.img: build/fs build/mbr.bin build/vbr.bin $(EXE)
 	dd if=/dev/zero of=$@ bs=1M count=64

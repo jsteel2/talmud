@@ -51,6 +51,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
     {
         case 'A':
             if (LEN("ADD") == len && strncmp(start, SLEN("ADD")) == 0) return TADD;
+            if (LEN("ADC") == len && strncmp(start, SLEN("ADC")) == 0) return TADC;
             if (LEN("AND") == len && strncmp(start, SLEN("AND")) == 0) return TAND;
             if (LEN("AX") == len && strncmp(start, SLEN("AX")) == 0) return TAX;
             if (LEN("AH") == len && strncmp(start, SLEN("AH")) == 0) return TAH;
@@ -60,48 +61,74 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("BYTE") == len && strncmp(start, SLEN("BYTE")) == 0) return TBYTE;
             if (LEN("BX") == len && strncmp(start, SLEN("BX")) == 0) return TBX;
             if (LEN("BL") == len && strncmp(start, SLEN("BL")) == 0) return TBL;
+            if (LEN("BH") == len && strncmp(start, SLEN("BH")) == 0) return TBH;
             break;
         case 'C':
+            if (LEN("CMPSB") == len && strncmp(start, SLEN("CMPSB")) == 0) return TCMPSB;
             if (LEN("CALL") == len && strncmp(start, SLEN("CALL")) == 0) return TCALL;
+            if (LEN("CWDE") == len && strncmp(start, SLEN("CWDE")) == 0) return TCWDE;
+            if (LEN("CDQ") == len && strncmp(start, SLEN("CDQ")) == 0) return TCDQ;
             if (LEN("CLI") == len && strncmp(start, SLEN("CLI")) == 0) return TCLI;
             if (LEN("CLD") == len && strncmp(start, SLEN("CLD")) == 0) return TCLD;
+            if (LEN("CMP") == len && strncmp(start, SLEN("CMP")) == 0) return TCMP;
             if (LEN("CX") == len && strncmp(start, SLEN("CX")) == 0) return TCX;
             if (LEN("CH") == len && strncmp(start, SLEN("CH")) == 0) return TCH;
             if (LEN("CL") == len && strncmp(start, SLEN("CL")) == 0) return TCL;
             if (LEN("CS") == len && strncmp(start, SLEN("CS")) == 0) return TCS;
             break;
         case 'D':
+            if (LEN("DWORD") == len && strncmp(start, SLEN("DWORD")) == 0) return TDWORD;
+            if (LEN("DEC") == len && strncmp(start, SLEN("DEC")) == 0) return TDEC;
+            if (LEN("DIV") == len && strncmp(start, SLEN("DIV")) == 0) return TDIV;
             if (LEN("DS") == len && strncmp(start, SLEN("DS")) == 0) return TDS;
+            if (LEN("DX") == len && strncmp(start, SLEN("DX")) == 0) return TDX;
             if (LEN("DH") == len && strncmp(start, SLEN("DH")) == 0) return TDH;
             if (LEN("DL") == len && strncmp(start, SLEN("DL")) == 0) return TDL;
             if (LEN("DI") == len && strncmp(start, SLEN("DI")) == 0) return TDI;
             if (LEN("DB") == len && strncmp(start, SLEN("DB")) == 0) return TDB;
             break;
         case 'E':
+            if (LEN("EAX") == len && strncmp(start, SLEN("EAX")) == 0) return TEAX;
+            if (LEN("ECX") == len && strncmp(start, SLEN("ECX")) == 0) return TECX;
+            if (LEN("EDX") == len && strncmp(start, SLEN("EDX")) == 0) return TEDX;
             if (LEN("EBP") == len && strncmp(start, SLEN("EBP")) == 0) return TEBP;
+            if (LEN("ESI") == len && strncmp(start, SLEN("ESI")) == 0) return TESI;
             if (LEN("ES") == len && strncmp(start, SLEN("ES")) == 0) return TES;
             break;
+        case 'H':
+            if (LEN("HLT") == len && strncmp(start, SLEN("HLT")) == 0) return THLT;
+            break;
         case 'I':
+            if (LEN("IMUL") == len && strncmp(start, SLEN("IMUL")) == 0) return TIMUL;
+            if (LEN("INC") == len && strncmp(start, SLEN("INC")) == 0) return TINC;
             if (LEN("INT") == len && strncmp(start, SLEN("INT")) == 0) return TINT;
             break;
         case 'J':
             if (LEN("JMP") == len && strncmp(start, SLEN("JMP")) == 0) return TJMP;
+            if (LEN("JNZ") == len && strncmp(start, SLEN("JNZ")) == 0) return TJNZ;
+            if (LEN("JNB") == len && strncmp(start, SLEN("JNB")) == 0) return TJNB;
             if (LEN("JZ") == len && strncmp(start, SLEN("JZ")) == 0) return TJZ;
             if (LEN("JB") == len && strncmp(start, SLEN("JB")) == 0) return TJB;
             break;
         case 'L':
             if (LEN("LODSB") == len && strncmp(start, SLEN("LODSB")) == 0) return TLODSB;
+            if (LEN("LOOP") == len && strncmp(start, SLEN("LOOP")) == 0) return TLOOP;
+            if (LEN("LEA") == len && strncmp(start, SLEN("LEA")) == 0) return TLEA;
             break;
         case 'M':
+            if (LEN("MOVZX") == len && strncmp(start, SLEN("MOVZX")) == 0) return TMOVZX;
             if (LEN("MOVSW") == len && strncmp(start, SLEN("MOVSW")) == 0) return TMOVSW;
             if (LEN("MOV") == len && strncmp(start, SLEN("MOV")) == 0) return TMOV;
+            if (LEN("MUL") == len && strncmp(start, SLEN("MUL")) == 0) return TMUL;
             break;
         case 'O':
             if (LEN("ORG") == len && strncmp(start, SLEN("ORG")) == 0) return TORG;
             break;
         case 'P':
             if (LEN("PUSHF") == len && strncmp(start, SLEN("PUSHF")) == 0) return TPUSHF;
+            if (LEN("POPAD") == len && strncmp(start, SLEN("POPAD")) == 0) return TPOPAD;
             if (LEN("PUSH") == len && strncmp(start, SLEN("PUSH")) == 0) return TPUSH;
+            if (LEN("POPF") == len && strncmp(start, SLEN("POPF")) == 0) return TPOPF;
             if (LEN("POP") == len && strncmp(start, SLEN("POP")) == 0) return TPOP;
             break;
         case 'R':
@@ -114,6 +141,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("STI") == len && strncmp(start, SLEN("STI")) == 0) return TSTI;
             if (LEN("SUB") == len && strncmp(start, SLEN("SUB")) == 0) return TSUB;
             if (LEN("SHL") == len && strncmp(start, SLEN("SHL")) == 0) return TSHL;
+            if (LEN("SHR") == len && strncmp(start, SLEN("SHR")) == 0) return TSHR;
             if (LEN("SS") == len && strncmp(start, SLEN("SS")) == 0) return TSS;
             if (LEN("SP") == len && strncmp(start, SLEN("SP")) == 0) return TSP;
             if (LEN("SI") == len && strncmp(start, SLEN("SI")) == 0) return TSI;
@@ -125,7 +153,11 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("USE16") == len && strncmp(start, SLEN("USE16")) == 0) return TUSE16;
             if (LEN("USE32") == len && strncmp(start, SLEN("USE32")) == 0) return TUSE32;
             break;
+        case 'W':
+            if (LEN("WORD") == len && strncmp(start, SLEN("WORD")) == 0) return TWORD;
+            break;
         case 'X':
+            if (LEN("XCHG") == len && strncmp(start, SLEN("XCHG")) == 0) return TXCHG;
             if (LEN("XOR") == len && strncmp(start, SLEN("XOR")) == 0) return TXOR;
             break;
         default: break;

@@ -149,6 +149,7 @@ ReadCluster:
 ReadSector:
     MOV DI, 5
 
+ReadSectorRetry:
     MOVZX EDX, WORD [bpbReservedSectors]
     ADD EAX, EDX
 
@@ -172,7 +173,7 @@ ReadSector:
 
     LEA SP, [SI + 16]
 
-    JNC ReadSectorDone
+    JNB ReadSectorDone
 
     MOV AH, 0
 
@@ -218,4 +219,4 @@ Halt:
     INT 0x10
     JMP ErrorNext
 
-DB 'EDEN    EXE'
+ProgramName: DB 'EDEN    EXE'

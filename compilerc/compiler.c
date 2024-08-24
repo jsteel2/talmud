@@ -3,7 +3,7 @@
 #include <string.h>
 #include "compiler.h"
 
-#define HANDLE(x) if (!(x)) return false
+#define HANDLE(x) do { if (!(x)) return false; } while (false)
 #define MODRM(mod, reg, rm) (((mod) << 6) | ((reg) << 3) | (rm))
 
 bool compiler_init(Compiler *c)
@@ -72,6 +72,12 @@ bool compiler_emit16(Compiler *c, uint16_t word)
 {
     HANDLE(compiler_emit8(c, word & 0xff));
     return compiler_emit8(c, word >> 8);
+}
+
+bool compiler_emit32(Compiler *c, uint32_t dword)
+{
+    HANDLE(compiler_emit16(c, dword & 0xffff));
+    return compiler_emit16(c, dword >> 16);
 }
 
 int64_t compiler_relative(Compiler *c, size_t absolute, size_t opsize)
@@ -268,7 +274,7 @@ bool compiler_const_expr(Compiler *c, size_t *res)
     return ret;
 }
 
-bool compiler_regx(Compiler *c, size_t *res, TokenType begin, TokenType end)
+bool compiler_regx(Compiler *c, int64_t *res, TokenType begin, TokenType end)
 {
     if (c->next.type < begin || c->next.type > end || !compiler_advance(c)) return false;
 
@@ -281,26 +287,35 @@ bool compiler_regx(Compiler *c, size_t *res, TokenType begin, TokenType end)
 #define compiler_reg8(c, res) compiler_regx(c, res, TAL, TBH)
 #define compiler_seg(c, res) compiler_regx(c, res, TES, TDS)
 
-bool compiler_imm8(Compiler *c, size_t *imm)
+bool compiler_imm8(Compiler *c, int64_t *imm)
 {
-    HANDLE(compiler_const_expr(c, imm));
-    if (!c->is_first_pass && *imm > 0xff) return die(&c->t, "immediate too large");
+    HANDLE(compiler_const_expr(c, (size_t *)imm));
+    if (!c->is_first_pass && (*imm > 0xff || *imm < -0x80)) return die(&c->t, "immediate too large");
     return true;
 }
 
-bool compiler_imm16(Compiler *c, size_t *imm)
+bool compiler_imm16(Compiler *c, int64_t *imm)
 {
-    HANDLE(compiler_const_expr(c, imm));
-    if (!c->is_first_pass && *imm > 0xffff) return die(&c->t, "immediate too large");
+    HANDLE(compiler_const_expr(c, (size_t *)imm));
+    if (!c->is_first_pass && (*imm > 0xffff || *imm < -0x8000)) return die(&c->t, "immediate too large");
     return true;
 }
 
-bool compiler_mem(Compiler *c, int *size, uint8_t *modrm, size_t *disp)
+bool compiler_imm32(Compiler *c, int64_t *imm)
+{
+    HANDLE(compiler_const_expr(c, (size_t *)imm));
+    if (!c->is_first_pass && (*imm > 0xffffffff || *imm < -(int64_t)0x80000000)) return die(&c->t, "immediate too large %ld", *imm);
+    return true;
+}
+
+bool compiler_mem(Compiler *c, int *size, int *addrsize, uint8_t *modrm, int64_t *disp)
 {
     *disp = 0;
     *modrm = 0;
+    *addrsize = 16;
     if (compiler_match(c, TBYTE)) *size = 8;
     else if (compiler_match(c, TWORD)) *size = 16;
+    else if (compiler_match(c, TDWORD)) *size = 32;
     else *size = 0;
 
     if (!compiler_match(c, TLEFTBRACKET)) return false;
@@ -325,8 +340,17 @@ bool compiler_mem(Compiler *c, int *size, uint8_t *modrm, size_t *disp)
         case TBX: *modrm = MODRM(0, 0, 0b111); break;
         case TDI: *modrm = MODRM(0, 0, 0b101); break;
         case TSI: *modrm = MODRM(0, 0, 0b100); break;
+        case TEAX: *modrm = MODRM(0, 0, 0b000); *addrsize = 32; break;
+        case TECX: *modrm = MODRM(0, 0, 0b001); *addrsize = 32; break;
+        case TEDX: *modrm = MODRM(0, 0, 0b010); *addrsize = 32; break;
+        case TEBX: *modrm = MODRM(0, 0, 0b011); *addrsize = 32; break;
+        case TEBP: *modrm = MODRM(0b10, 0, 0b101); *addrsize = 32; break;
+        case TESI: *modrm = MODRM(0, 0, 0b110); *addrsize = 32; break;
+        case TEDI: *modrm = MODRM(0, 0, 0b111); *addrsize = 32; break;
         default: goto noadvance;
     }
+
+    if (*addrsize == 32) HANDLE(compiler_emit8(c, 0x67));
 
     base = compiler_advance(c);
     HANDLE(base);
@@ -334,24 +358,64 @@ noadvance:
 
     if (base == TINVALID || compiler_match(c, TPLUS))
     {
-        HANDLE(compiler_imm16(c, disp));
+        if (base != TINVALID && *addrsize == 16 && (c->next.type == TSI || c->next.type == TDI))
+        {
+            HANDLE(compiler_advance(c));
+            if (base == TBX) *modrm = MODRM(0, 0, c->cur.type - TSI);
+            else if (base == TBP) *modrm = MODRM(0b10, 0, 0b010 + c->cur.type - TSI);
+            if (!compiler_match(c, TPLUS)) goto end;
+        }
+        if (*addrsize == 16) HANDLE(compiler_imm16(c, disp));
+        else HANDLE(compiler_imm32(c, disp));
         if (base == TINVALID) *modrm = MODRM(0, 0, 0b110);
         else *modrm = MODRM(0b10, 0, *modrm);
     }
 
+end:
     HANDLE(compiler_consume(c, TRIGHTBRACKET));
 
     return true;
 }
 
+bool compiler_emitmem(Compiler *c, int64_t disp, uint8_t modrm, uint8_t reg, int addrsize)
+{
+    HANDLE(compiler_emit8(c, MODRM(0, reg, modrm)));
+    if (disp || (modrm >> 6) == 0b10) HANDLE(addrsize == 16 ? compiler_emit16(c, disp) : compiler_emit32(c, disp));
+    return true;
+}
+
 bool compiler_grp1(Compiler *c, uint8_t base, uint8_t reg)
 {
-    size_t d, s;
-    int size;
+    int64_t d, s;
+    int size, addrsize;
     uint8_t modrm;
-    size_t disp;
+    int64_t disp;
 
-    if (compiler_reg16(c, &d))
+    if (compiler_reg32(c, &d))
+    {
+        HANDLE(compiler_consume(c, TCOMMA));
+        HANDLE(compiler_emit8(c, 0x66));
+        if (compiler_reg32(c, &s))
+        {
+            HANDLE(compiler_emit8(c, base + 3));
+            HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
+            return true;
+        }
+        else if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
+        {
+            HANDLE(compiler_emit8(c, base + 3));
+            HANDLE(compiler_emitmem(c, disp, modrm, d, addrsize));
+            return true;
+        }
+        else if (compiler_imm32(c, &s))
+        {
+            HANDLE(compiler_emit8(c, 0x81));
+            HANDLE(compiler_emit8(c, MODRM(0b11, reg, d)));
+            HANDLE(compiler_emit32(c, s));
+            return true;
+        }
+    }
+    else if (compiler_reg16(c, &d))
     {
         HANDLE(compiler_consume(c, TCOMMA));
         if (compiler_reg16(c, &s))
@@ -368,14 +432,19 @@ bool compiler_grp1(Compiler *c, uint8_t base, uint8_t reg)
             return true;
         }
     }
-    else if (compiler_mem(c, &size, &modrm, &disp))
+    else if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
     {
         HANDLE(compiler_consume(c, TCOMMA));
-        if (size == 8 && compiler_imm8(c, &s))
+        if (size == 8 && compiler_reg8(c, &s))
+        {
+            HANDLE(compiler_emit8(c, base));
+            HANDLE(compiler_emitmem(c, disp, modrm, s, addrsize));
+            return true;
+        }
+        else if (size == 8 && compiler_imm8(c, &s))
         {
             HANDLE(compiler_emit8(c, 0x80));
-            HANDLE(compiler_emit8(c, MODRM(0, reg, modrm)));
-            if (disp || (modrm >> 6) == 0b10) HANDLE(compiler_emit16(c, disp));
+            HANDLE(compiler_emitmem(c, disp, modrm, reg, addrsize));
             HANDLE(compiler_emit8(c, s));
             return true;
         }
@@ -386,7 +455,7 @@ bool compiler_grp1(Compiler *c, uint8_t base, uint8_t reg)
 
 bool compiler_grp2(Compiler *c, uint8_t reg)
 {
-    size_t d, s;
+    int64_t d, s;
 
     if (compiler_reg16(c, &d))
     {
@@ -403,23 +472,48 @@ bool compiler_grp2(Compiler *c, uint8_t reg)
     return die(&c->t, "compiler_grp2: Unimplemented");
 }
 
+bool compiler_grp3(Compiler *c, uint8_t reg)
+{
+    int64_t d;
+    int size, addrsize;
+    uint8_t modrm;
+    int64_t disp;
+
+    if (compiler_reg32(c, &d))
+    {
+        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_emit8(c, 0xF7));
+        HANDLE(compiler_emit8(c, MODRM(0b11, reg, d)));
+        return true;
+    }
+    else if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
+    {
+        if (size == 0) return die(&c->t, "compiler_grp3: Unknown operand size");
+        if (size == 32) HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_emit8(c, size == 8 ? 0xF6 : 0xF7));
+        HANDLE(compiler_emitmem(c, disp, modrm, reg, addrsize));
+        return true;
+    }
+
+    return die(&c->t, "compiler_grp3: Unimplemented");
+}
+
 bool compiler_mov(Compiler *c)
 {
-    size_t d, s;
-    int size;
+    int64_t d, s;
+    int size, addrsize;
     uint8_t modrm;
-    size_t disp;
+    int64_t disp;
 
     if (compiler_reg32(c, &d))
     {
         HANDLE(compiler_consume(c, TCOMMA));
         HANDLE(compiler_emit8(c, 0x66));
-        if (compiler_mem(c, &size, &modrm, &disp))
+        if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
         {
             if (size != 8 && size != 0) return die(&c->t, "operand size mismatch");
             HANDLE(compiler_emit8(c, 0x8B));
-            HANDLE(compiler_emit8(c, MODRM(0, d, modrm)));
-            if (disp || (modrm >> 6) == 0b10) HANDLE(compiler_emit16(c, disp));
+            HANDLE(compiler_emitmem(c, disp, modrm, d, addrsize));
             return true;
         }
     }
@@ -430,6 +524,19 @@ bool compiler_mov(Compiler *c)
         {
             HANDLE(compiler_emit8(c, 0x8B));
             HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
+            return true;
+        }
+        else if (compiler_seg(c, &s))
+        {
+            HANDLE(compiler_emit8(c, 0x8C));
+            HANDLE(compiler_emit8(c, MODRM(0b11, s, d)));
+            return true;
+        }
+        else if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
+        {
+            if (size != 16 && size != 0) return die(&c->t, "operand size mismatch");
+            HANDLE(compiler_emit8(c, 0x8B));
+            HANDLE(compiler_emitmem(c, disp, modrm, d, addrsize));
             return true;
         }
         else if (compiler_imm16(c, &s))
@@ -449,12 +556,11 @@ bool compiler_mov(Compiler *c)
             HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
             return true;
         }
-        else if (compiler_mem(c, &size, &modrm, &disp))
+        else if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
         {
             if (size != 8 && size != 0) return die(&c->t, "operand size mismatch");
             HANDLE(compiler_emit8(c, 0x8A));
-            HANDLE(compiler_emit8(c, MODRM(0, d, modrm)));
-            if (disp || (modrm >> 6) == 0b10) HANDLE(compiler_emit16(c, disp));
+            HANDLE(compiler_emitmem(c, disp, modrm, d, addrsize));
             return true;
         }
         else if (compiler_imm8(c, &s))
@@ -475,21 +581,19 @@ bool compiler_mov(Compiler *c)
             return true;
         }
     }
-    else if (compiler_mem(c, &size, &modrm, &disp))
+    else if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
     {
         HANDLE(compiler_consume(c, TCOMMA));
         if ((size == 8 || size == 0) && compiler_reg8(c, &s))
         {
             HANDLE(compiler_emit8(c, 0x88));
-            HANDLE(compiler_emit8(c, MODRM(0, s, modrm)));
-            if (disp || (modrm >> 6) == 0b10) HANDLE(compiler_emit16(c, disp));
+            HANDLE(compiler_emitmem(c, disp, modrm, s, addrsize));
             return true;
         }
         else if (size == 8 && compiler_imm8(c, &s))
         {
             HANDLE(compiler_emit8(c, 0xC6));
-            HANDLE(compiler_emit8(c, MODRM(0, 0, modrm)));
-            if (disp || (modrm >> 6) == 0b10) HANDLE(compiler_emit16(c, disp));
+            HANDLE(compiler_emitmem(c, disp, modrm, 0, addrsize));
             HANDLE(compiler_emit8(c, s));
             return true;
         }
@@ -500,7 +604,7 @@ bool compiler_mov(Compiler *c)
 
 bool compiler_jmp(Compiler *c, uint8_t op, uint8_t opfar, uint8_t reg)
 {
-    size_t x;
+    int64_t x;
     (void)opfar;
     (void)reg;
 
@@ -528,7 +632,7 @@ bool compiler_jmp8(Compiler *c, uint8_t op)
 
 bool compiler_int(Compiler *c)
 {
-    size_t x;
+    int64_t x;
     HANDLE(compiler_imm8(c, &x));
     HANDLE(compiler_emit8(c, 0xCD));
     HANDLE(compiler_emit8(c, x));
@@ -537,7 +641,7 @@ bool compiler_int(Compiler *c)
 
 bool compiler_test(Compiler *c)
 {
-    size_t d, s;
+    int64_t d, s;
 
     if (compiler_reg8(c, &d))
     {
@@ -569,7 +673,7 @@ bool compiler_ident(Compiler *c)
 
 bool compiler_db(Compiler *c)
 {
-    size_t x;
+    int64_t x;
 l:
     if (compiler_match(c, TCHARS))
     {
@@ -592,9 +696,18 @@ l:
 
 bool compiler_pushpop(Compiler *c, bool is_push)
 {
-    size_t x;
+    int64_t x;
+    int size, addrsize;
+    uint8_t modrm;
+    int64_t disp;
 
-    if (compiler_reg16(c, &x))
+    if (compiler_reg32(c, &x))
+    {
+        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_emit8(c, (is_push ? 0x50 : 0x58) | x));
+        return true;
+    }
+    else if (compiler_reg16(c, &x))
     {
         HANDLE(compiler_emit8(c, (is_push ? 0x50 : 0x58) | x));
         return true;
@@ -612,6 +725,13 @@ bool compiler_pushpop(Compiler *c, bool is_push)
         HANDLE(compiler_emit8(c, x + (is_push ? 0 : 1)));
         return true;
     }
+    else if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
+    {
+        if (size != 16 && size != 0) return die(&c->t, "compiler_pushpop: Operand size unsupported");
+        HANDLE(compiler_emit8(c, is_push ? 0xFF : 0x8F));
+        HANDLE(compiler_emitmem(c, disp, modrm, is_push ? 6 : 0, addrsize));
+        return true;
+    }
     else if (is_push && compiler_imm16(c, &x))
     {
         HANDLE(compiler_emit8(c, 0x68));
@@ -620,6 +740,133 @@ bool compiler_pushpop(Compiler *c, bool is_push)
     }
 
     return die(&c->t, "compiler_pushpop: Unimplemented");
+}
+
+bool compiler_movzx(Compiler *c)
+{
+    int64_t d, s;
+    int size, addrsize;
+    uint8_t modrm;
+    int64_t disp;
+    (void)s;
+
+    if (compiler_reg32(c, &d))
+    {
+        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_emit8(c, 0x0F));
+        HANDLE(compiler_consume(c, TCOMMA));
+        if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
+        {
+            if (size == 16) HANDLE(compiler_emit8(c, 0xB7));
+            else if (size == 8) HANDLE(compiler_emit8(c, 0xB6));
+            else return die(&c->t, "compiler_movzx: Operand size unsupported");
+            HANDLE(compiler_emitmem(c, disp, modrm, d, addrsize));
+            return true;
+        }
+    }
+    else if (compiler_reg16(c, &d))
+    {
+        HANDLE(compiler_emit8(c, 0x0F));
+        HANDLE(compiler_consume(c, TCOMMA));
+        HANDLE(compiler_emit8(c, 0xB6));
+        if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
+        {
+            if (size != 8 && size != 0) return die(&c->t, "compiler_movzx: Operand size unsupported");
+            HANDLE(compiler_emitmem(c, disp, modrm, d, addrsize));
+            return true;
+        }
+    }
+
+    return die(&c->t, "compiler_movzx: Unimplemented");
+}
+
+bool compiler_lea(Compiler *c, uint8_t op)
+{
+    int64_t d;
+    int size, addrsize;
+    uint8_t modrm;
+    int64_t disp;
+
+    if (compiler_reg16(c, &d))
+    {
+        HANDLE(compiler_consume(c, TCOMMA));
+        HANDLE(compiler_mem(c, &size, &addrsize, &modrm, &disp));
+        if (size != 0 && size != 16) return die(&c->t, "compiler_lea: Operand size unsupported");
+        HANDLE(compiler_emit8(c, op));
+        HANDLE(compiler_emitmem(c, disp, modrm, d, addrsize));
+        return true;
+    }
+    else if (compiler_reg32(c, &d))
+    {
+        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_consume(c, TCOMMA));
+        HANDLE(compiler_mem(c, &size, &addrsize, &modrm, &disp));
+        if (size != 0 && size != 32) return die(&c->t, "compiler_lea: Operand size unsupported");
+        HANDLE(compiler_emit8(c, op));
+        HANDLE(compiler_emitmem(c, disp, modrm, d, addrsize));
+        return true;
+    }
+
+    return die(&c->t, "compiler_lea: Unimplemented");
+}
+
+bool compiler_xchg(Compiler *c)
+{
+    int64_t d, s;
+
+    if (compiler_reg32(c, &d))
+    {
+        HANDLE(compiler_consume(c, TCOMMA));
+        HANDLE(compiler_emit8(c, 0x66));
+        if (compiler_reg32(c, &s))
+        {
+            HANDLE(compiler_emit8(c, 0x87));
+            HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
+            return true;
+        }
+    }
+
+    return die(&c->t, "compiler_xchg: Unimplemented");
+}
+
+bool compiler_imul(Compiler *c)
+{
+    int64_t d, s, imm;
+
+    if (compiler_reg16(c, &d))
+    {
+        if (compiler_match(c, TCOMMA) && compiler_reg16(c, &s))
+        {
+            if (compiler_match(c, TCOMMA) && compiler_imm16(c, &imm))
+            {
+                HANDLE(compiler_emit8(c, 0x69));
+                HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
+                HANDLE(compiler_emit16(c, imm));
+                return true;
+            }
+        }
+    }
+
+    return die(&c->t, "compiler_imul: Unimplemented");
+}
+
+bool compiler_incdec(Compiler *c, uint8_t op)
+{
+    int64_t x;
+    
+    if (compiler_reg32(c, &x))
+    {
+        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_emit8(c, op | x));
+        return true;
+    }
+    else if (compiler_reg16(c, &x))
+    {
+        HANDLE(compiler_emit8(c, op | x));
+        return true;
+    }
+
+    return die(&c->t, "compiler_incdec: Unimplemented");
 }
 
 bool compiler_statement(Compiler *c)
@@ -631,29 +878,49 @@ bool compiler_statement(Compiler *c)
         case TORG: HANDLE(compiler_const_expr(c, &c->org)); c->ip = c->org; break;
         case TRB: HANDLE(compiler_const_expr(c, &x)); c->ip += x; break;
         case TADD: HANDLE(compiler_grp1(c, 0x00, 0)); break;
+        case TADC: HANDLE(compiler_grp1(c, 0x10, 2)); break;
         case TAND: HANDLE(compiler_grp1(c, 0x20, 4)); break;
         case TCALL: HANDLE(compiler_jmp(c, 0xE8, 0x9A, 2)); break;
+        case TCDQ: HANDLE(compiler_emit16(c, 0x9966)); break;
         case TCLI: HANDLE(compiler_emit8(c, 0xFA)); break;
         case TCLD: HANDLE(compiler_emit8(c, 0xFC)); break;
+        case TCMPSB: HANDLE(compiler_emit8(c, 0xA6)); break;
+        case TCMP: HANDLE(compiler_grp1(c, 0x38, 7)); break;
+        case TCWDE: HANDLE(compiler_emit16(c, 0x9866)); break;
+        case TDEC: HANDLE(compiler_incdec(c, 0x48)); break;
+        case TDIV: HANDLE(compiler_grp3(c, 6)); break;
+        case THLT: HANDLE(compiler_emit8(c, 0xF4)); break;
+        case TIMUL: HANDLE(compiler_imul(c)); break;
+        case TINC: HANDLE(compiler_incdec(c, 0x40)); break;
         case TINT: HANDLE(compiler_int(c)); break;
         case TJMP: HANDLE(compiler_jmp(c, 0xE9, 0xEA, 4)); break;
-        case TJB: HANDLE(compiler_jmp8(c, 0x73)); break;
+        case TJNZ: HANDLE(compiler_jmp8(c, 0x75)); break;
+        case TJNB: HANDLE(compiler_jmp8(c, 0x73)); break;
+        case TJB: HANDLE(compiler_jmp8(c, 0x72)); break;
         case TJZ: HANDLE(compiler_jmp8(c, 0x74)); break;
         case TLODSB: HANDLE(compiler_emit8(c, 0xAC)); break;
+        case TLOOP: HANDLE(compiler_jmp8(c, 0xE2)); break;
+        case TLEA: HANDLE(compiler_lea(c, 0x8D)); break;
+        case TMOVZX: HANDLE(compiler_movzx(c)); break;
         case TMOVSW: HANDLE(compiler_emit8(c, 0xA5)); break;
         case TMOV: HANDLE(compiler_mov(c)); break;
+        case TMUL: HANDLE(compiler_grp3(c, 4)); break;
         case TPUSHF: HANDLE(compiler_emit8(c, 0x9C)); break;
         case TPUSH: HANDLE(compiler_pushpop(c, true)); break;
+        case TPOPF: HANDLE(compiler_emit8(c, 0x9D)); break;
         case TPOP: HANDLE(compiler_pushpop(c, false)); break;
+        case TPOPAD: HANDLE(compiler_emit16(c, 0x6166)); break;
         case TRETF: HANDLE(compiler_emit8(c, 0xCB)); break;
         case TRET: HANDLE(compiler_emit8(c, 0xC3)); break;
         case TREP: HANDLE(compiler_emit8(c, 0xF3)); break;
         case TSHL: HANDLE(compiler_grp2(c, 4)); break;
+        case TSHR: HANDLE(compiler_grp2(c, 5)); break;
         case TSTI: HANDLE(compiler_emit8(c, 0xFB)); break;
         case TSUB: HANDLE(compiler_grp1(c, 0x28, 5)); break;
         case TTEST: HANDLE(compiler_test(c)); break;
         case TUSE16: c->use32 = false; break;
         case TUSE32: c->use32 = true; break;
+        case TXCHG: HANDLE(compiler_xchg(c)); break;
         case TXOR: HANDLE(compiler_grp1(c, 0x30, 6)); break;
         case TDOT: HANDLE(compiler_dot(c)); break;
         case TIDENT: HANDLE(compiler_ident(c)); break;
