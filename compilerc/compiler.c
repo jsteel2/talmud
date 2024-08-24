@@ -380,7 +380,7 @@ end:
 bool compiler_emitmem(Compiler *c, int64_t disp, uint8_t modrm, uint8_t reg, int addrsize)
 {
     HANDLE(compiler_emit8(c, MODRM(0, reg, modrm)));
-    if (disp || (modrm >> 6) == 0b10) HANDLE(addrsize == 16 ? compiler_emit16(c, disp) : compiler_emit32(c, disp));
+    if ((modrm & 0b111) == 0b110 || (modrm >> 6) == 0b10) HANDLE(addrsize == 16 ? compiler_emit16(c, disp) : compiler_emit32(c, disp));
     return true;
 }
 
