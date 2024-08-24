@@ -71,6 +71,14 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("CLI") == len && strncmp(start, SLEN("CLI")) == 0) return TCLI;
             if (LEN("CLD") == len && strncmp(start, SLEN("CLD")) == 0) return TCLD;
             if (LEN("CMP") == len && strncmp(start, SLEN("CMP")) == 0) return TCMP;
+            if (LEN("CR0") == len && strncmp(start, SLEN("CR0")) == 0) return TCR0;
+            if (LEN("CR1") == len && strncmp(start, SLEN("CR1")) == 0) return TCR1;
+            if (LEN("CR2") == len && strncmp(start, SLEN("CR2")) == 0) return TCR2;
+            if (LEN("CR3") == len && strncmp(start, SLEN("CR3")) == 0) return TCR3;
+            if (LEN("CR4") == len && strncmp(start, SLEN("CR4")) == 0) return TCR4;
+            if (LEN("CR5") == len && strncmp(start, SLEN("CR5")) == 0) return TCR5;
+            if (LEN("CR6") == len && strncmp(start, SLEN("CR6")) == 0) return TCR6;
+            if (LEN("CR7") == len && strncmp(start, SLEN("CR7")) == 0) return TCR7;
             if (LEN("CX") == len && strncmp(start, SLEN("CX")) == 0) return TCX;
             if (LEN("CH") == len && strncmp(start, SLEN("CH")) == 0) return TCH;
             if (LEN("CL") == len && strncmp(start, SLEN("CL")) == 0) return TCL;
@@ -102,6 +110,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("IMUL") == len && strncmp(start, SLEN("IMUL")) == 0) return TIMUL;
             if (LEN("INC") == len && strncmp(start, SLEN("INC")) == 0) return TINC;
             if (LEN("INT") == len && strncmp(start, SLEN("INT")) == 0) return TINT;
+            if (LEN("IN") == len && strncmp(start, SLEN("IN")) == 0) return TIN;
             break;
         case 'J':
             if (LEN("JMP") == len && strncmp(start, SLEN("JMP")) == 0) return TJMP;
@@ -112,6 +121,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             break;
         case 'L':
             if (LEN("LODSB") == len && strncmp(start, SLEN("LODSB")) == 0) return TLODSB;
+            if (LEN("LGDT") == len && strncmp(start, SLEN("LGDT")) == 0) return TLGDT;
             if (LEN("LOOP") == len && strncmp(start, SLEN("LOOP")) == 0) return TLOOP;
             if (LEN("LEA") == len && strncmp(start, SLEN("LEA")) == 0) return TLEA;
             break;
@@ -123,6 +133,8 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             break;
         case 'O':
             if (LEN("ORG") == len && strncmp(start, SLEN("ORG")) == 0) return TORG;
+            if (LEN("OUT") == len && strncmp(start, SLEN("OUT")) == 0) return TOUT;
+            if (LEN("OR") == len && strncmp(start, SLEN("OR")) == 0) return TOR;
             break;
         case 'P':
             if (LEN("PUSHAD") == len && strncmp(start, SLEN("PUSHAD")) == 0) return TPUSHAD;

@@ -1,61 +1,46 @@
 ORG 0x500
 USE16
 
-MOV AH, 0x0E
-MOV AL, 'E'
-INT 0x10
-MOV AL, 'D'
-INT 0x10
-MOV AL, 'E'
-INT 0x10
-MOV AL, 'N'
-INT 0x10
-MOV AL, '!'
-INT 0x10
-h:
-    HLT
-    JMP h
+IN AL, 0x92
+OR AL, 2
+OUT 0x92, AL
 
-#IN AL, 0x92
-#OR AL, 2
-#OUT 0x92, AL
-#
-#CLI
-#
-#XOR AX, AX
-#MOV DS, AX
-#
-#LGDT [gdt_desc]
-#
-#MOV EAX, CR0
-#OR AL, 1
-#MOV CR0, EAX
-#
-#JMP 0x08:pmode
-#
-#USE32
-#pmode:
-#    MOV AX, 0x10
-#    MOV DS, AX
-#    MOV ES, AX
-#    MOV SS, AX
-#    MOV FS, AX
-#    MOV GS, AX
-#    MOV ESP, $! + 64 *! 1024
-#
-#    STI
-#
-#    MOV BYTE [0xB8000], 'P'
-#    MOV BYTE [0xB8001], 0x1B
-#
-#    JMP $
-#
-#gdt_desc:
-#    DW gdt_end - gdt - 1
-#    DD gdt
-#
-#gdt:
-#    DD 0, 0
-#    DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0xCF, 0
-#    DB 0xFF, 0xFF, 0, 0, 0, 0x92, 0xCF, 0
-#gdt_end:
+CLI
+
+XOR AX, AX
+MOV DS, AX
+
+LGDT [gdt_desc]
+
+MOV EAX, CR0
+OR AL, 1
+MOV CR0, EAX
+
+JMP 0x08:pmode
+
+USE32
+pmode:
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV SS, AX
+    MOV FS, AX
+    MOV GS, AX
+    MOV ESP, $! + 64 *! 1024
+
+    STI
+
+    MOV BYTE [0xB8000], 'P'
+    MOV BYTE [0xB8001], 0x1B
+
+    JMP $
+
+gdt_desc:
+    DW gdt_end - gdt - 1
+    DD gdt
+
+gdt:
+    DD 0, 0
+    DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0xCF, 0
+    DB 0xFF, 0xFF, 0, 0, 0, 0x92, 0xCF, 0
+gdt_end:
