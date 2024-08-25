@@ -94,14 +94,23 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("DL") == len && strncmp(start, SLEN("DL")) == 0) return TDL;
             if (LEN("DI") == len && strncmp(start, SLEN("DI")) == 0) return TDI;
             if (LEN("DB") == len && strncmp(start, SLEN("DB")) == 0) return TDB;
+            if (LEN("DW") == len && strncmp(start, SLEN("DW")) == 0) return TDW;
+            if (LEN("DD") == len && strncmp(start, SLEN("DD")) == 0) return TDD;
             break;
         case 'E':
             if (LEN("EAX") == len && strncmp(start, SLEN("EAX")) == 0) return TEAX;
             if (LEN("ECX") == len && strncmp(start, SLEN("ECX")) == 0) return TECX;
             if (LEN("EDX") == len && strncmp(start, SLEN("EDX")) == 0) return TEDX;
             if (LEN("EBP") == len && strncmp(start, SLEN("EBP")) == 0) return TEBP;
+            if (LEN("ESP") == len && strncmp(start, SLEN("ESP")) == 0) return TESP;
             if (LEN("ESI") == len && strncmp(start, SLEN("ESI")) == 0) return TESI;
             if (LEN("ES") == len && strncmp(start, SLEN("ES")) == 0) return TES;
+            break;
+        case 'F':
+            if (LEN("FS") == len && strncmp(start, SLEN("FS")) == 0) return TFS;
+            break;
+        case 'G':
+            if (LEN("GS") == len && strncmp(start, SLEN("GS")) == 0) return TGS;
             break;
         case 'H':
             if (LEN("HLT") == len && strncmp(start, SLEN("HLT")) == 0) return THLT;
@@ -229,14 +238,17 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
     {
         case '*':
             if (t->src[t->pos++] == '!') return TSTARU;
-            else if (t->src[t->pos - 1] == '$') return TSTARS;
+            if (t->src[t->pos - 1] == '$') return TSTARS;
+            t->pos--;
             return TSTAR;
         case '/':
             if (t->src[t->pos++] == '!') return TSLASHU;
-            else if (t->src[t->pos - 1] == '$') return TSLASHS;
+            if (t->src[t->pos - 1] == '$') return TSLASHS;
             return die(t, "invalid symbol %c", t->src[t->pos - 1]);
         case '$':
             if (t->src[t->pos++] == '$') return TORIGIN;
+            if (t->src[t->pos - 1] == '!') return TPROGEND;
+            t->pos--;
             return TIP;
         case '(': return TLEFTPAREN;
         case ')': return TRIGHTPAREN;

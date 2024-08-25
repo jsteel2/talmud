@@ -53,7 +53,7 @@ bool compiler_end(Compiler *c)
     return c->next.type == TEND;
 }
 
-bool compiler_emit8(Compiler *c, uint8_t byte)
+bool compiler_emit8(Compiler *c, size_t byte)
 {
     c->ip++;
     if (c->is_first_pass) return true;
@@ -68,13 +68,13 @@ bool compiler_emit8(Compiler *c, uint8_t byte)
     return true;
 }
 
-bool compiler_emit16(Compiler *c, uint16_t word)
+bool compiler_emit16(Compiler *c, size_t word)
 {
     HANDLE(compiler_emit8(c, word & 0xff));
     return compiler_emit8(c, word >> 8);
 }
 
-bool compiler_emit32(Compiler *c, uint32_t dword)
+bool compiler_emit32(Compiler *c, size_t dword)
 {
     HANDLE(compiler_emit16(c, dword & 0xffff));
     return compiler_emit16(c, dword >> 16);
@@ -104,6 +104,9 @@ bool compiler_primary(Compiler *c, size_t *res)
             break;
         case TORIGIN:
             *res = c->org;
+            break;
+        case TPROGEND:
+            *res = c->prog_end;
             break;
         case TNUM:
             *res = (size_t)c->cur.value;
@@ -285,7 +288,7 @@ bool compiler_regx(Compiler *c, int64_t *res, TokenType begin, TokenType end)
 #define compiler_reg32(c, res) compiler_regx(c, res, TEAX, TEDI)
 #define compiler_reg16(c, res) compiler_regx(c, res, TAX, TDI)
 #define compiler_reg8(c, res) compiler_regx(c, res, TAL, TBH)
-#define compiler_seg(c, res) compiler_regx(c, res, TES, TDS)
+#define compiler_seg(c, res) compiler_regx(c, res, TES, TGS)
 #define compiler_ctrl(c, res) compiler_regx(c, res, TCR0, TCR7)
 
 bool compiler_imm8(Compiler *c, int64_t *imm)
@@ -306,6 +309,18 @@ bool compiler_imm32(Compiler *c, int64_t *imm)
 {
     HANDLE(compiler_const_expr(c, (size_t *)imm));
     if (!c->is_first_pass && (*imm > 0xffffffff || *imm < -(int64_t)0x80000000)) return die(&c->t, "immediate too large %ld", *imm);
+    return true;
+}
+
+bool compiler_addroverride(Compiler *c, int addrsize)
+{
+    if ((addrsize == 32 && !c->use32) || (addrsize == 16 && c->use32)) HANDLE(compiler_emit8(c, 0x67));
+    return true;
+}
+
+bool compiler_sizeoverride(Compiler *c, int size)
+{
+    if ((size == 32 && !c->use32) || (size == 16 && c->use32)) HANDLE(compiler_emit8(c, 0x66));
     return true;
 }
 
@@ -351,7 +366,7 @@ bool compiler_mem(Compiler *c, int *size, int *addrsize, uint8_t *modrm, int64_t
         default: goto noadvance;
     }
 
-    if (*addrsize == 32) HANDLE(compiler_emit8(c, 0x67));
+    HANDLE(compiler_addroverride(c, *addrsize));
 
     base = compiler_advance(c);
     HANDLE(base);
@@ -366,9 +381,10 @@ noadvance:
             else if (base == TBP) *modrm = MODRM(0b10, 0, 0b010 + c->cur.type - TSI);
             if (!compiler_match(c, TPLUS)) goto end;
         }
-        if (*addrsize == 16) HANDLE(compiler_imm16(c, disp));
-        else HANDLE(compiler_imm32(c, disp));
-        if (base == TINVALID) *modrm = MODRM(0, 0, 0b110);
+        HANDLE(compiler_const_expr(c, (size_t *)disp));
+        if (base == TINVALID && (*disp > 0xffff || *disp < -0x8000)) *addrsize = 32;
+        else if (*addrsize == 16 && (*disp > 0xffff || *disp < -0x8000)) return die(&c->t, "immediate too large");
+        if (base == TINVALID) *modrm = MODRM(0, 0, *addrsize == 16 ? 0b110 : 0b101);
         else *modrm = MODRM(0b10, 0, *modrm);
     }
 
@@ -381,7 +397,7 @@ end:
 bool compiler_emitmem(Compiler *c, int64_t disp, uint8_t modrm, uint8_t reg, int addrsize)
 {
     HANDLE(compiler_emit8(c, MODRM(0, reg, modrm)));
-    if ((modrm & 0b111) == 0b110 || (modrm >> 6) == 0b10) HANDLE(addrsize == 16 ? compiler_emit16(c, disp) : compiler_emit32(c, disp));
+    if ((modrm & 0b111) == (addrsize == 16 ? 0b110 : 0b101) || (modrm >> 6) == 0b10) HANDLE(addrsize == 16 ? compiler_emit16(c, disp) : compiler_emit32(c, disp));
     return true;
 }
 
@@ -395,7 +411,7 @@ bool compiler_grp1(Compiler *c, uint8_t base, uint8_t reg)
     if (compiler_reg32(c, &d))
     {
         HANDLE(compiler_consume(c, TCOMMA));
-        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_sizeoverride(c, 32));
         if (compiler_reg32(c, &s))
         {
             HANDLE(compiler_emit8(c, base + 3));
@@ -493,7 +509,7 @@ bool compiler_grp3(Compiler *c, uint8_t reg)
 
     if (compiler_reg32(c, &d))
     {
-        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_sizeoverride(c, 32));
         HANDLE(compiler_emit8(c, 0xF7));
         HANDLE(compiler_emit8(c, MODRM(0b11, reg, d)));
         return true;
@@ -501,7 +517,7 @@ bool compiler_grp3(Compiler *c, uint8_t reg)
     else if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
     {
         if (size == 0) return die(&c->t, "compiler_grp3: Unknown operand size");
-        if (size == 32) HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_sizeoverride(c, size));
         HANDLE(compiler_emit8(c, size == 8 ? 0xF6 : 0xF7));
         HANDLE(compiler_emitmem(c, disp, modrm, reg, addrsize));
         return true;
@@ -529,15 +545,24 @@ bool compiler_mov(Compiler *c)
         }
         else if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
         {
-            HANDLE(compiler_emit8(c, 0x66));
-            if (size != 8 && size != 0) return die(&c->t, "operand size mismatch");
+            HANDLE(compiler_sizeoverride(c, 32));
+            if (size != 32 && size != 0) return die(&c->t, "operand size mismatch");
             HANDLE(compiler_emit8(c, 0x8B));
             HANDLE(compiler_emitmem(c, disp, modrm, d, addrsize));
+            return true;
+        }
+        else if (compiler_imm32(c, &s))
+        {
+            HANDLE(compiler_sizeoverride(c, 32));
+            HANDLE(compiler_emit8(c, 0xC7));
+            HANDLE(compiler_emit8(c, MODRM(0b11, 0, d)));
+            HANDLE(compiler_emit32(c, s));
             return true;
         }
     }
     else if (compiler_reg16(c, &d))
     {
+        HANDLE(compiler_sizeoverride(c, 16));
         HANDLE(compiler_consume(c, TCOMMA));
         if (compiler_reg16(c, &s))
         {
@@ -595,6 +620,7 @@ bool compiler_mov(Compiler *c)
         HANDLE(compiler_consume(c, TCOMMA));
         if (compiler_reg16(c, &s))
         {
+            HANDLE(compiler_sizeoverride(c, 16));
             HANDLE(compiler_emit8(c, 0x8E));
             HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
             return true;
@@ -636,18 +662,21 @@ bool compiler_jmp(Compiler *c, uint8_t op, uint8_t opfar, uint8_t reg)
     (void)opfar;
     (void)reg;
 
-    if (compiler_imm16(c, &x))
+    bool (*imm)(Compiler *c, int64_t *x) = c->use32 ? compiler_imm32 : compiler_imm16;
+    bool (*emit)(Compiler *c, size_t x) = c->use32 ? compiler_emit32 : compiler_emit16;
+
+    if (imm(c, &x))
     {
         if (compiler_match(c, TCOLON))
         {
             HANDLE(compiler_emit8(c, opfar));
-            HANDLE(compiler_imm16(c, &y));
-            HANDLE(compiler_emit16(c, y));
-            HANDLE(compiler_emit16(c, x));
+            HANDLE(imm(c, &y));
+            HANDLE(emit(c, y));
+            HANDLE(emit(c, x));
             return true;
         }
         HANDLE(compiler_emit8(c, op));
-        HANDLE(compiler_emit16(c, compiler_relative(c, x, 2)));
+        HANDLE(emit(c, compiler_relative(c, x, c->use32 ? 4 : 2)));
         return true;
     }
 
@@ -707,7 +736,7 @@ bool compiler_ident(Compiler *c)
     return die(&c->t, "compiler_ident: Unimplemented");
 }
 
-bool compiler_db(Compiler *c)
+bool compiler_dx(Compiler *c, bool (*emit)(Compiler *c, size_t x), bool (*imm)(Compiler *c, int64_t *x))
 {
     int64_t x;
 l:
@@ -715,15 +744,15 @@ l:
     {
         for (size_t i = 0; i < strlen(c->cur.value); i++)
         {
-            HANDLE(compiler_emit8(c, ((char *)c->cur.value)[i]));
+            HANDLE(emit(c, ((char *)c->cur.value)[i]));
         }
         free(c->cur.value);
         c->cur.value = NULL;
     }
     else
     {
-        HANDLE(compiler_imm8(c, &x));
-        HANDLE(compiler_emit8(c, x));
+        HANDLE(imm(c, &x));
+        HANDLE(emit(c, x));
     }
     if (compiler_match(c, TCOMMA)) goto l;
 
@@ -739,7 +768,7 @@ bool compiler_pushpop(Compiler *c, bool is_push)
 
     if (compiler_reg32(c, &x))
     {
-        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_sizeoverride(c, 32));
         HANDLE(compiler_emit8(c, (is_push ? 0x50 : 0x58) | x));
         return true;
     }
@@ -788,7 +817,7 @@ bool compiler_movzx(Compiler *c)
 
     if (compiler_reg32(c, &d))
     {
-        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_sizeoverride(c, 32));
         HANDLE(compiler_emit8(c, 0x0F));
         HANDLE(compiler_consume(c, TCOMMA));
         if (compiler_mem(c, &size, &addrsize, &modrm, &disp))
@@ -834,7 +863,7 @@ bool compiler_lea(Compiler *c, uint8_t op)
     }
     else if (compiler_reg32(c, &d))
     {
-        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_sizeoverride(c, 32));
         HANDLE(compiler_consume(c, TCOMMA));
         HANDLE(compiler_mem(c, &size, &addrsize, &modrm, &disp));
         if (size != 0 && size != 32) return die(&c->t, "compiler_lea: Operand size unsupported");
@@ -853,7 +882,7 @@ bool compiler_xchg(Compiler *c)
     if (compiler_reg32(c, &d))
     {
         HANDLE(compiler_consume(c, TCOMMA));
-        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_sizeoverride(c, 32));
         if (compiler_reg32(c, &s))
         {
             HANDLE(compiler_emit8(c, 0x87));
@@ -892,7 +921,7 @@ bool compiler_incdec(Compiler *c, uint8_t op)
     
     if (compiler_reg32(c, &x))
     {
-        HANDLE(compiler_emit8(c, 0x66));
+        HANDLE(compiler_sizeoverride(c, 32));
         HANDLE(compiler_emit8(c, op | x));
         return true;
     }
@@ -958,7 +987,9 @@ bool compiler_statement(Compiler *c)
     size_t x;
     switch (compiler_advance(c))
     {
-        case TDB: HANDLE(compiler_db(c)); break;
+        case TDB: HANDLE(compiler_dx(c, compiler_emit8, compiler_imm8)); break;
+        case TDW: HANDLE(compiler_dx(c, compiler_emit16, compiler_imm16)); break;
+        case TDD: HANDLE(compiler_dx(c, compiler_emit32, compiler_imm32)); break;
         case TORG: HANDLE(compiler_const_expr(c, &c->org)); c->ip = c->org; break;
         case TRB: HANDLE(compiler_const_expr(c, &x)); c->ip += x; break;
         case TADD: HANDLE(compiler_grp1(c, 0x00, 0)); break;
@@ -1040,6 +1071,7 @@ uint8_t *compile(Compiler *c, char *src, size_t *outbin_len)
     c->outbin_size = 1024;
     c->outbin = malloc(c->outbin_size);
     c->outbin_len = 0;
+    c->prog_end = 0;
 
     tokenizer_init(&c->t, src);
     if (!compiler_pass(c, true)) 
@@ -1047,6 +1079,7 @@ uint8_t *compile(Compiler *c, char *src, size_t *outbin_len)
         free(c->outbin);
         return NULL;
     }
+    c->prog_end = c->ip;
     tokenizer_init(&c->t, src);
     if (!compiler_pass(c, false)) 
     {

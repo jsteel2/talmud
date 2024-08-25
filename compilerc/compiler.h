@@ -22,6 +22,7 @@ typedef struct
     bool use32;
     Map idents;
     char *cur_label;
+    size_t prog_end;
 } Compiler;
 
 bool compiler_init(Compiler *c);

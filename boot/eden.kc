@@ -28,8 +28,6 @@ pmode:
     MOV GS, AX
     MOV ESP, $! + 64 *! 1024
 
-    STI
-
     MOV BYTE [0xB8000], 'P'
     MOV BYTE [0xB8001], 0x1B
 
