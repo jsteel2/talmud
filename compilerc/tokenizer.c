@@ -101,9 +101,11 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("EAX") == len && strncmp(start, SLEN("EAX")) == 0) return TEAX;
             if (LEN("ECX") == len && strncmp(start, SLEN("ECX")) == 0) return TECX;
             if (LEN("EDX") == len && strncmp(start, SLEN("EDX")) == 0) return TEDX;
+            if (LEN("EBX") == len && strncmp(start, SLEN("EBX")) == 0) return TEBX;
             if (LEN("EBP") == len && strncmp(start, SLEN("EBP")) == 0) return TEBP;
             if (LEN("ESP") == len && strncmp(start, SLEN("ESP")) == 0) return TESP;
             if (LEN("ESI") == len && strncmp(start, SLEN("ESI")) == 0) return TESI;
+            if (LEN("EDI") == len && strncmp(start, SLEN("EDI")) == 0) return TEDI;
             if (LEN("ES") == len && strncmp(start, SLEN("ES")) == 0) return TES;
             break;
         case 'F':
@@ -182,6 +184,12 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("XCHG") == len && strncmp(start, SLEN("XCHG")) == 0) return TXCHG;
             if (LEN("XOR") == len && strncmp(start, SLEN("XOR")) == 0) return TXOR;
             break;
+        case 'f':
+            if (LEN("function") == len && strncmp(start, SLEN("function")) == 0) return TFUNCTION;
+            break;
+        case 'i':
+            if (LEN("include") == len && strncmp(start, SLEN("include")) == 0) return TINCLUDE;
+            break;
         default: break;
     }
 
@@ -254,11 +262,14 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
         case ')': return TRIGHTPAREN;
         case '[': return TLEFTBRACKET;
         case ']': return TRIGHTBRACKET;
+        case '{': return TLEFTBRACE;
+        case '}': return TRIGHTBRACE;
         case '-': return TMINUS;
         case '+': return TPLUS;
         case ',': return TCOMMA;
         case '.': return TDOT;
         case ':': return TCOLON;
+        case ';': return TSEMICOLON;
         default: return die(t, "unknown symbol %c", t->src[t->pos - 1]);
     }
 }

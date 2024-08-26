@@ -106,16 +106,14 @@ FileReadContinue:
 
     MOV DL, [bsDriveNumber]
 
-    POP AX
-
-    MOV AX, 0x50
+    XOR AX, AX
     MOV ES, AX
     MOV DS, AX
     MOV SS, AX
     XOR SP, SP
     MOV BH, 5
-    PUSH AX
     PUSH 0
+    PUSH 0x500
     RETF
 
 ReadCluster:

@@ -19,6 +19,7 @@ typedef struct
 
 bool map_init(Map *m);
 void map_free(Map *m);
+void map_free2(Map *m);
 bool map_get(Map *m, char *key, uint64_t *value);
 bool map_set(Map *m, char *key, uint64_t value);
 

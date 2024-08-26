@@ -5,40 +5,115 @@ IN AL, 0x92
 OR AL, 2
 OUT 0x92, AL
 
-CLI
-
-XOR AX, AX
-MOV DS, AX
-
-LGDT [gdt_desc]
-
-MOV EAX, CR0
-OR AL, 1
-MOV CR0, EAX
-
-JMP 0x08:pmode
+MOV ESI, pmode
+JMP switch_protected
 
 USE32
 pmode:
+    MOV ESP, $! + 48 *! 1024
+
+    interrupt(0x10, 0x0E52, 0, 0, 0, 0, 0);
+    interrupt(0x10, 0x0E45, 0, 0, 0, 0, 0);
+    interrupt(0x10, 0x0E41, 0, 0, 0, 0, 0);
+    interrupt(0x10, 0x0E4C, 0, 0, 0, 0, 0);
+
+    MOV BYTE [0xB8000], 'P'
+    MOV BYTE [0xB8001], 0x1B
+    MOV BYTE [0xB8002], 'R'
+    MOV BYTE [0xB8003], 0x1B
+    MOV BYTE [0xB8004], 'O'
+    MOV BYTE [0xB8005], 0x1B
+    MOV BYTE [0xB8006], 'T'
+    MOV BYTE [0xB8007], 0x1B
+    MOV BYTE [0xB8008], 'E'
+    MOV BYTE [0xB8009], 0x1B
+    MOV BYTE [0xB800A], 'C'
+    MOV BYTE [0xB800B], 0x1B
+    MOV BYTE [0xB800C], 'T'
+    MOV BYTE [0xB800D], 0x1B
+    MOV BYTE [0xB800E], 'E'
+    MOV BYTE [0xB800F], 0x1B
+    MOV BYTE [0xB8010], 'D'
+    MOV BYTE [0xB8011], 0x1B
+
+.hlt:
+    HLT
+    JMP .hlt
+
+switch_unreal:
+    CLI
+
+    JMP 0x18:.bit16
+.bit16:
+USE16
     MOV AX, 0x10
     MOV DS, AX
     MOV ES, AX
     MOV SS, AX
     MOV FS, AX
     MOV GS, AX
-    MOV ESP, $! + 64 *! 1024
+    MOV EAX, CR0
+    AND AL, 0xFE
+    MOV CR0, EAX
+    JMP 0x00:.unreal
+.unreal:
+    XOR AX, AX
+    MOV DS, AX
+    MOV ES, AX
+    MOV SS, AX
+    MOV FS, AX
+    MOV GS, AX
+    JMP ESI
 
-    MOV BYTE [0xB8000], 'P'
-    MOV BYTE [0xB8001], 0x1B
+switch_protected:
+    CLI
 
-    JMP $
+    LGDT [gdtr]
 
-gdt_desc:
-    DW gdt_end - gdt - 1
-    DD gdt
+    MOV EAX, CR0
+    OR AL, 1
+    MOV CR0, EAX
+    JMP 0x08:.protected
+.protected:
+USE32
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV SS, AX
+    MOV FS, AX
+    MOV GS, AX
+    JMP ESI
 
-gdt:
+# FIXME: this probably gives trouble if ESP is bigger than 64K
+function interrupt(int, eax, ecx, edx, ebx, esi, edi)
+{
+    MOV ESI, .unreal
+    JMP switch_unreal
+USE16
+.unreal:
+    MOV AL, [int]
+    MOV [.int + 1], AL
+    MOV EAX, [eax]
+    MOV ECX, [ecx]
+    MOV EDX, [edx]
+    MOV EBX, [ebx]
+    MOV ESI, [esi]
+    MOV EDI, [edi]
+    STI
+.int:
+    INT 0x00
+    MOV ESI, .protected
+    JMP switch_protected
+USE32
+.protected:
+}
+
+gdtr:
+    DW .end - .gdt - 1
+    DD .gdt
+.gdt:
     DD 0, 0
     DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0xCF, 0
     DB 0xFF, 0xFF, 0, 0, 0, 0x92, 0xCF, 0
-gdt_end:
+    DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0x00, 0
+.end:

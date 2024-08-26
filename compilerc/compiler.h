@@ -21,8 +21,12 @@ typedef struct
     bool is_const_expr;
     bool use32;
     Map idents;
+    Map locals;
     char *cur_label;
     size_t prog_end;
+    size_t *later;
+    size_t later_size;
+    size_t later_i;
 } Compiler;
 
 bool compiler_init(Compiler *c);

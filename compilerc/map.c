@@ -11,12 +11,18 @@ bool map_init(Map *m)
     return (m->entries = malloc(m->size * sizeof(MapEntry)));
 }
 
-void map_free(Map *m)
+void map_free2(Map *m)
 {
     for (size_t i = 0; i < m->len; i++)
     {
         free(m->entries[i].key);
     }
+    m->len = 0;
+}
+
+void map_free(Map *m)
+{
+    map_free2(m);
     free(m->entries);
 }
 
