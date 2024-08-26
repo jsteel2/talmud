@@ -1,6 +1,11 @@
 ORG 0x500
 USE16
 
+const TRUE = 1;
+const FALSE = 0;
+const STACK = $! + 48 *! 1024;
+const DISK_BUF = STACK;
+
 IN AL, 0x92
 OR AL, 2
 OUT 0x92, AL
@@ -10,7 +15,7 @@ JMP switch_protected
 
 USE32
 pmode:
-    MOV ESP, $! + 48 *! 1024
+    MOV ESP, STACK
 
     interrupt(0x10, 0x0E52, 0, 0, 0, 0, 0);
     interrupt(0x10, 0x0E45, 0, 0, 0, 0, 0);
@@ -35,6 +40,10 @@ pmode:
     MOV BYTE [0xB800F], 0x1B
     MOV BYTE [0xB8010], 'D'
     MOV BYTE [0xB8011], 0x1B
+
+    lba_write(0x80, 1, 1, 0, 0); # FIXME: this doesnt actually write anything..
+    MOV BYTE [0xB8000], 'W'
+    MOV BYTE [0xB8001], 0x1A
 
 .hlt:
     HLT
@@ -85,6 +94,7 @@ USE32
     JMP ESI
 
 # FIXME: this probably gives trouble if ESP is bigger than 64K
+# also return carry flag to see if success/failure
 function interrupt(int, eax, ecx, edx, ebx, esi, edi)
 {
     MOV ESI, .unreal
@@ -117,3 +127,41 @@ gdtr:
     DB 0xFF, 0xFF, 0, 0, 0, 0x92, 0xCF, 0
     DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0x00, 0
 .end:
+
+function lba_do(ah, dl, sectors, lbalo, lbahi)
+{
+    MOV AX, [sectors]
+    MOV [dap_sectors], AX
+    MOV EAX, [lbalo]
+    MOV [dap_lba], EAX
+    MOV EAX, [lbahi]
+    MOV [dap_lba + 4], EAX
+    return interrupt(0x13, ah, 0, dl, 0, dap, 0);
+}
+
+function lba_write(dl, sectors, lbalo, lbahi, buf)
+{
+    memcpy(DISK_BUF, buf, sectors *! 512);
+    return lba_do(0x43, dl, sectors, lbalo, lbahi);
+}
+
+function lba_read(dl, sectors, lbalo, lbahi, buf)
+{
+    if (!lba_do(0x42, dl, sectors, lbalo, lbahi)) return FALSE;
+    memcpy(buf, DISK_BUF, sectors *! 512);
+    return TRUE;
+}
+
+dap:
+    DB 16
+    DB 0
+dap_sectors:
+    DW 0
+dap_buffer:
+    DW DISK_BUF %! 16
+    DW DISK_BUF /! 16
+dap_lba:
+    DD 0
+    DD 0
+
+include "lib/mem.kc"

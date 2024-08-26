@@ -138,6 +138,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             break;
         case 'M':
             if (LEN("MOVZX") == len && strncmp(start, SLEN("MOVZX")) == 0) return TMOVZX;
+            if (LEN("MOVSB") == len && strncmp(start, SLEN("MOVSB")) == 0) return TMOVSB;
             if (LEN("MOVSW") == len && strncmp(start, SLEN("MOVSW")) == 0) return TMOVSW;
             if (LEN("MOV") == len && strncmp(start, SLEN("MOV")) == 0) return TMOV;
             if (LEN("MUL") == len && strncmp(start, SLEN("MUL")) == 0) return TMUL;
@@ -184,11 +185,18 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("XCHG") == len && strncmp(start, SLEN("XCHG")) == 0) return TXCHG;
             if (LEN("XOR") == len && strncmp(start, SLEN("XOR")) == 0) return TXOR;
             break;
+        case 'c':
+            if (LEN("const") == len && strncmp(start, SLEN("const")) == 0) return TCONST;
+            break;
         case 'f':
             if (LEN("function") == len && strncmp(start, SLEN("function")) == 0) return TFUNCTION;
             break;
         case 'i':
             if (LEN("include") == len && strncmp(start, SLEN("include")) == 0) return TINCLUDE;
+            if (LEN("if") == len && strncmp(start, SLEN("if")) == 0) return TIF;
+            break;
+        case 'r':
+            if (LEN("return") == len && strncmp(start, SLEN("return")) == 0) return TRETURN;
             break;
         default: break;
     }
@@ -253,11 +261,17 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
             if (t->src[t->pos++] == '!') return TSLASHU;
             if (t->src[t->pos - 1] == '$') return TSLASHS;
             return die(t, "invalid symbol %c", t->src[t->pos - 1]);
+        case '%':
+            if (t->src[t->pos++] == '!') return TMODULOU;
+            if (t->src[t->pos - 1] == '$') return TMODULOS;
+            return die(t, "invalid symbol %c", t->src[t->pos - 1]);
         case '$':
             if (t->src[t->pos++] == '$') return TORIGIN;
             if (t->src[t->pos - 1] == '!') return TPROGEND;
             t->pos--;
             return TIP;
+        case '!': return TBANG;
+        case '=': return TEQUALS;
         case '(': return TLEFTPAREN;
         case ')': return TRIGHTPAREN;
         case '[': return TLEFTBRACKET;
