@@ -817,6 +817,22 @@ bool compiler_mov(Compiler *c)
             HANDLE(compiler_emit8(c, s));
             return true;
         }
+        else if (size == 16 && compiler_imm16(c, &s))
+        {
+            HANDLE(compiler_sizeoverride(c, 16));
+            HANDLE(compiler_emit8(c, 0xC7));
+            HANDLE(compiler_emitmem(c, disp, modrm, 0, addrsize));
+            HANDLE(compiler_emit16(c, s));
+            return true;
+        }
+        else if (size == 32 && compiler_imm32(c, &s))
+        {
+            HANDLE(compiler_sizeoverride(c, 32));
+            HANDLE(compiler_emit8(c, 0xC7));
+            HANDLE(compiler_emitmem(c, disp, modrm, 0, addrsize));
+            HANDLE(compiler_emit32(c, s));
+            return true;
+        }
     }
 
     return die(&c->t, "compiler_mov: Unimplemented");

@@ -41,7 +41,7 @@ pmode:
     MOV BYTE [0xB8010], 'D'
     MOV BYTE [0xB8011], 0x1B
 
-    lba_write(0x80, 1, 1, 0, 0); # FIXME: this doesnt actually write anything..
+    lba_write(0x80, 1, 0, 0, 0x7C00);
     MOV BYTE [0xB8000], 'W'
     MOV BYTE [0xB8001], 0x1A
 
@@ -142,12 +142,12 @@ function lba_do(ah, dl, sectors, lbalo, lbahi)
 function lba_write(dl, sectors, lbalo, lbahi, buf)
 {
     memcpy(DISK_BUF, buf, sectors *! 512);
-    return lba_do(0x43, dl, sectors, lbalo, lbahi);
+    return lba_do(0x4300, dl, sectors, lbalo, lbahi);
 }
 
 function lba_read(dl, sectors, lbalo, lbahi, buf)
 {
-    if (!lba_do(0x42, dl, sectors, lbalo, lbahi)) return FALSE;
+    if (!lba_do(0x4200, dl, sectors, lbalo, lbahi)) return FALSE;
     memcpy(buf, DISK_BUF, sectors *! 512);
     return TRUE;
 }
