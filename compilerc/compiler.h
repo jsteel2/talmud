@@ -22,6 +22,8 @@ typedef struct
     bool use32;
     Map idents;
     Map locals;
+    Map strings;
+    size_t strings_offset;
     char *cur_label;
     size_t prog_end;
     size_t *later;

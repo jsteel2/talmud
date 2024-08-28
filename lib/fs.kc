@@ -1,0 +1,4 @@
+function openat(cwd, path, file, create)
+{
+
+}

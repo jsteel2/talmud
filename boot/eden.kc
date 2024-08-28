@@ -1,8 +1,6 @@
 ORG 0x500
 USE16
 
-const TRUE = 1;
-const FALSE = 0;
 const STACK = $! + 48 *! 1024;
 const DISK_BUF = STACK;
 
@@ -17,33 +15,7 @@ USE32
 pmode:
     MOV ESP, STACK
 
-    interrupt(0x10, 0x0E52, 0, 0, 0, 0, 0);
-    interrupt(0x10, 0x0E45, 0, 0, 0, 0, 0);
-    interrupt(0x10, 0x0E41, 0, 0, 0, 0, 0);
-    interrupt(0x10, 0x0E4C, 0, 0, 0, 0, 0);
-
-    MOV BYTE [0xB8000], 'P'
-    MOV BYTE [0xB8001], 0x1B
-    MOV BYTE [0xB8002], 'R'
-    MOV BYTE [0xB8003], 0x1B
-    MOV BYTE [0xB8004], 'O'
-    MOV BYTE [0xB8005], 0x1B
-    MOV BYTE [0xB8006], 'T'
-    MOV BYTE [0xB8007], 0x1B
-    MOV BYTE [0xB8008], 'E'
-    MOV BYTE [0xB8009], 0x1B
-    MOV BYTE [0xB800A], 'C'
-    MOV BYTE [0xB800B], 0x1B
-    MOV BYTE [0xB800C], 'T'
-    MOV BYTE [0xB800D], 0x1B
-    MOV BYTE [0xB800E], 'E'
-    MOV BYTE [0xB800F], 0x1B
-    MOV BYTE [0xB8010], 'D'
-    MOV BYTE [0xB8011], 0x1B
-
-    lba_write(0x80, 1, 0, 0, 0x7C00);
-    MOV BYTE [0xB8000], 'W'
-    MOV BYTE [0xB8001], 0x1A
+    print("Hello, World!\r\n\r\nSo many switches!\r\n");
 
 .hlt:
     HLT
@@ -128,6 +100,17 @@ gdtr:
     DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0x00, 0
 .end:
 
+function print(s)
+i
+{
+    i = 0;
+    while (i <! s[STRINGLEN])
+    {
+        interrupt(0x10, 0x0E00 | s[STRINGPTR]{i});
+        i += 1;
+    }
+}
+
 function lba_do(ah, dl, sectors, lbalo, lbahi)
 {
     MOV AX, [sectors]
@@ -136,7 +119,7 @@ function lba_do(ah, dl, sectors, lbalo, lbahi)
     MOV [dap_lba], EAX
     MOV EAX, [lbahi]
     MOV [dap_lba + 4], EAX
-    return interrupt(0x13, ah, 0, dl, 0, dap, 0);
+    return interrupt(0x13, ah, 0, dl, 0, dap);
 }
 
 function lba_write(dl, sectors, lbalo, lbahi, buf)
@@ -164,4 +147,6 @@ dap_lba:
     DD 0
     DD 0
 
+include "lib/def.kc"
 include "lib/mem.kc"
+include "lib/fs.kc"

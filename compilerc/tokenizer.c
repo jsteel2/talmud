@@ -198,6 +198,12 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
         case 'r':
             if (LEN("return") == len && strncmp(start, SLEN("return")) == 0) return TRETURN;
             break;
+        case 's':
+            if (LEN("struct") == len && strncmp(start, SLEN("struct")) == 0) return TSTRUCT;
+            break;
+        case 'w':
+            if (LEN("while") == len && strncmp(start, SLEN("while")) == 0) return TWHILE;
+            break;
         default: break;
     }
 
@@ -210,6 +216,7 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
     t->pos++;
     t->col++;
     char *end = strchr(&t->src[t->pos], type == TSTRING ? '"' : '\'');
+    if (!end) return die(t, "Unterminated string");
     size_t len = end - &t->src[t->pos];
 
     *value = malloc(len + 1);
@@ -265,11 +272,19 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
             if (t->src[t->pos++] == '!') return TMODULOU;
             if (t->src[t->pos - 1] == '$') return TMODULOS;
             return die(t, "invalid symbol %c", t->src[t->pos - 1]);
+        case '<':
+            if (t->src[t->pos++] == '!') return TLESSTHANU;
+            if (t->src[t->pos - 1] == '$') return TLESSTHANS;
+            return die(t, "invalid symbol %c", t->src[t->pos - 1]);
         case '$':
             if (t->src[t->pos++] == '$') return TORIGIN;
             if (t->src[t->pos - 1] == '!') return TPROGEND;
             t->pos--;
             return TIP;
+        case '+':
+            if (t->src[t->pos++] == '=') return TPLUSEQUALS;
+            t->pos--;
+            return TPLUS;
         case '!': return TBANG;
         case '=': return TEQUALS;
         case '(': return TLEFTPAREN;
@@ -279,11 +294,11 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
         case '{': return TLEFTBRACE;
         case '}': return TRIGHTBRACE;
         case '-': return TMINUS;
-        case '+': return TPLUS;
         case ',': return TCOMMA;
         case '.': return TDOT;
         case ':': return TCOLON;
         case ';': return TSEMICOLON;
+        case '|': return TBITWISEOR;
         default: return die(t, "unknown symbol %c", t->src[t->pos - 1]);
     }
 }
