@@ -38,6 +38,7 @@ void map_free(Map *m)
 
 MapEntry *map_ref_entry(MapEntry *entries, size_t size, char *key, size_t *index)
 {
+    if (!key) return NULL;
     uint32_t hash = hash_key(key);
     size_t i = hash & (size - 1);
 

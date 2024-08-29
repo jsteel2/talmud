@@ -1,8 +1,0 @@
-function memcpy(dest, src, n)
-{
-    CLD
-    MOV ESI, [src]
-    MOV EDI, [dest]
-    MOV ECX, [n]
-    REP MOVSB
-}

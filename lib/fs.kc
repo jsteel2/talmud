@@ -1,4 +1,33 @@
-function openat(cwd, path, file, create)
-{
+struct {FAT_BS} = 3{BS_BOOTJMP}, 8{BS_OEM_NAME}, .<BS_BYTES_PER_SECTOR>, {BS_SECTORS_PER_CLUSTER}, .<BS_RESERVED_SECTOR_COUNT>, {BS_TABLE_COUNT}, .<BS_ROOT_ENTRY_COUNT>, .<BS_TOTAL_SECTORS_16>, {BS_MEDIA_TYPE}, .<BS_TABLE_SIZE_16>, .<BS_SECTORS_PER_TRACK>, .<BS_HEAD_SIDE_COUNT>, .[BS_HIDDEN_SECTOR_COUNT], .[BS_TOTAL_SECTORS_32];
 
+struct {FAT32_EXTBS} = .[BS_TABLE_SIZE_32], .<BS_EXTENDED_FLAGS>, .<BS_FAT_VERSION>, .[BS_ROOT_CLUSTER], .<BS_FAT_INFO>, .<BS_BACKUP_BS_SECTOR>, 12{BS_RESERVED}, {BS_DRIVE_NUMBER}, {BS_RESERVED2}, {BS_BOOT_SIGNATURE}, [BS_VOLUME_ID], 11{BS_VOLUME_LABEL}, 8{BS_FAT_TYPE_LABEL};
+
+struct {FILE} = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION};
+
+function openat(cwd, path, file, create)
+(s[STRING], state, end)
+{
+    if (cwd) memcpy(file, cwd, FILE);
+
+    state = 0;
+    while (strtok(path, '/', s, &state))
+    {
+        if (s[STRINGPTR]{0} == ':')
+        {
+            s[STRINGPTR] += 1;
+            file{FILE_DRIVE} = hex2int(s, &end);
+            state += end;
+        }
+        if (s[STRINGPTR]{0} == ';')
+        {
+            s[STRINGPTR] += 1;
+            file{FILE_PARTITION} = hex2int(s, &end);
+            state += end;
+        }
+    }
+}
+
+function read(file, n, buf)
+{
+    
 }

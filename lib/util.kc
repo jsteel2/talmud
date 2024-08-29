@@ -1,0 +1,100 @@
+function upper(c) return islower(c) ? c + 'A' - 'a' : c;
+function islower(c) return c >=! 'a' and c <=! 'z';
+function isnum(c) return c >=! '0' and c <=! '9';
+function ishex(c) return upper(c) >=! 'A' and upper(c) <=! 'F' or isnum(c);
+
+function memcpy(dest, src, n)
+{
+    if (dest == src) return;
+    CLD
+    MOV ESI, [src]
+    MOV EDI, [dest]
+    MOV ECX, [n]
+    REP MOVSB
+}
+
+function strtok(s, delim, out, state)
+(start)
+{
+    if (*state >=! s[STRINGLEN]) return FALSE;
+
+    start = *state;
+    out[STRINGPTR] = s[STRINGPTR] + *state;
+    while (*state <! s[STRINGLEN] and s[STRINGPTR]{*state} != delim) *state += 1;
+    out[STRINGLEN] = *state - start;
+
+    *state += 1;
+    return TRUE;
+}
+
+function hex2int(s, end)
+(n, c)
+{
+    *end = 0;
+    n = 0;
+    
+    while (*end <! s[STRINGLEN])
+    {
+        c = s[STRINGPTR]{*end};
+        n <<= 4;
+
+        if (isnum(c)) n |= c - '0';
+        else if (ishex(c)) n |= 10 + upper(c) - 'A';
+        else return n >> 4;
+        
+        *end += 1;
+    }
+
+    return n;
+}
+
+function format(fn, fmt)
+(s[STRING], i, start, v, c)
+{
+    i = 0;
+    start = 0;
+    v = 2;
+
+    while (i <! fmt[STRINGLEN])
+    {
+        c = fmt[STRINGPTR]{i};
+        if (c == '%')
+        {
+            s[STRINGPTR] = fmt[STRINGPTR] + start;
+            s[STRINGLEN] = i - start;
+            fn(s);
+
+            if (c == 's') fn(vararg(v));
+            else if (c == 'x') format_hex(fn, s, vararg(v));
+
+            start = i + 2;
+            v += 1;
+        }
+        i += 1;
+    }
+
+    s[STRINGPTR] = fmt[STRINGPTR] + start;
+    s[STRINGLEN] = i - start;
+    fn(s);
+}
+
+function format_hex(fn, s, n)
+(buf{8}, i)
+{
+    s[STRINGPTR] = buf;
+    s[STRINGLEN] = 8;
+
+    i = 0;
+    while (i <! 8)
+    {
+        buf{i} = (n >> 28 & 0x0F) + '0';
+        if (buf{i} >! '9') buf{i} += 7;
+        n <<= 4;
+        i += 1;
+    }
+}
+
+vararg:
+    MOV EAX, [ESP + 4]
+    MOV EAX, [EBP + EAX * 4 + 8]
+    RET

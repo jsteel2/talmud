@@ -185,8 +185,14 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("XCHG") == len && strncmp(start, SLEN("XCHG")) == 0) return TXCHG;
             if (LEN("XOR") == len && strncmp(start, SLEN("XOR")) == 0) return TXOR;
             break;
+        case 'a':
+            if (LEN("and") == len && strncmp(start, SLEN("and")) == 0) return TLOGICALAND;
+            break;
         case 'c':
             if (LEN("const") == len && strncmp(start, SLEN("const")) == 0) return TCONST;
+            break;
+        case 'e':
+            if (LEN("else") == len && strncmp(start, SLEN("else")) == 0) return TELSE;
             break;
         case 'f':
             if (LEN("function") == len && strncmp(start, SLEN("function")) == 0) return TFUNCTION;
@@ -194,6 +200,9 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
         case 'i':
             if (LEN("include") == len && strncmp(start, SLEN("include")) == 0) return TINCLUDE;
             if (LEN("if") == len && strncmp(start, SLEN("if")) == 0) return TIF;
+            break;
+        case 'o':
+            if (LEN("or") == len && strncmp(start, SLEN("or")) == 0) return TLOGICALOR;
             break;
         case 'r':
             if (LEN("return") == len && strncmp(start, SLEN("return")) == 0) return TRETURN;
@@ -275,7 +284,37 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
         case '<':
             if (t->src[t->pos++] == '!') return TLESSTHANU;
             if (t->src[t->pos - 1] == '$') return TLESSTHANS;
-            return die(t, "invalid symbol %c", t->src[t->pos - 1]);
+            if (t->src[t->pos - 1] == '<')
+            {
+                if (t->src[t->pos++] == '=') return TSHIFTLEFTEQUALS;
+                t->pos--;
+                return TSHIFTLEFT;
+            }
+            if (t->src[t->pos - 1] == '=')
+            {
+                if (t->src[t->pos++] == '!') return TLESSEQUALSU;
+                if (t->src[t->pos - 1] == '$') return TLESSEQUALSS;
+                return die(t, "invalid symbol %c", t->src[t->pos - 1]);
+            }
+            t->pos--;
+            return TLEFTCHEVRON;
+        case '>':
+            if (t->src[t->pos++] == '!') return TGREATERTHANU;
+            if (t->src[t->pos - 1] == '$') return TGREATERTHANS;
+            if (t->src[t->pos - 1] == '>')
+            {
+                if (t->src[t->pos++] == '=') return TSHIFTRIGHTEQUALS;
+                t->pos--;
+                return TSHIFTRIGHT;
+            }
+            if (t->src[t->pos - 1] == '=')
+            {
+                if (t->src[t->pos++] == '!') return TGREATEREQUALSU;
+                if (t->src[t->pos - 1] == '$') return TGREATEREQUALSS;
+                return die(t, "invalid symbol %c", t->src[t->pos - 1]);
+            }
+            t->pos--;
+            return TRIGHTCHEVRON;
         case '$':
             if (t->src[t->pos++] == '$') return TORIGIN;
             if (t->src[t->pos - 1] == '!') return TPROGEND;
@@ -285,8 +324,22 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
             if (t->src[t->pos++] == '=') return TPLUSEQUALS;
             t->pos--;
             return TPLUS;
-        case '!': return TBANG;
-        case '=': return TEQUALS;
+        case '!':
+            if (t->src[t->pos++] == '=') return TNOTEQUALS;
+            t->pos--;
+            return TBANG;
+        case '|':
+            if (t->src[t->pos++] == '=') return TBITWISEOREQUALS;
+            t->pos--;
+            return TBITWISEOR;
+        case '&':
+            if (t->src[t->pos++] == '=') return TBITWISEANDEQUALS;
+            t->pos--;
+            return TBITWISEAND;
+        case '=':
+            if (t->src[t->pos++] == '=') return TEQUALSEQUALS;
+            t->pos--;
+            return TEQUALS;
         case '(': return TLEFTPAREN;
         case ')': return TRIGHTPAREN;
         case '[': return TLEFTBRACKET;
@@ -298,7 +351,7 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
         case '.': return TDOT;
         case ':': return TCOLON;
         case ';': return TSEMICOLON;
-        case '|': return TBITWISEOR;
+        case '?': return TQMARK;
         default: return die(t, "unknown symbol %c", t->src[t->pos - 1]);
     }
 }

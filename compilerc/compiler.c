@@ -43,6 +43,7 @@ bool compiler_match(Compiler *c, TokenType t)
     return t == c->next.type ? compiler_advance(c) : false;
 }
 
+// ukno this could just be a comparison like in the regx functions
 TokenType compiler_matches(Compiler *c, TokenType *toks)
 {
     for (int i = 0; toks[i]; i++)
@@ -257,9 +258,25 @@ bool compiler_primary(Compiler *c, size_t *res, char *ident)
 
     switch (ident ? TIDENT : compiler_advance(c))
     {
+        case TLEFTPAREN:
+            HANDLE(compiler_expr(c, res, NULL));
+            HANDLE(compiler_consume(c, TRIGHTPAREN));
+            break;
         case TNUM:
             HANDLE(compiler_emit8(c, 0xB8));
             HANDLE(compiler_emit32(c, (size_t)c->cur.value)); // MOV EAX, c->cur.value
+            break;
+        case TCHARS:
+            x = 0;
+            for (size_t i = 0; i < strlen(c->cur.value); i++)
+            {
+                x <<= 8;
+                x |= ((char *)c->cur.value)[i];
+            }
+            free(c->cur.value);
+            c->cur.value = NULL;
+            HANDLE(compiler_emit8(c, 0xB8));
+            HANDLE(compiler_emit32(c, x)); // MOV EAX, x
             break;
         case TSTRING:
             if (map_get(&c->strings, c->cur.value, &x))
@@ -332,6 +349,23 @@ bool compiler_unary(Compiler *c, size_t *res, char *ident)
             HANDLE(compiler_emit8(c, 0x94));
             HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETZ AL
             break;
+        case TSTAR:
+            HANDLE(compiler_advance(c));
+            HANDLE(compiler_unary(c, res, ident));
+            HANDLE(compiler_emit8(c, 0x8B));
+            HANDLE(compiler_emit8(c, MODRM(0, 0, 0))); // MOV EAX, [EAX]
+            break;
+        case TBITWISEAND:
+            HANDLE(compiler_advance(c));
+            HANDLE(compiler_consume(c, TIDENT));
+            size_t x;
+            HANDLE(map_get(&c->locals, c->cur.value, &x));
+            free(c->cur.value);
+            c->cur.value = NULL;
+            HANDLE(compiler_emit8(c, 0x8D));
+            HANDLE(compiler_emit8(c, MODRM(0b10, 0, 0b101)));
+            HANDLE(compiler_emit32(c, x)); // LEA EAX, [EBP + x]
+            break;
         default: return compiler_primary(c, res, ident);
     }
 
@@ -372,7 +406,7 @@ bool compiler_binary(Compiler *c, size_t *res, char *ident, bool (*fn)(Compiler 
                 case TLESSTHANS: *res = (int64_t)*res < (int64_t)r; break;
                 case TLESSEQUALSU: *res = *res <= r; break;
                 case TLESSEQUALSS: *res = (int64_t)*res <= (int64_t)r; break;
-                case TEQUALS: *res = *res == r; break;
+                case TEQUALSEQUALS: *res = *res == r; break;
                 case TNOTEQUALS: *res = *res != r; break;
                 default: return die(&c->t, "compiler_binary: Unimplemented");
             }
@@ -382,14 +416,44 @@ bool compiler_binary(Compiler *c, size_t *res, char *ident, bool (*fn)(Compiler 
 
     while ((t = compiler_matches(c, toks)))
     {
-        HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
-        HANDLE(fn(c, NULL, ident));
-        HANDLE(compiler_emit8(c, 0x5A)); // POP EDX
+        if (t != TLOGICALAND && t != TLOGICALOR)
+        {
+            HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
+            HANDLE(fn(c, NULL, ident));
+            HANDLE(compiler_emit8(c, 0x5A)); // POP EDX
+        }
         switch (t)
         {
             case TSTARU:
                 HANDLE(compiler_emit8(c, 0xF7));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 4, 2))); // MUL EDX
+                break;
+            case TPLUS:
+                HANDLE(compiler_emit8(c, 0x03));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 2))); // ADD EAX, EDX
+                break;
+            case TMINUS:
+                HANDLE(compiler_emit8(c, 0x92)); // XCHG EAX, EDX
+                HANDLE(compiler_emit8(c, 0x2B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 2))); // SUB EAX, EDX
+                break;
+            case TNOTEQUALS:
+                HANDLE(compiler_emit8(c, 0x3B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
+                HANDLE(compiler_emit8(c, 0xB8));
+                HANDLE(compiler_emit32(c, 0)); // MOV EAX, 0
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x94));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETZ AL
+                break;
+            case TEQUALSEQUALS:
+                HANDLE(compiler_emit8(c, 0x3B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
+                HANDLE(compiler_emit8(c, 0xB8));
+                HANDLE(compiler_emit32(c, 0)); // MOV EAX, 0
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x95));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETNZ AL
                 break;
             case TLESSTHANU:
                 HANDLE(compiler_emit8(c, 0x3B));
@@ -400,9 +464,70 @@ bool compiler_binary(Compiler *c, size_t *res, char *ident, bool (*fn)(Compiler 
                 HANDLE(compiler_emit8(c, 0x92));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETB AL
                 break;
+            case TGREATERTHANU:
+                HANDLE(compiler_emit8(c, 0x3B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
+                HANDLE(compiler_emit8(c, 0xB8));
+                HANDLE(compiler_emit32(c, 0)); // MOV EAX, 0
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x97));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETA AL
+                break;
+            case TLESSEQUALSU:
+                HANDLE(compiler_emit8(c, 0x3B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
+                HANDLE(compiler_emit8(c, 0xB8));
+                HANDLE(compiler_emit32(c, 0)); // MOV EAX, 0
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x96));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETBE AL
+                break;
+            case TGREATEREQUALSU:
+                HANDLE(compiler_emit8(c, 0x3B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
+                HANDLE(compiler_emit8(c, 0xB8));
+                HANDLE(compiler_emit32(c, 0)); // MOV EAX, 0
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x93));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETAE AL
+                break;
             case TBITWISEOR:
                 HANDLE(compiler_emit8(c, 0x0B));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 2))); // OR EAX, EDX
+                break;
+            case TBITWISEAND:
+                HANDLE(compiler_emit8(c, 0x23));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 2))); // AND EAX, EDX
+                break;
+            case TSHIFTRIGHT:
+                HANDLE(compiler_emit8(c, 0x91)); // XCHG ECX, EAX
+                HANDLE(compiler_emit8(c, 0xD3));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 5, 2))); // SHR EDX, CL
+                HANDLE(compiler_emit8(c, 0x92)); // XCHG EAX, EDX
+                break;
+            case TLOGICALAND:
+                HANDLE(compiler_emit8(c, 0x85));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // TEST EAX, EAX
+                size_t lfalse = compiler_getlater(c);
+                HANDLE(compiler_emit8(c, 0x74));
+                HANDLE(compiler_emit8(c, compiler_relative(c, lfalse, 1))); // JZ lfalse
+                HANDLE(fn(c, NULL, ident));
+                size_t lend = compiler_getlater(c);
+                HANDLE(compiler_emit8(c, 0xEB));
+                HANDLE(compiler_emit8(c, compiler_relative(c, lend, 1))); // JMP lend
+                HANDLE(compiler_setlater(c, lfalse, c->ip));
+                HANDLE(compiler_emit8(c, 0x33));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // XOR EAX, EAX
+                HANDLE(compiler_setlater(c, lend, c->ip));
+                break;
+            case TLOGICALOR:
+                HANDLE(compiler_emit8(c, 0x85));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // TEST EAX, EAX
+                lend = compiler_getlater(c);
+                HANDLE(compiler_emit8(c, 0x75));
+                HANDLE(compiler_emit8(c, compiler_relative(c, lend, 1))); // JNZ lend
+                HANDLE(fn(c, NULL, ident));
+                HANDLE(compiler_setlater(c, lend, c->ip));
                 break;
             default: return die(&c->t, "compiler_binary: Unimplemented");
         }
@@ -433,7 +558,7 @@ bool compiler_comparison(Compiler *c, size_t *res, char *ident)
 
 bool compiler_equality(Compiler *c, size_t *res, char *ident)
 {
-    return compiler_binary(c, res, ident, compiler_comparison, (TokenType[]){TEQUALS, TNOTEQUALS, 0});
+    return compiler_binary(c, res, ident, compiler_comparison, (TokenType[]){TEQUALSEQUALS, TNOTEQUALS, 0});
 }
 
 bool compiler_logical_and(Compiler *c, size_t *res, char *ident)
@@ -464,6 +589,23 @@ bool compiler_ternary(Compiler *c, size_t *res, char *ident)
         }
         *res = l;
         return true;
+    }
+
+    if (compiler_match(c, TQMARK))
+    {
+        HANDLE(compiler_emit8(c, 0x85));
+        HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // TEST EAX, EAX
+        size_t lelse = compiler_getlater(c);
+        HANDLE(compiler_emit8(c, 0x74));
+        HANDLE(compiler_emit8(c, compiler_relative(c, lelse, 1))); // JZ lelse
+        HANDLE(compiler_ternary(c, NULL, NULL));
+        size_t lend = compiler_getlater(c);
+        HANDLE(compiler_emit8(c, 0xEB));
+        HANDLE(compiler_emit8(c, compiler_relative(c, lend, 1))); // JMP lend
+        HANDLE(compiler_consume(c, TCOLON));
+        HANDLE(compiler_setlater(c, lelse, c->ip));
+        HANDLE(compiler_ternary(c, NULL, NULL));
+        HANDLE(compiler_setlater(c, lend, c->ip));
     }
 
     return true;   
@@ -974,13 +1116,22 @@ bool compiler_test(Compiler *c)
 bool compiler_assign(Compiler *c, char *ident, uint8_t op)
 {
     uint64_t addr;
+    if (!ident) HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX (this is stupid btw, im making this really sloppy, ill try to improve things on the self-hosting compiler)
     HANDLE(compiler_expr(c, NULL, NULL));
+    if (!ident) HANDLE(compiler_emit8(c, 0x5A)); // POP EDX
     HANDLE(compiler_consume(c, TSEMICOLON));
-    if (map_get(&c->locals, ident, &addr))
+    if (op == 0xD3) HANDLE(compiler_emit8(c, 0x91)); // XCHG ECX, EAX
+    if (!ident)
     {
         HANDLE(compiler_emit8(c, op));
-        HANDLE(compiler_emit8(c, MODRM(0b10, 0, 0b101)));
-        HANDLE(compiler_emit32(c, addr)); // op [EBP + addr], EAX
+        HANDLE(compiler_emit8(c, MODRM(0, op == 0xD3 ? 4 : 0, 2))); // op [EDX], EAX/CL
+        return true;
+    }
+    else if (map_get(&c->locals, ident, &addr))
+    {
+        HANDLE(compiler_emit8(c, op));
+        HANDLE(compiler_emit8(c, MODRM(0b10, op == 0xD3 ? 4 : 0, 0b101)));
+        HANDLE(compiler_emit32(c, addr)); // op [EBP + addr], EAX/CL
         return true;
     }
 
@@ -988,9 +1139,11 @@ bool compiler_assign(Compiler *c, char *ident, uint8_t op)
     return false;
 }
 
+// this is bad, do better next time
 bool compiler_ident(Compiler *c, bool set_cur)
 {
     char *ident = c->cur.value;
+    size_t x;
 
     if (compiler_match(c, TCOLON))
     {
@@ -999,8 +1152,40 @@ bool compiler_ident(Compiler *c, bool set_cur)
         return true;
     }
 
+    TokenType t = c->next.type;
+    while (t == TLEFTBRACKET || t == TLEFTBRACE)
+    {
+        HANDLE(compiler_advance(c));
+        HANDLE(compiler_expr(c, NULL, NULL));
+        HANDLE(compiler_consume(c, t + 1));
+        if (c->next.type >= TPLUSEQUALS && c->next.type <= TEQUALS)
+        {
+            HANDLE(compiler_emit8(c, 0x8D));
+            if (ident)
+            {
+                // FIXME this aint right at all yo
+                if (!map_get(&c->locals, ident, &x) && !map_get(&c->idents, ident, &x)) return die(&c->t, "undefined identifier");
+                HANDLE(compiler_emit8(c, MODRM(0b10, 0, 0)));
+                HANDLE(compiler_emit32(c, x)); // LEA EAX, [EAX + ident]
+            }
+            else
+            {
+                return die(&c->t, "unimplemented");
+            }
+        }
+        else
+        {
+            return die(&c->t, "unimplemented");
+        }
+        free(ident);
+        ident = NULL;
+        t = c->next.type;
+    }
+
     if (compiler_match(c, TEQUALS)) return compiler_assign(c, ident, 0x89); // MOV
     if (compiler_match(c, TPLUSEQUALS)) return compiler_assign(c, ident, 0x01); // ADD
+    if (compiler_match(c, TSHIFTLEFTEQUALS)) return compiler_assign(c, ident, 0xD3); // SHL
+    if (compiler_match(c, TBITWISEOREQUALS)) return compiler_assign(c, ident, 0x09); // OR
 
     HANDLE(compiler_expr(c, NULL, ident));
     return compiler_consume(c, TSEMICOLON);
@@ -1297,28 +1482,39 @@ bool compiler_function(Compiler *c)
 
     HANDLE(compiler_consume(c, TLEFTPAREN));
     size_t i = 4;
-    do
+    while (!compiler_match(c, TRIGHTPAREN))
     {
         i += 4;
         HANDLE(compiler_consume(c, TIDENT));
         HANDLE(map_set(&c->locals, c->cur.value, i));
         if (!compiler_match(c, TCOMMA) && compiler_consume(c, TRIGHTPAREN)) break;
-    } while (!compiler_match(c, TRIGHTPAREN));
+    };
 
     size_t stacksub = 0;
-    if (compiler_match(c, TIDENT))
+    if (compiler_match(c, TLEFTPAREN))
     {
-        HANDLE(map_set(&c->locals, c->cur.value, 0));
-        stacksub += 4;
-        while (compiler_match(c, TCOMMA)) 
+        while (compiler_match(c, TIDENT))
         {
-            HANDLE(compiler_consume(c, TIDENT));
-            HANDLE(map_set(&c->locals, c->cur.value, -stacksub));
+            HANDLE(map_set(&c->locals, c->cur.value, 0));
             stacksub += 4;
+            if (compiler_match(c, TLEFTBRACKET))
+            {
+                // FIXME: actually implement
+                HANDLE(compiler_const_expr(c, &i));
+                HANDLE(compiler_consume(c, TRIGHTBRACKET));
+            }
+            else if (compiler_match(c, TLEFTBRACE))
+            {
+                // FIXME: actually implement
+                HANDLE(compiler_const_expr(c, &i));
+                HANDLE(compiler_consume(c, TRIGHTBRACE));
+            }
+            if (compiler_match(c, TCOMMA)) continue;
+            break;
         }
+        HANDLE(compiler_consume(c, TRIGHTPAREN));
     }
 
-    HANDLE(compiler_consume(c, TLEFTBRACE));
     HANDLE(compiler_emit8(c, 0x55)); // PUSH EBP
     HANDLE(compiler_emit8(c, 0x8B));
     HANDLE(compiler_emit8(c, MODRM(0b11, 5, 4))); // MOV EBP, ESP
@@ -1328,7 +1524,14 @@ bool compiler_function(Compiler *c)
         HANDLE(compiler_emit8(c, MODRM(0b11, 5, 4)));
         HANDLE(compiler_emit32(c, stacksub)); // SUB ESP, stacksub
     }
-    while (!compiler_match(c, TRIGHTBRACE)) HANDLE(compiler_statement(c));
+    if (compiler_match(c, TLEFTBRACE))
+    {
+        while (!compiler_match(c, TRIGHTBRACE)) HANDLE(compiler_statement(c));
+    }
+    else
+    {
+        HANDLE(compiler_statement(c));
+    }
     HANDLE(compiler_emit8(c, 0xC9)); // LEAVE
     HANDLE(compiler_emit8(c, 0xC3)); // RET
 
@@ -1353,28 +1556,60 @@ bool compiler_const(Compiler *c)
 
 bool compiler_struct(Compiler *c)
 {
+    size_t endmul = 1;
+    TokenType t;
+    if (compiler_match(c, TLEFTBRACKET))
+    {
+        t = TLEFTBRACKET;
+        endmul = 4;
+    }
+    else if (compiler_match(c, TLEFTBRACE))
+    {
+        t = TLEFTBRACE;
+    }
+    else
+    {
+        return false;
+    }
     HANDLE(compiler_consume(c, TIDENT));
+    HANDLE(compiler_consume(c, t + 1));
     char *name = c->cur.value; // also memleaks if we return before map_set
 
     HANDLE(compiler_consume(c, TEQUALS));
 
+    bool align;
+    size_t mul;
     size_t size = 0;
     do
     {
+        if (compiler_match(c, TNUM)) mul = (size_t)c->cur.value;
+        else mul = 1;
+
+        if (compiler_match(c, TDOT)) align = false;
+        else align = true;
+
         if (compiler_match(c, TLEFTBRACKET))
         {
             HANDLE(compiler_consume(c, TIDENT));
-            if (size % 4) size += size % 4;
-            HANDLE(map_set(&c->idents, c->cur.value, size / 4));
-            size += 4;
+            if (align) size += size % 4;
+            HANDLE(map_set(&c->idents, c->cur.value, align ? size / 4 : size));
+            size += 4 * mul;
             HANDLE(compiler_consume(c, TRIGHTBRACKET));
         }
         else if (compiler_match(c, TLEFTBRACE))
         {
             HANDLE(compiler_consume(c, TIDENT));
             HANDLE(map_set(&c->idents, c->cur.value, size));
-            size += 1;
+            size += 1 * mul;
             HANDLE(compiler_consume(c, TRIGHTBRACE));
+        }
+        else if (compiler_match(c, TLEFTCHEVRON))
+        {
+            HANDLE(compiler_consume(c, TIDENT));
+            if (align) size += size % 4;
+            HANDLE(map_set(&c->idents, c->cur.value, align ? size / 2 : size));
+            size += 2 * mul;
+            HANDLE(compiler_consume(c, TRIGHTCHEVRON));
         }
         else
         {
@@ -1382,17 +1617,22 @@ bool compiler_struct(Compiler *c)
         }
     } while (compiler_match(c, TCOMMA));
 
-    HANDLE(map_set(&c->idents, name, size));
+    size += size % endmul;
+    HANDLE(map_set(&c->idents, name, size / endmul));
     return compiler_consume(c, TSEMICOLON);
 }
 
 bool compiler_return(Compiler *c)
 {
-    HANDLE(compiler_expr(c, NULL, NULL));
+    if (!compiler_match(c, TSEMICOLON)) 
+    {
+        HANDLE(compiler_expr(c, NULL, NULL));
+        HANDLE(compiler_consume(c, TSEMICOLON));
+    }
     HANDLE(compiler_emit8(c, 0xC9)); // LEAVE
     HANDLE(compiler_emit8(c, 0xC3)); // RET
 
-    return compiler_consume(c, TSEMICOLON);
+    return true;
 }
 
 bool compiler_if(Compiler *c)
@@ -1401,13 +1641,13 @@ bool compiler_if(Compiler *c)
     HANDLE(compiler_expr(c, NULL, NULL));
     HANDLE(compiler_consume(c, TRIGHTPAREN));
 
-    size_t s = compiler_getlater(c);
+    size_t lelse = compiler_getlater(c);
 
     HANDLE(compiler_emit8(c, 0x85));
     HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // TEST EAX, EAX
     HANDLE(compiler_emit8(c, 0x0F));
     HANDLE(compiler_emit8(c, 0x84));
-    HANDLE(compiler_emit32(c, compiler_relative(c, s, 4))); // JZ s
+    HANDLE(compiler_emit32(c, compiler_relative(c, lelse, 4))); // JZ lelse
 
     if (compiler_match(c, TLEFTBRACE))
     {
@@ -1418,7 +1658,26 @@ bool compiler_if(Compiler *c)
         HANDLE(compiler_statement(c));
     }
 
-    HANDLE(compiler_setlater(c, s, c->ip));
+    if (compiler_match(c, TELSE))
+    {
+        size_t lend = compiler_getlater(c);
+        HANDLE(compiler_emit8(c, 0xE9));
+        HANDLE(compiler_emit32(c, lend)); // JMP lend
+        HANDLE(compiler_setlater(c, lelse, c->ip));
+        if (compiler_match(c, TLEFTBRACE))
+        {
+            while (!compiler_match(c, TRIGHTBRACE)) HANDLE(compiler_statement(c));
+        }
+        else
+        {
+            HANDLE(compiler_statement(c));
+        }
+        HANDLE(compiler_setlater(c, lend, c->ip));
+    }
+    else
+    {
+        HANDLE(compiler_setlater(c, lelse, c->ip));
+    }
 
     return true;
 }
@@ -1450,6 +1709,21 @@ bool compiler_while(Compiler *c)
 
     HANDLE(compiler_setlater(c, loopend, c->ip));
     return true;
+}
+
+bool compiler_deref(Compiler *c)
+{
+    uint8_t op;
+    HANDLE(compiler_expr(c, NULL, NULL));
+    HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
+    if (compiler_match(c, TPLUSEQUALS)) op = 0x01;
+    else if (compiler_match(c, TEQUALS)) op = 0x89;
+    else return die(&c->t, "unexpecteed token");
+    HANDLE(compiler_expr(c, NULL, NULL));
+    HANDLE(compiler_emit8(c, 0x5A)); // POP EDX
+    HANDLE(compiler_emit8(c, op));
+    HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV [EDX], EAX
+    return compiler_consume(c, TSEMICOLON);
 }
 
 bool compiler_statement(Compiler *c)
@@ -1522,6 +1796,7 @@ bool compiler_statement(Compiler *c)
         case TIF: HANDLE(compiler_if(c)); break;
         case TWHILE: HANDLE(compiler_while(c)); break;
         case TSTRUCT: HANDLE(compiler_struct(c)); break;
+        case TSTAR: HANDLE(compiler_deref(c)); break;
         case TSEMICOLON: break;
         default: return die(&c->t, "Unexpected token %d", c->cur.type);
     }

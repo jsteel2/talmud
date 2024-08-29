@@ -15,11 +15,16 @@ USE32
 pmode:
     MOV ESP, STACK
 
+function pmodef()
+(file{FILE})
+{
     print("Hello, World!\r\n\r\nSo many switches!\r\n");
-
+    openat(NULL, ":80;0/", file, FALSE);
+    format(print, "opened root at drive %x partition %x\n", file{FILE_DRIVE}, file{FILE_PARTITION});
 .hlt:
     HLT
     JMP .hlt
+}
 
 switch_unreal:
     CLI
@@ -101,7 +106,7 @@ gdtr:
 .end:
 
 function print(s)
-i
+(i)
 {
     i = 0;
     while (i <! s[STRINGLEN])
@@ -148,5 +153,5 @@ dap_lba:
     DD 0
 
 include "lib/def.kc"
-include "lib/mem.kc"
+include "lib/util.kc"
 include "lib/fs.kc"
