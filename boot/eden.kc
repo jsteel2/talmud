@@ -19,8 +19,10 @@ function pmodef()
 (file{FILE})
 {
     print("Hello, World!\r\n\r\nSo many switches!\r\n");
+    format(print, "Cool!\r\n");
+    format(print, "Look, a number %x!\r\n", 0xBEEFBABE);
     openat(NULL, ":80;0/", file, FALSE);
-    format(print, "opened root at drive %x partition %x\n", file{FILE_DRIVE}, file{FILE_PARTITION});
+    format(print, "opened root at drive %x partition %x\r\n", file{FILE_DRIVE}, file{FILE_PARTITION});
 .hlt:
     HLT
     JMP .hlt

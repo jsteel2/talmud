@@ -324,6 +324,10 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
             if (t->src[t->pos++] == '=') return TPLUSEQUALS;
             t->pos--;
             return TPLUS;
+        case '-':
+            if (t->src[t->pos++] == '=') return TMINUSEQUALS;
+            t->pos--;
+            return TMINUS;
         case '!':
             if (t->src[t->pos++] == '=') return TNOTEQUALS;
             t->pos--;
@@ -346,7 +350,6 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
         case ']': return TRIGHTBRACKET;
         case '{': return TLEFTBRACE;
         case '}': return TRIGHTBRACE;
-        case '-': return TMINUS;
         case ',': return TCOMMA;
         case '.': return TDOT;
         case ':': return TCOLON;

@@ -38,7 +38,7 @@ function hex2int(s, end)
         c = s[STRINGPTR]{*end};
         n <<= 4;
 
-        if (isnum(c)) n |= c - '0';
+        if (isnum(c)) n |= c - '0'; # we crash here on the else
         else if (ishex(c)) n |= 10 + upper(c) - 'A';
         else return n >> 4;
         
@@ -64,10 +64,12 @@ function format(fn, fmt)
             s[STRINGLEN] = i - start;
             fn(s);
 
+            i += 1;
+            c = fmt[STRINGPTR]{i};
             if (c == 's') fn(vararg(v));
             else if (c == 'x') format_hex(fn, s, vararg(v));
 
-            start = i + 2;
+            start = i + 1;
             v += 1;
         }
         i += 1;
@@ -87,11 +89,13 @@ function format_hex(fn, s, n)
     i = 0;
     while (i <! 8)
     {
-        buf{i} = (n >> 28 & 0x0F) + '0';
+        buf{i} = (n >> 28) + '0';
         if (buf{i} >! '9') buf{i} += 7;
         n <<= 4;
         i += 1;
     }
+
+    fn(s);
 }
 
 vararg:
