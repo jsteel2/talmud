@@ -1,0 +1,11 @@
+struct {COMPILER} = [CBIN];
+
+function compiler_init(c)
+{
+    return TRUE;
+}
+
+function compile(c, src)
+{
+    return NULL;
+}

@@ -73,6 +73,7 @@ bool compiler_emit8(Compiler *c, size_t byte)
     {
         c->outbin_size *= 2;
         c->outbin = realloc(c->outbin, c->outbin_size);
+        // FIXME: just malloc c->outbin_len after first pass
         if (!c->outbin) return false;
     }
     return true;
@@ -1104,8 +1105,10 @@ bool compiler_mov(Compiler *c)
 bool compiler_jmp(Compiler *c, uint8_t op, uint8_t opfar, uint8_t reg)
 {
     int64_t x, y;
-    (void)opfar;
-    (void)reg;
+
+    int size, addrsize;
+    uint8_t modrm, sib;
+    int64_t disp;
 
     bool (*imm)(Compiler *c, int64_t *x) = c->use32 ? compiler_imm32 : compiler_imm16;
     bool (*emit)(Compiler *c, size_t x) = c->use32 ? compiler_emit32 : compiler_emit16;
@@ -1115,6 +1118,12 @@ bool compiler_jmp(Compiler *c, uint8_t op, uint8_t opfar, uint8_t reg)
         HANDLE(compiler_sizeoverride(c, 32));
         HANDLE(compiler_emit8(c, 0xFF));
         HANDLE(compiler_emit8(c, MODRM(0b11, reg, x)));
+        return true;
+    }
+    else if (compiler_mem(c, &size, &addrsize, &modrm, &sib, &disp))
+    {
+        HANDLE(compiler_emit8(c, 0xFF));
+        HANDLE(compiler_emitmem(c, disp, modrm, sib, 4, addrsize));
         return true;
     }
     else if (imm(c, &x))

@@ -1,0 +1,9 @@
+function malloc(n)
+{
+    return NULL;
+}
+
+function free(p)
+{
+
+}

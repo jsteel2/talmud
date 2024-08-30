@@ -38,7 +38,7 @@ function hex2int(s, end)
         c = s[STRINGPTR]{*end};
         n <<= 4;
 
-        if (isnum(c)) n |= c - '0'; # we crash here on the else
+        if (isnum(c)) n |= c - '0';
         else if (ishex(c)) n |= 10 + upper(c) - 'A';
         else return n >> 4;
         

@@ -16,7 +16,7 @@ pmode:
     MOV ESP, STACK
 
 function eden()
-(file{FILE}, s[STRING], r)
+(file{FILE}, r, eve, s[STRING], compiler{COMPILER})
 {
     MOV [r], DX
     file{FILE_DRIVE} = r;
@@ -24,13 +24,40 @@ function eden()
 
     print("Hello, World!\r\n");
 
-    if (!openat(NULL, "/", file, FALSE)) {print("BRUH"); JMP $}
-    format(print, "opened root at drive %x partition %x\r\n", file{FILE_DRIVE}, file{FILE_PARTITION});
-    if (!read(file, 512, file)) {print("BRUH"); JMP $}
+    if (!openat(NULL, "/adam/eve.kc", file, FALSE))
+    {
+        print("Could not open /adam/eve.kc\r\n");
+        JMP .hlt
+    }
+    r = malloc(file[FILE_SIZE]);
+    if (!r)
+    {
+        format(print, "Could not allocate %x bytes of memory\r\n", file[FILE_SIZE]);
+        JMP .hlt
+    }
+    if (!read(file, file[FILE_SIZE], r))
+    {
+        print("Could not read /adam/eve.kc\r\n");
+        JMP .hlt
+    }
 
-    s[STRINGPTR] = file;
-    s[STRINGLEN] = 512;
-    format(print, "first root directory sector: %s\r\n", s);
+    s[STRINGPTR] = r;
+    s[STRINGLEN] = file[FILE_SIZE];
+    if (!compiler_init(compiler))
+    {
+        print("Could not initialize compiler\r\n");
+        JMP .hlt
+    }
+
+    eve = compile(compiler, s);
+    free(r);
+    if (!eve)
+    {
+        print("Could not compile /adam/eve.kc\r\n");
+        JMP .hlt
+    }
+
+    JMP [eve]
 .hlt:
     HLT
     JMP .hlt
@@ -164,3 +191,5 @@ dap_lba:
 include "lib/def.kc"
 include "lib/util.kc"
 include "lib/fs.kc"
+include "lib/malloc.kc"
+include "compiler/compiler.kc"
