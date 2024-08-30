@@ -35,6 +35,8 @@ bsFileSystemName:         RB 8
 
 start:
     CLD
+    MOV CX, DI
+    MOV DH, CL
 
     INT 0x12
     SHL AX, 6

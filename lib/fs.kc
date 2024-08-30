@@ -1,33 +1,53 @@
-struct {FAT_BS} = 3{BS_BOOTJMP}, 8{BS_OEM_NAME}, .<BS_BYTES_PER_SECTOR>, {BS_SECTORS_PER_CLUSTER}, .<BS_RESERVED_SECTOR_COUNT>, {BS_TABLE_COUNT}, .<BS_ROOT_ENTRY_COUNT>, .<BS_TOTAL_SECTORS_16>, {BS_MEDIA_TYPE}, .<BS_TABLE_SIZE_16>, .<BS_SECTORS_PER_TRACK>, .<BS_HEAD_SIDE_COUNT>, .[BS_HIDDEN_SECTOR_COUNT], .[BS_TOTAL_SECTORS_32];
+struct {FAT_BS} = 3{BS_BOOTJMP}, 8{BS_OEM_NAME}, .<BS_BYTES_PER_SECTOR>, {BS_SECTORS_PER_CLUSTER}, .<BS_RESERVED_SECTOR_COUNT>, {BS_TABLE_COUNT}, .<BS_ROOT_ENTRY_COUNT>, .<BS_TOTAL_SECTORS_16>, {BS_MEDIA_TYPE}, .<BS_TABLE_SIZE_16>, .<BS_SECTORS_PER_TRACK>, .<BS_HEAD_SIDE_COUNT>, .[BS_HIDDEN_SECTOR_COUNT], .[BS_TOTAL_SECTORS_32], .[BS_TABLE_SIZE_32], .<BS_EXTENDED_FLAGS>, .<BS_FAT_VERSION>, .[BS_ROOT_CLUSTER], .<BS_FAT_INFO>, .<BS_BACKUP_BS_SECTOR>, 12{BS_RESERVED}, {BS_DRIVE_NUMBER}, {BS_RESERVED2}, {BS_BOOT_SIGNATURE}, [BS_VOLUME_ID], 11{BS_VOLUME_LABEL}, 8{BS_FAT_TYPE_LABEL};
 
-struct {FAT32_EXTBS} = .[BS_TABLE_SIZE_32], .<BS_EXTENDED_FLAGS>, .<BS_FAT_VERSION>, .[BS_ROOT_CLUSTER], .<BS_FAT_INFO>, .<BS_BACKUP_BS_SECTOR>, 12{BS_RESERVED}, {BS_DRIVE_NUMBER}, {BS_RESERVED2}, {BS_BOOT_SIGNATURE}, [BS_VOLUME_ID], 11{BS_VOLUME_LABEL}, 8{BS_FAT_TYPE_LABEL};
+const PARTITION_TABLE = 0x1BE;
+struct {PARTITION} = {PARTITION_ATTRIBUTES}, 3{PARTITION_CHS}, {PARTITION_TYPE}, 3{PARTITION_CHS_END}, .[PARTITION_LBA], .[PARTITION_LBA_SECTORS];
 
-struct {FILE} = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION};
+struct {FILE} = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_CLUSTER}, [FILE_DATA_SECTOR], [FILE_LBA_CUR], [FILE_SEEK];
 
 function openat(cwd, path, file, create)
-(s[STRING], state, end)
+(s[STRING], state, end, read)
 {
     if (cwd) memcpy(file, cwd, FILE);
 
     state = 0;
+    read = FALSE;
     while (strtok(path, '/', s, &state))
     {
         if (s[STRINGPTR]{0} == ':')
         {
             s[STRINGPTR] += 1;
             file{FILE_DRIVE} = hex2int(s, &end);
-            state += end;
+            s[STRINGPTR] += end;
+            s[STRINGLEN] -= end + 1;
         }
         if (s[STRINGPTR]{0} == ';')
         {
             s[STRINGPTR] += 1;
             file{FILE_PARTITION} = hex2int(s, &end);
-            state += end;
+            s[STRINGPTR] += end;
+            s[STRINGLEN] -= end + 1;
+        }
+
+        if (!read and s[STRINGLEN] == 0)
+        {
+            if (!lba_read(file{FILE_DRIVE}, 1, 0, file)) return FALSE;
+            if (!lba_read(file{FILE_DRIVE}, 1, file.[PARTITION_TABLE + file{FILE_PARTITION} *! 16 + PARTITION_LBA], file)) return FALSE;
+
+            file{FILE_SECTORS_PER_CLUSTER} = file{BS_SECTORS_PER_CLUSTER};
+            file[FILE_DATA_SECTOR] = file.<BS_RESERVED_SECTOR_COUNT> + file.[BS_HIDDEN_SECTOR_COUNT] + file{BS_TABLE_COUNT} *! file.[BS_TABLE_SIZE_32];
+            file[FILE_LBA_CUR] = cluster2sector(file, file.[BS_ROOT_CLUSTER]);
+            file[FILE_SEEK] = 0;
+            read = TRUE;
         }
     }
+
+    return TRUE;
 }
 
 function read(file, n, buf)
 {
-    
+    return lba_read(file{FILE_DRIVE}, n /! 512, file[FILE_LBA_CUR], buf);
 }
+
+function cluster2sector(file, cluster) return ((cluster - 2) *! file{FILE_SECTORS_PER_CLUSTER}) + file[FILE_DATA_SECTOR];
