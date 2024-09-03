@@ -1,3 +1,11 @@
+#global low_mem, hi_mem, ext_mem;
+const LOW_MEM_END = 0x0007FFFF, HI_MEM_START = 0x00100000, EXT_MEM_START = 0x01000000;
+
+function malloc_init()
+{
+    # get size of memory here
+}
+
 function malloc(n)
 {
     return NULL;

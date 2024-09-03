@@ -29,6 +29,7 @@ function eden()
         print("Could not open /adam/eve.kc\r\n");
         JMP .hlt
     }
+    malloc_init();
     r = malloc(file[FILE_SIZE]);
     if (!r)
     {
@@ -122,9 +123,30 @@ USE16
     MOV EBX, [ebx]
     MOV ESI, [esi]
     MOV EDI, [edi]
+    MOV EAX, [EAX]
+    MOV ECX, [ECX]
+    MOV EDX, [EDX]
+    MOV EBX, [EBX]
+    MOV ESI, [ESI]
+    MOV EDI, [EDI]
     STI
 .int:
     INT 0x00
+    MOV [int], EAX
+    MOV EAX, [ecx]
+    MOV [EAX], ECX
+    MOV EAX, [edx]
+    MOV [EAX], EDX
+    MOV EAX, [ebx]
+    MOV [EAX], EBX
+    MOV EAX, [esi]
+    MOV [EAX], ESI
+    MOV EAX, [edi]
+    MOV [EAX], EDI
+    MOV ECX, [int]
+    MOV EAX, [eax]
+    MOV [EAX], ECX
+    MOV DWORD [int], 0
     SETB [int]
     MOV ESI, .protected
     JMP switch_protected
@@ -144,23 +166,26 @@ gdtr:
 .end:
 
 function print(s)
-(i)
+(i, eax, unused)
 {
     i = 0;
     while (i <! s[STRINGLEN])
     {
-        interrupt(0x10, 0x0E00 | s[STRINGPTR]{i});
+        eax = 0x0E00 | s[STRINGPTR]{i};
+        interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &unused);
         i += 1;
     }
 }
 
 function lba_do(ax, dl, sectors, lba)
+(unused, _dap)
 {
     MOV AX, [sectors]
     MOV [dap_sectors], AX
     MOV EAX, [lba]
     MOV [dap_lba], EAX
-    return interrupt(0x13, ax, 0, dl, 0, dap);
+    _dap = dap;
+    return interrupt(0x13, &ax, &unused, &dl, &unused, &_dap, &unused);
 }
 
 function lba_write(dl, sectors, lba, buf)

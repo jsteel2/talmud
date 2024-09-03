@@ -151,7 +151,7 @@ bool compiler_call(Compiler *c)
     HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
     HANDLE(compiler_consume(c, TLEFTPAREN));
     size_t i = 1;
-    do
+    while (!compiler_match(c, TRIGHTPAREN))
     {
         HANDLE(compiler_expr(c, NULL, NULL));
         HANDLE(compiler_emit8(c, 0x89));
@@ -159,7 +159,7 @@ bool compiler_call(Compiler *c)
         HANDLE(compiler_emit8(c, SIB(0, 0b100, 0b100)));
         HANDLE(compiler_emit8(c, i++ * 4)); // MOV [ESP + i * 4], EAX
         if (!compiler_match(c, TCOMMA) && compiler_consume(c, TRIGHTPAREN)) break;
-    } while (!compiler_match(c, TRIGHTPAREN));
+    }
     HANDLE(compiler_setlater(c, s, i - 1));
     HANDLE(compiler_emit8(c, 0x58)); // POP EAX
     HANDLE(compiler_emit8(c, 0xFF));
@@ -449,7 +449,7 @@ bool compiler_binary(Compiler *c, size_t *res, char *ident, bool (*fn)(Compiler 
 
     while ((t = compiler_matches(c, toks)))
     {
-        if (t != TLOGICALAND && t != TLOGICALOR && t != TSLASHU)
+        if (t != TLOGICALAND && t != TLOGICALOR && t != TSLASHU && t != TMODULOU)
         {
             HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
             HANDLE(fn(c, NULL, ident));
@@ -469,6 +469,16 @@ bool compiler_binary(Compiler *c, size_t *res, char *ident, bool (*fn)(Compiler 
                 HANDLE(compiler_emit8(c, 0x99)); // CDQ
                 HANDLE(compiler_emit8(c, 0xF7));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 6, 1))); // DIV ECX
+                break;
+            case TMODULOU:
+                HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
+                HANDLE(fn(c, NULL, ident));
+                HANDLE(compiler_emit8(c, 0x91)); // XCHG EAX, ECX
+                HANDLE(compiler_emit8(c, 0x58)); // POP EAX
+                HANDLE(compiler_emit8(c, 0x99)); // CDQ
+                HANDLE(compiler_emit8(c, 0xF7));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 6, 1))); // DIV ECX
+                HANDLE(compiler_emit8(c, 0x92)); // XCHG EAX, EDX
                 break;
             case TPLUS:
                 HANDLE(compiler_emit8(c, 0x03));
@@ -545,6 +555,12 @@ bool compiler_binary(Compiler *c, size_t *res, char *ident, bool (*fn)(Compiler 
                 HANDLE(compiler_emit8(c, 0x91)); // XCHG ECX, EAX
                 HANDLE(compiler_emit8(c, 0xD3));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 5, 2))); // SHR EDX, CL
+                HANDLE(compiler_emit8(c, 0x92)); // XCHG EAX, EDX
+                break;
+            case TSHIFTLEFT:
+                HANDLE(compiler_emit8(c, 0x91)); // XCHG ECX, EAX
+                HANDLE(compiler_emit8(c, 0xD3));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 4, 2))); // SHL EDX, CL
                 HANDLE(compiler_emit8(c, 0x92)); // XCHG EAX, EDX
                 break;
             case TLOGICALAND:
@@ -1695,7 +1711,7 @@ bool compiler_struct(Compiler *c)
         else if (compiler_match(c, TLEFTCHEVRON))
         {
             HANDLE(compiler_consume(c, TIDENT));
-            if (align) size += size % 4;
+            if (align) size += size % 2;
             HANDLE(map_set(&c->idents, c->cur.value, align ? size / 2 : size));
             size += 2 * mul;
             HANDLE(compiler_consume(c, TRIGHTCHEVRON));
@@ -1886,6 +1902,7 @@ bool compiler_statement(Compiler *c)
         case TRETF: HANDLE(compiler_emit8(c, 0xCB)); break;
         case TRET: HANDLE(compiler_emit8(c, 0xC3)); break;
         case TREP: HANDLE(compiler_emit8(c, 0xF3)); break;
+        case TSTOSB: HANDLE(compiler_emit8(c, 0xAA)); break;
         case TSETB: HANDLE(compiler_setcc(c, 0x92)); break;
         case TSHL: HANDLE(compiler_grp2(c, 4)); break;
         case TSHR: HANDLE(compiler_grp2(c, 5)); break;
