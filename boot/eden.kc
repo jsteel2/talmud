@@ -3,6 +3,7 @@ USE16
 
 const STACK = $! + 48 *! 1024;
 const DISK_BUF = STACK;
+const HEAP_START = DISK_BUF + 512 *! 128;
 
 IN AL, 0x92
 OR AL, 2
@@ -29,7 +30,7 @@ function eden()
         print("Could not open /adam/eve.kc\r\n");
         JMP .hlt
     }
-    malloc_init();
+    malloc_init(HEAP_START);
     r = malloc(file[FILE_SIZE]);
     if (!r)
     {

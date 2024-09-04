@@ -24,6 +24,9 @@ typedef struct
     Map locals;
     Map strings;
     size_t strings_offset;
+    size_t globals_offset;
+    size_t globals_start;
+    size_t globals_end;
     char *cur_label;
     size_t prog_end;
     size_t *later;

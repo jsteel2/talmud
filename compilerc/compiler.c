@@ -235,7 +235,7 @@ bool compiler_primary(Compiler *c, size_t *res, char *ident)
                 *res = c->org;
                 break;
             case TPROGEND:
-                *res = c->prog_end;
+                *res = c->globals_end;
                 break;
             case TNUM:
                 *res = (size_t)c->cur.value;
@@ -273,6 +273,8 @@ bool compiler_primary(Compiler *c, size_t *res, char *ident)
         }
         return true;
     }
+
+    bool is_label;
 
     switch (ident ? TIDENT : compiler_advance(c))
     {
@@ -315,6 +317,7 @@ bool compiler_primary(Compiler *c, size_t *res, char *ident)
             if (c->is_first_pass)
             {
                 if (map_get(&c->locals, c->cur.value, &x)) c->ip += 6;
+                else if (map_get2(&c->idents, c->cur.value, &x, &is_label) && !is_label) c->ip += 6;
                 else c->ip += 5;
                 free(c->cur.value);
                 c->cur.value = NULL;
@@ -326,10 +329,19 @@ bool compiler_primary(Compiler *c, size_t *res, char *ident)
                 HANDLE(compiler_emit8(c, MODRM(0b10, 0, 0b101)));
                 HANDLE(compiler_emit32(c, x)); // MOV EAX, [EBP + x]
             }
-            else if (map_get(&c->idents, c->cur.value, &x))
+            else if (map_get2(&c->idents, c->cur.value, &x, &is_label))
             {
-                HANDLE(compiler_emit8(c, 0xB8));
-                HANDLE(compiler_emit32(c, x)); // MOV EAX, x
+                if (is_label)
+                {
+                    HANDLE(compiler_emit8(c, 0xB8));
+                    HANDLE(compiler_emit32(c, x)); // MOV EAX, x
+                }
+                else
+                {
+                    HANDLE(compiler_emit8(c, 0x8B));
+                    HANDLE(compiler_emit8(c, MODRM(0, 0, 0b101)));
+                    HANDLE(compiler_emit32(c, x)); // MOV EAX, [x]
+                }
             }
             else
             {
@@ -1202,6 +1214,7 @@ bool compiler_test(Compiler *c)
 bool compiler_assign(Compiler *c, char *ident, uint8_t op)
 {
     uint64_t addr;
+    bool is_label;
     if (!ident) HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX (this is stupid btw, im making this really sloppy, ill try to improve things on the self-hosting compiler)
     HANDLE(compiler_expr(c, NULL, NULL));
     if (!ident) HANDLE(compiler_emit8(c, 0x5A)); // POP EDX
@@ -1220,7 +1233,16 @@ bool compiler_assign(Compiler *c, char *ident, uint8_t op)
         HANDLE(compiler_emit32(c, addr)); // op [EBP + addr], EAX/CL
         return true;
     }
+    else if (map_get2(&c->idents, ident, &addr, &is_label))
+    {
+        if (is_label) return die(&c->t, "cant assign to a label");
+        HANDLE(compiler_emit8(c, op));
+        HANDLE(compiler_emit8(c, MODRM(0, op == 0xD3 ? 4 : 0, 0b101)));
+        HANDLE(compiler_emit32(c, addr)); // op [EBP + addr], EAX/CL
+        return true;
+    }
 
+    die(&c->t, "undefined identifier %s", ident);
     free(ident);
     return false;
 }
@@ -1230,12 +1252,18 @@ bool compiler_ident(Compiler *c, bool set_cur)
 {
     char *ident = c->cur.value;
     size_t x;
+    bool align = true;
 
     if (compiler_match(c, TCOLON))
     {
         HANDLE(map_set(&c->idents, ident, c->ip));
         if (set_cur) c->cur_label = ident;
         return true;
+    }
+
+    if (compiler_match(c, TDOT))
+    {
+        align = false;
     }
 
     TokenType t = c->next.type;
@@ -1250,13 +1278,24 @@ bool compiler_ident(Compiler *c, bool set_cur)
         {
             if (ident)
             {
-                if (!map_get(&c->locals, ident, &x)) return die(&c->t, "undefined identifier");
-                HANDLE(compiler_emit8(c, 0x8B));
-                HANDLE(compiler_emit8(c, MODRM(0b10, 2, 0b101)));
-                HANDLE(compiler_emit32(c, x)); // MOV EDX, [EBP + x]
+                if (map_get(&c->locals, ident, &x))
+                {
+                    HANDLE(compiler_emit8(c, 0x8B));
+                    HANDLE(compiler_emit8(c, MODRM(0b10, 2, 0b101)));
+                    HANDLE(compiler_emit32(c, x)); // MOV EDX, [EBP + x]
+                }
+                else if (c->is_first_pass || map_get(&c->idents, ident, &x))
+                {
+                    HANDLE(compiler_emit8(c, 0xBA));
+                    HANDLE(compiler_emit32(c, x)); // MOV EDX, ident
+                }
+                else
+                {
+                    return die(&c->t, "undefined identifier");
+                }
                 HANDLE(compiler_emit8(c, 0x8D));
                 HANDLE(compiler_emit8(c, MODRM(0, 0, 0b100)));
-                HANDLE(compiler_emit8(c, SIB(t == TLEFTBRACKET ? 2 : 0, 0, 2))); // LEA EAX, [EDX + EAX * n]
+                HANDLE(compiler_emit8(c, SIB(t == TLEFTBRACKET && align ? 2 : 0, 0, 2))); // LEA EAX, [EDX + EAX * n]
             }
             else
             {
@@ -1850,6 +1889,17 @@ bool compiler_setcc(Compiler *c, uint8_t op)
     return die(&c->t, "Unimplemented");
 }
 
+bool compiler_global(Compiler *c)
+{
+    do
+    {
+        HANDLE(compiler_consume(c, TIDENT));
+        map_set2(&c->idents, c->cur.value, c->globals_start + c->globals_offset, false);
+        c->globals_offset += 4;
+    } while (compiler_match(c, TCOMMA));
+    return compiler_consume(c, TSEMICOLON);
+}
+
 bool compiler_statement(Compiler *c)
 {
     size_t x;
@@ -1923,6 +1973,7 @@ bool compiler_statement(Compiler *c)
         case TWHILE: HANDLE(compiler_while(c)); break;
         case TSTRUCT: HANDLE(compiler_struct(c)); break;
         case TSTAR: HANDLE(compiler_deref(c)); break;
+        case TGLOBAL: HANDLE(compiler_global(c)); break;
         case TSEMICOLON: break;
         default: return die(&c->t, "Unexpected token %d", c->cur.type);
     }
@@ -1933,6 +1984,7 @@ bool compiler_pass(Compiler *c, bool is_first_pass)
 {
     c->is_first_pass = is_first_pass;
     c->later_i = 0;
+    c->globals_offset = 0;
 
     c->cur = (Token){TINVALID, NULL};
     c->next = (Token){TINVALID, NULL};
@@ -1982,6 +2034,8 @@ uint8_t *compile(Compiler *c, char *src, size_t *outbin_len)
         c->outbin = NULL;
         return NULL;
     }
+    c->globals_start = c->ip;
+    c->globals_end = c->globals_start + c->globals_offset;
     c->prog_end = c->ip;
     tokenizer_init(&c->t, src);
     if (!compiler_pass(c, false)) 

@@ -1,14 +1,61 @@
-#global low_mem, hi_mem, ext_mem;
-const LOW_MEM_END = 0x0007FFFF, HI_MEM_START = 0x00100000, EXT_MEM_START = 0x01000000;
+const HI_MEM_START = 0x00100000, EXT_MEM_START = 0x01000000;
+struct {MEM_HEADER} = {MEM_HEADER_USED}, .[MEM_HEADER_SIZE], .[MEM_HEADER_NEXT], .[MEM_HEADER_PREV];
+global first_free;
 
-function malloc_init()
+function malloc_init(lowmem_start)
+(lowmem, himem, extmem, eax, ecx, edx, unused)
 {
-    # get size of memory here
+    interrupt(0x12, &eax, &unused, &unused, &unused, &unused, &unused);
+    lowmem = eax *! 1024 - lowmem_start;
+    eax = 0xE801;
+    ecx = 0;
+    edx = 0;
+    interrupt(0x15, &eax, &ecx, &edx, &unused, &unused, &unused);
+    himem = ecx *! 1024;
+    extmem = edx *! 1024 *! 64;
+    format(print, "%x of low, %x of high and %x of extended memory available for use.\r\n", lowmem, himem, extmem);
+    lowmem_start{MEM_HEADER_USED} = FALSE;
+    lowmem_start.[MEM_HEADER_SIZE] = lowmem - MEM_HEADER;
+    lowmem_start.[MEM_HEADER_NEXT] = himem ? HI_MEM_START : extmem ? EXT_MEM_START : NULL;
+    lowmem_start.[MEM_HEADER_PREV] = NULL;
+    DD 0x90909090
+    first_free = lowmem_start;
+
+    if (himem)
+    {
+        HI_MEM_START{MEM_HEADER_USED} = FALSE;
+        HI_MEM_START.[MEM_HEADER_SIZE] = himem - MEM_HEADER;
+        HI_MEM_START.[MEM_HEADER_NEXT] = extmem ? EXT_MEM_START : NULL;
+        HI_MEM_START.[MEM_HEADER_PREV] = lowmem_start;
+    }
+    if (extmem)
+    {
+        EXT_MEM_START{MEM_HEADER_USED} = FALSE;
+        EXT_MEM_START.[MEM_HEADER_SIZE] = extmem - MEM_HEADER;
+        EXT_MEM_START.[MEM_HEADER_NEXT] = NULL;
+        EXT_MEM_START.[MEM_HEADER_PREV] = himem ? HI_MEM_START : NULL;
+    }
 }
 
 function malloc(n)
+(left, right)
 {
-    return NULL;
+    left = first_free;
+    while (left and (left{MEM_HEADER_USED} or left.[MEM_HEADER_SIZE] <! n)) left = left.[MEM_HEADER_NEXT];
+    if (!left) return NULL;
+    
+    left{MEM_HEADER_USED} = TRUE;
+    if (left.[MEM_HEADER_SIZE] == n) return left + MEM_HEADER;
+
+    right = left + MEM_HEADER + n;
+    right{MEM_HEADER_USED} = FALSE;
+    right.[MEM_HEADER_SIZE] = left.[MEM_HEADER_SIZE] - n;
+    right.[MEM_HEADER_NEXT] = left.[MEM_HEADER_NEXT];
+    right.[MEM_HEADER_PREV] = left;
+    left.[MEM_HEADER_SIZE] = n;
+    left.[MEM_HEADER_NEXT] = right;
+
+    return left + MEM_HEADER;
 }
 
 function free(p)

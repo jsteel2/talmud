@@ -58,15 +58,21 @@ MapEntry *map_ref(Map *m, char *key)
     return map_ref_entry(m->entries, m->size, key, NULL);
 }
 
-bool map_get(Map *m, char *key, uint64_t *value)
+bool map_get2(Map *m, char *key, uint64_t *value, bool *is_label)
 {
     MapEntry *e = map_ref(m, key);
     if (!e) return false;
     *value = e->value;
+    if (is_label) *is_label = e->is_label;
     return true;
 }
 
-void map_set_entry(MapEntry *entries, size_t size, size_t *len, char *key, uint64_t value)
+bool map_get(Map *m, char *key, uint64_t *value)
+{
+    return map_get2(m, key, value, NULL);
+}
+
+void map_set_entry(MapEntry *entries, size_t size, size_t *len, char *key, uint64_t value, bool is_label)
 {
     size_t i;
     MapEntry *entry = map_ref_entry(entries, size, key, &i);
@@ -80,6 +86,7 @@ void map_set_entry(MapEntry *entries, size_t size, size_t *len, char *key, uint6
         if (len) (*len)++;
         entries[i].key = key;
         entries[i].value = value;
+        entries[i].is_label = is_label;
     }
 }
 
@@ -92,7 +99,7 @@ bool map_expand(Map *m)
     for (size_t i = 0; i < m->size; i++)
     {
         if (!m->entries[i].key) continue;
-        map_set_entry(entries, size, NULL, m->entries[i].key, m->entries[i].value);
+        map_set_entry(entries, size, NULL, m->entries[i].key, m->entries[i].value, m->entries[i].value);
     }
 
     free(m->entries);
@@ -101,13 +108,18 @@ bool map_expand(Map *m)
     return true;
 }
 
-bool map_set(Map *m, char *key, uint64_t value)
+bool map_set2(Map *m, char *key, uint64_t value, bool is_label)
 {
     if (m->len >= m->size / 2)
     {
         if (!map_expand(m)) return false;
     }
 
-    map_set_entry(m->entries, m->size, &m->len, key, value);
+    map_set_entry(m->entries, m->size, &m->len, key, value, is_label);
     return true;
+}
+
+bool map_set(Map *m, char *key, uint64_t value)
+{
+    return map_set2(m, key, value, true);
 }

@@ -199,6 +199,9 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
         case 'f':
             if (LEN("function") == len && strncmp(start, SLEN("function")) == 0) return TFUNCTION;
             break;
+        case 'g':
+            if (LEN("global") == len && strncmp(start, SLEN("global")) == 0) return TGLOBAL;
+            break;
         case 'i':
             if (LEN("include") == len && strncmp(start, SLEN("include")) == 0) return TINCLUDE;
             if (LEN("if") == len && strncmp(start, SLEN("if")) == 0) return TIF;
