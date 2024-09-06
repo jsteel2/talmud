@@ -1,4 +1,7 @@
-struct {COMPILER} = [CBIN];
+include "compiler/tokenizer.kc"
+include "lib/map.kc"
+
+struct {COMPILER} = TOKENIZER{CTOK}, [CBIN];
 
 function compiler_init(c)
 {

@@ -18,7 +18,6 @@ function malloc_init(lowmem_start)
     lowmem_start.[MEM_HEADER_SIZE] = lowmem - MEM_HEADER;
     lowmem_start.[MEM_HEADER_NEXT] = himem ? HI_MEM_START : extmem ? EXT_MEM_START : NULL;
     lowmem_start.[MEM_HEADER_PREV] = NULL;
-    DD 0x90909090
     first_free = lowmem_start;
 
     if (himem)

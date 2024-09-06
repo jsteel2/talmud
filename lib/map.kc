@@ -1,0 +1,59 @@
+struct {MAP} = [MAP_ENTRIES], [MAP_LEN], [MAP_SIZE], [MAP_ENTRY_SIZE], [MAP_COMPARE], [MAP_HASH], [MAP_FREE];
+
+function map_init(m, size, entry_size, compare, hash, free)
+{
+    entry_size += 1;
+    m[MAP_COMPARE] = compare;
+    m[MAP_HASH] = hash;
+    m[MAP_FREE] = free;
+    m[MAP_LEN] = 0;
+    m[MAP_SIZE] = size;
+    m[MAP_ENTRY_SIZE] = entry_size;
+    m[MAP_ENTRIES] = malloc(entry_size *! size);
+    if (!m[MAP_ENTRIES]) return FALSE;
+    memset(m[MAP_ENTRIES], 0, entry_size *! size);
+    return TRUE;
+}
+
+function map_free2(m)
+(i)
+{
+    m[MAP_LEN] = 0;
+    i = 0;
+    while (i <! m[MAP_SIZE])
+    {
+        m[MAP_ENTRIES]{i *! m[MAP_ENTRY_SIZE]} = 0;
+        if (m[MAP_FREE]) m[MAP_FREE](&m[MAP_ENTRIES]{i *! m[MAP_ENTRY_SIZE] + 1});
+        i += 1;
+    }
+}
+
+function map_free(m)
+{
+    map_free2(m);
+    free(m[MAP_ENTRIES]);
+}
+
+function hash_string(s)
+(hash, i)
+{
+    hash = 2166136261;
+    i = 0;
+    while (i <! s[STRINGLEN])
+    {
+        hash ^= s[STRINGPTR]{i};
+        hash *!= 16777619;
+        i += 1;
+    }
+    return hash;
+}
+
+function map_iter(m, state)
+{
+    while (*state <! m[MAP_SIZE] and !m[MAP_ENTRIES]{*state *! m[MAP_ENTRY_SIZE]}) *state += 1;
+
+    if (*state >=! m[MAP_SIZE]) return NULL;
+
+    *state += 1;
+    return &m[MAP_ENTRIES]{(*state - 1) *! m[MAP_ENTRY_SIZE] + 1};
+}

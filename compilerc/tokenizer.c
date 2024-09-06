@@ -16,9 +16,9 @@ void tokenizer_init(Tokenizer *t, char *src)
     t->src = src;
 }
 
-TokenType die(Tokenizer *t, char *fmt, ...)
+TokenType _die(char *file, int line, Tokenizer *t, char *fmt, ...)
 {
-    fprintf(stderr, "at col %lu line %lu: ", t->col, t->line);
+    fprintf(stderr, "COMP(file %s, line %d) at col %lu line %lu: ", file, line, t->col, t->line);
     va_list v;
     va_start(v, fmt);
     vfprintf(stderr, fmt, v);
@@ -274,7 +274,12 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
     switch (t->src[t->pos++])
     {
         case '*':
-            if (t->src[t->pos++] == '!') return TSTARU;
+            if (t->src[t->pos++] == '!')
+            {
+                if (t->src[t->pos++] == '=') return TSTARUEQUALS;
+                t->pos--;
+                return TSTARU;
+            }
             if (t->src[t->pos - 1] == '$') return TSTARS;
             t->pos--;
             return TSTAR;
@@ -333,6 +338,10 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
             if (t->src[t->pos++] == '=') return TMINUSEQUALS;
             t->pos--;
             return TMINUS;
+        case '^':
+            if (t->src[t->pos++] == '=') return TBITWISEXOREQUALS;
+            t->pos--;
+            return TBITWISEXOR;
         case '!':
             if (t->src[t->pos++] == '=') return TNOTEQUALS;
             t->pos--;

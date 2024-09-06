@@ -1,0 +1,3 @@
+struct {TOKENIZER} = [TSRC];
+
+struct {TEND} = {TERROR}, {TINVALID};
