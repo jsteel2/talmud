@@ -10,6 +10,6 @@ function compiler_init(c)
 
 function compile(c, src)
 {
-    format(print, "source: %s\r\n", src);
+    format(print, "source: %s\n", src);
     return NULL;
 }

@@ -6,21 +6,21 @@ int main(int argc, char *argv[])
 {
     if (argc < 3)
     {
-        printf("usage: %s <srcfile> <outfile>\r\n", argv[0]);
+        printf("usage: %s <srcfile> <outfile>\n", argv[0]);
         return -1;
     }
 
     FILE *srcfile = fopen(argv[1], "r");
     if (!srcfile)
     {
-        fprintf(stderr, "Could not open srcfile %s\r\n", argv[1]);
+        fprintf(stderr, "Could not open srcfile %s\n", argv[1]);
         return -1;
     }
 
     FILE *outfile = fopen(argv[2], "wb");
     if (!outfile)
     {
-        fprintf(stderr, "Could not open outfile %s\r\n", argv[2]);
+        fprintf(stderr, "Could not open outfile %s\n", argv[2]);
         return -1;
     }
 
@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
     char *src = malloc(srcsize + 1);
     if (!fread(src, sizeof(char), srcsize, srcfile))
     {
-        fprintf(stderr, "Could not read srcfile %s\r\n", argv[1]);
+        fprintf(stderr, "Could not read srcfile %s\n", argv[1]);
         return -1;
     }
     src[srcsize] = 0;

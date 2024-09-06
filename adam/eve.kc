@@ -1,1 +1,6 @@
-JMP $
+while (TRUE)
+{
+    print("COOL\n");
+}
+
+include "lib/def.kc"

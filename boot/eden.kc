@@ -23,23 +23,23 @@ function eden()
     file{FILE_DRIVE} = r;
     file{FILE_PARTITION} = r >> 8;
 
-    print("Hello, World!\r\n");
+    print("Hello, World!\n");
 
     if (!openat(NULL, "/adam/eve.kc", file, FALSE))
     {
-        print("Could not open /adam/eve.kc\r\n");
+        print("Could not open /adam/eve.kc\n");
         JMP .hlt
     }
     malloc_init(HEAP_START);
     r = malloc(file[FILE_SIZE]);
     if (!r)
     {
-        format(print, "Could not allocate %x bytes of memory\r\n", file[FILE_SIZE]);
+        format(print, "Could not allocate %x bytes of memory\n", file[FILE_SIZE]);
         JMP .hlt
     }
     if (!read(file, file[FILE_SIZE], r))
     {
-        print("Could not read /adam/eve.kc\r\n");
+        print("Could not read /adam/eve.kc\n");
         JMP .hlt
     }
 
@@ -47,15 +47,16 @@ function eden()
     s[STRINGLEN] = file[FILE_SIZE];
     if (!compiler_init(compiler))
     {
-        print("Could not initialize compiler\r\n");
+        print("Could not initialize compiler\n");
         JMP .hlt
     }
 
+    compiler_const_set(compiler, "print", print);
     eve = compile(compiler, s);
     free(r);
     if (!eve)
     {
-        print("Could not compile /adam/eve.kc\r\n");
+        print("Could not compile /adam/eve.kc\n");
         JMP .hlt
     }
 
@@ -172,6 +173,7 @@ function print(s)
     i = 0;
     while (i <! s[STRINGLEN])
     {
+        if (s[STRINGPTR]{i} == '\n') print("\r");
         eax = 0x0E00 | s[STRINGPTR]{i};
         interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &unused);
         i += 1;

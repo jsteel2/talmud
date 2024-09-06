@@ -1940,7 +1940,7 @@ bool compiler_statement(Compiler *c)
         case TSTRUCT: HANDLE(compiler_struct(c)); break;
         case TGLOBAL: HANDLE(compiler_global(c)); break;
         case TSEMICOLON: break;
-        default: HANDLE(compiler_expr(c, NULL, c->cur));
+        default: HANDLE(compiler_expr(c, NULL, c->cur)); HANDLE(compiler_consume(c, TSEMICOLON));
     }
     return true;
 }

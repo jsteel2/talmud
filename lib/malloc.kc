@@ -13,7 +13,7 @@ function malloc_init(lowmem_start)
     interrupt(0x15, &eax, &ecx, &edx, &unused, &unused, &unused);
     himem = ecx *! 1024;
     extmem = edx *! 1024 *! 64;
-    format(print, "%x of low, %x of high and %x of extended memory available for use.\r\n", lowmem, himem, extmem);
+    format(print, "%x of low, %x of high and %x of extended memory available for use.\n", lowmem, himem, extmem);
     lowmem_start{MEM_HEADER_USED} = FALSE;
     lowmem_start.[MEM_HEADER_SIZE] = lowmem - MEM_HEADER;
     lowmem_start.[MEM_HEADER_NEXT] = himem ? HI_MEM_START : extmem ? EXT_MEM_START : NULL;
