@@ -191,6 +191,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("and") == len && strncmp(start, SLEN("and")) == 0) return TLOGICALAND;
             break;
         case 'c':
+            if (LEN("continue") == len && strncmp(start, SLEN("continue")) == 0) return TCONTINUE;
             if (LEN("const") == len && strncmp(start, SLEN("const")) == 0) return TCONST;
             break;
         case 'e':
@@ -229,15 +230,14 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
 {
     t->pos++;
     t->col++;
-    char *end = strchr(&t->src[t->pos], type == TSTRING ? '"' : '\'');
-    if (!end) return die(t, "Unterminated string");
-    size_t len = end - &t->src[t->pos];
 
-    *value = malloc(len + 1);
+    size_t size = 32;
+    *value = malloc(size);
 
     size_t i = 0;
-    while (&t->src[t->pos] < end)
+    while (t->src[t->pos] && t->src[t->pos] != (type == TCHARS ? '\'' : '"'))
     {
+        if (i >= size) *value = realloc(*value, size = size * 2);
         t->col++;
         if (t->src[t->pos++] == '\\')
         {
@@ -259,6 +259,7 @@ TokenType tokenizer_string_token(Tokenizer *t, char **value, TokenType type)
             (*value)[i++] = t->src[t->pos - 1];
         }
     }
+    if (i >= size) *value = realloc(*value, size + 1);
     (*value)[i] = 0;
 
     t->col++;
@@ -328,6 +329,8 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
         case '$':
             if (t->src[t->pos++] == '$') return TORIGIN;
             if (t->src[t->pos - 1] == '!') return TPROGEND;
+            if (t->src[t->pos - 1] == '*') return TLINE;
+            if (t->src[t->pos - 1] == '@') return TFUNC;
             t->pos--;
             return TIP;
         case '+':

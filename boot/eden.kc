@@ -51,8 +51,8 @@ function eden()
         JMP .hlt
     }
 
-    compiler_const_set(compiler, "print", print);
-    eve = compile(compiler, s);
+    if (!compiler_const_set(compiler, "print", print)) JMP .hlt
+    eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)
     {
@@ -220,4 +220,5 @@ include "lib/def.kc"
 include "lib/util.kc"
 include "lib/fs.kc"
 include "lib/malloc.kc"
+include "lib/map.kc"
 include "compiler/compiler.kc"

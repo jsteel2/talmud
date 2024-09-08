@@ -99,7 +99,7 @@ bool map_expand(Map *m)
     for (size_t i = 0; i < m->size; i++)
     {
         if (!m->entries[i].key) continue;
-        map_set_entry(entries, size, NULL, m->entries[i].key, m->entries[i].value, m->entries[i].value);
+        map_set_entry(entries, size, NULL, m->entries[i].key, m->entries[i].value, m->entries[i].is_label);
     }
 
     free(m->entries);

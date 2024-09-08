@@ -32,6 +32,7 @@ typedef struct
     size_t *later;
     size_t later_size;
     size_t later_i;
+    size_t cur_continue;
 } Compiler;
 
 bool compiler_init(Compiler *c);
