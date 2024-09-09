@@ -2,7 +2,9 @@ function minu(x, y) return x <! y ? x : y;
 function upper(c) return islower(c) ? c + 'A' - 'a' : c;
 function islower(c) return c >=! 'a' and c <=! 'z';
 function isnum(c) return c >=! '0' and c <=! '9';
+function isalpha(c) return upper(c) >=! 'A' and upper(c) <=! 'Z';
 function ishex(c) return upper(c) >=! 'A' and upper(c) <=! 'F' or isnum(c);
+function isspace(c) return c == ' ' or c == '\t' or c == '\n' or c == '\r';
 
 function memcpy(dest, src, n)
 {
@@ -53,27 +55,27 @@ function memset(d, x, n)
 
 function strcmp(x, y)
 {
-    if (x[STRINGLEN] != y[STRINGLEN]) return FALSE;
-    return memcmp(x[STRINGPTR], y[STRINGPTR], x[STRINGLEN]);
+    if (x.[STRINGLEN] != y.[STRINGLEN]) return FALSE;
+    return memcmp(x.[STRINGPTR], y.[STRINGPTR], x.[STRINGLEN]);
 }
 
 function strchr(s, c)
 (i)
 {
     i = 0;
-    while (i <! s[STRINGLEN] and s[STRINGPTR]{i} != c) i += 1;
+    while (i <! s.[STRINGLEN] and s.[STRINGPTR]{i} != c) i += 1;
     return i;
 }
 
 function strtok(s, delim, out, state)
 (start)
 {
-    if (*state >=! s[STRINGLEN]) return FALSE;
+    if (*state >=! s.[STRINGLEN]) return FALSE;
 
     start = *state;
-    out[STRINGPTR] = s[STRINGPTR] + *state;
-    while (*state <! s[STRINGLEN] and s[STRINGPTR]{*state} != delim) *state += 1;
-    out[STRINGLEN] = *state - start;
+    out.[STRINGPTR] = s.[STRINGPTR] + *state;
+    while (*state <! s.[STRINGLEN] and s.[STRINGPTR]{*state} != delim) *state += 1;
+    out.[STRINGLEN] = *state - start;
 
     *state += 1;
     return TRUE;
@@ -85,9 +87,9 @@ function hex2int(s, end)
     *end = 0;
     n = 0;
     
-    while (*end <! s[STRINGLEN])
+    while (*end <! s.[STRINGLEN])
     {
-        c = s[STRINGPTR]{*end};
+        c = s.[STRINGPTR]{*end};
         n <<= 4;
 
         if (isnum(c)) n |= c - '0';
@@ -101,25 +103,26 @@ function hex2int(s, end)
 }
 
 function format(fn, fmt)
-(s[STRING], i, start, v, c)
+(s{STRING}, i, start, v, c)
 {
     i = 0;
     start = 0;
     v = 2;
 
-    while (i <! fmt[STRINGLEN])
+    while (i <! fmt.[STRINGLEN])
     {
-        c = fmt[STRINGPTR]{i};
+        c = fmt.[STRINGPTR]{i};
         if (c == '%')
         {
-            s[STRINGPTR] = fmt[STRINGPTR] + start;
-            s[STRINGLEN] = i - start;
+            s.[STRINGPTR] = fmt.[STRINGPTR] + start;
+            s.[STRINGLEN] = i - start;
             fn(s);
 
             i += 1;
-            c = fmt[STRINGPTR]{i};
+            c = fmt.[STRINGPTR]{i};
             if (c == 's') fn(vararg(v));
             else if (c == 'x') format_hex(fn, s, vararg(v));
+            else if (c == 'c') format_char(fn, s, vararg(v));
 
             start = i + 1;
             v += 1;
@@ -127,16 +130,16 @@ function format(fn, fmt)
         i += 1;
     }
 
-    s[STRINGPTR] = fmt[STRINGPTR] + start;
-    s[STRINGLEN] = i - start;
+    s.[STRINGPTR] = fmt.[STRINGPTR] + start;
+    s.[STRINGLEN] = i - start;
     fn(s);
 }
 
 function format_hex(fn, s, n)
 (buf{8}, i)
 {
-    s[STRINGPTR] = buf;
-    s[STRINGLEN] = 8;
+    s.[STRINGPTR] = buf;
+    s.[STRINGLEN] = 8;
 
     i = 0;
     while (i <! 8)
@@ -147,6 +150,13 @@ function format_hex(fn, s, n)
         i += 1;
     }
 
+    fn(s);
+}
+
+function format_char(fn, s, c)
+{
+    s.[STRINGPTR] = &c;
+    s.[STRINGLEN] = 1;
     fn(s);
 }
 

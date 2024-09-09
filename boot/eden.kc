@@ -17,7 +17,7 @@ pmode:
     MOV ESP, STACK
 
 function eden()
-(file{FILE}, r, eve, s[STRING], compiler{COMPILER})
+(file{FILE}, r, eve, s{STRING}, compiler{COMPILER})
 {
     MOV [r], DX
     file{FILE_DRIVE} = r;
@@ -31,20 +31,20 @@ function eden()
         JMP .hlt
     }
     malloc_init(HEAP_START);
-    r = malloc(file[FILE_SIZE]);
+    r = malloc(file.[FILE_SIZE]);
     if (!r)
     {
-        format(print, "Could not allocate %x bytes of memory\n", file[FILE_SIZE]);
+        format(print, "Could not allocate %x bytes of memory\n", file.[FILE_SIZE]);
         JMP .hlt
     }
-    if (!read(file, file[FILE_SIZE], r))
+    if (!read(file, file.[FILE_SIZE], r))
     {
         print("Could not read /adam/eve.kc\n");
         JMP .hlt
     }
 
-    s[STRINGPTR] = r;
-    s[STRINGLEN] = file[FILE_SIZE];
+    s.[STRINGPTR] = r;
+    s.[STRINGLEN] = file.[FILE_SIZE];
     if (!compiler_init(compiler))
     {
         print("Could not initialize compiler\n");
@@ -171,10 +171,10 @@ function print(s)
 (i, eax, unused)
 {
     i = 0;
-    while (i <! s[STRINGLEN])
+    while (i <! s.[STRINGLEN])
     {
-        if (s[STRINGPTR]{i} == '\n') print("\r");
-        eax = 0x0E00 | s[STRINGPTR]{i};
+        if (s.[STRINGPTR]{i} == '\n') print("\r");
+        eax = 0x0E00 | s.[STRINGPTR]{i};
         interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &unused);
         i += 1;
     }

@@ -1,3 +1,85 @@
-struct {TOKENIZER} = [TSRC];
+struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
-struct {TEND} = {TERROR}, {TINVALID};
+struct TEND = {TINVALID}, {TNUM}, {TIDENT}, {TCHARS}, {TSTRING};
+
+struct TOKEN = [TOKEN_TYPE], STRING{TOKEN_VALUE};
+
+function tokenizer_init(t, src)
+{
+    t.[TSRC] = src;
+    t.[TPOS] = 0;
+    t.[TCOL] = 1;
+    t.[TLINE] = 1;
+}
+
+function tokenizer_number_token(c, out)
+{
+    return FALSE;
+}
+
+function tokenizer_ident_token(c, out)
+{
+    print("ident unimplemented");
+    return FALSE;
+}
+
+function tokenizer_string_token(c, out, type)
+{
+    return FALSE;
+}
+
+function tokenizer_symbol_token(c, out)
+{
+    return FALSE;
+}
+
+function tokenizer_token(t, out)
+(c, p)
+{
+    if (t.[TPOS] >=! t.[TSRC].[STRINGLEN])
+    {
+        out.[TOKEN_TYPE] = TEND;
+        return TRUE;
+    }
+
+    p = t.[TSRC].[STRINGPTR];
+
+.skip:
+    while (isspace(p{t.[TPOS]}))
+    {
+        if (p{t.[TPOS]} == '\n')
+        {
+            t.[TCOL] = 0;
+            t.[TLINE] += 1;
+        }
+        t.[TCOL] += 1;
+        if ((t.[TPOS] += 1) >=! t.[TSRC].[STRINGLEN])
+        {
+            out.[TOKEN_TYPE] = TEND;
+            return TRUE;
+        }
+    }
+
+    if (p{t.[TPOS]} == '#')
+    {
+        while (p{t.[TPOS] += 1} != '\n')
+        {
+            if (t.[TPOS] >=! t.[TSRC].[STRINGLEN])
+            {
+                out.[TOKEN_TYPE] = TEND;
+                return TRUE;
+            }
+        }
+        t.[TLINE] += 1;
+        t.[TCOL] = 1;
+        JMP .skip
+    }
+
+    c = p{t.[TPOS]};
+    if (isnum(c)) return tokenizer_number_token(c, out);
+    if (isalpha(c)) return tokenizer_ident_token(c, out);
+    if (c == '\'') return tokenizer_string_token(c, out, TCHARS);
+    if (c == '"') return tokenizer_string_token(c, out, TSTRING);
+
+    return tokenizer_symbol_token(c, out);
+}

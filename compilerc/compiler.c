@@ -1611,6 +1611,7 @@ bool compiler_include(Compiler *c)
 {
     HANDLE(compiler_consume(c, TSTRING));
 
+    fprintf(stderr, "including file %s\n", (char *)c->cur.value);
     FILE *f = fopen(c->cur.value, "r");
     HANDLE(f);
 
@@ -1739,28 +1740,11 @@ bool compiler_const(Compiler *c)
 
 bool compiler_struct(Compiler *c)
 {
-    size_t endmul = 1;
-    TokenType t;
-    if (compiler_match(c, TLEFTBRACKET))
-    {
-        t = TLEFTBRACKET;
-        endmul = 4;
-    }
-    else if (compiler_match(c, TLEFTBRACE))
-    {
-        t = TLEFTBRACE;
-    }
-    else
-    {
-        return false;
-    }
     HANDLE(compiler_consume(c, TIDENT));
-    HANDLE(compiler_consume(c, t + 1));
     char *name = c->cur.value; // also memleaks if we return before map_set
 
     HANDLE(compiler_consume(c, TEQUALS));
 
-    bool align;
     size_t mul;
     size_t size = 0;
     do
@@ -1768,14 +1752,10 @@ bool compiler_struct(Compiler *c)
         if (c->next.type != TDOT && c->next.type != TLEFTBRACKET && c->next.type != TLEFTBRACE && c->next.type != TLEFTCHEVRON) HANDLE(compiler_const_expr(c, &mul));
         else mul = 1;
 
-        if (compiler_match(c, TDOT)) align = false;
-        else align = true;
-
         if (compiler_match(c, TLEFTBRACKET))
         {
             HANDLE(compiler_consume(c, TIDENT));
-            if (align) size += size % 4;
-            HANDLE(map_set(&c->idents, c->cur.value, align ? size / 4 : size));
+            HANDLE(map_set(&c->idents, c->cur.value, size));
             size += 4 * mul;
             HANDLE(compiler_consume(c, TRIGHTBRACKET));
         }
@@ -1789,8 +1769,7 @@ bool compiler_struct(Compiler *c)
         else if (compiler_match(c, TLEFTCHEVRON))
         {
             HANDLE(compiler_consume(c, TIDENT));
-            if (align) size += size % 2;
-            HANDLE(map_set(&c->idents, c->cur.value, align ? size / 2 : size));
+            HANDLE(map_set(&c->idents, c->cur.value, size));
             size += 2 * mul;
             HANDLE(compiler_consume(c, TRIGHTCHEVRON));
         }
@@ -1800,8 +1779,7 @@ bool compiler_struct(Compiler *c)
         }
     } while (compiler_match(c, TCOMMA));
 
-    size += size % endmul;
-    HANDLE(map_set(&c->idents, name, size / endmul));
+    HANDLE(map_set(&c->idents, name, size));
     return compiler_consume(c, TSEMICOLON);
 }
 
