@@ -3,6 +3,7 @@ function upper(c) return islower(c) ? c + 'A' - 'a' : c;
 function islower(c) return c >=! 'a' and c <=! 'z';
 function isnum(c) return c >=! '0' and c <=! '9';
 function isalpha(c) return upper(c) >=! 'A' and upper(c) <=! 'Z';
+function isalnum(c) return isalpha(c) or isnum(c);
 function ishex(c) return upper(c) >=! 'A' and upper(c) <=! 'F' or isnum(c);
 function isspace(c) return c == ' ' or c == '\t' or c == '\n' or c == '\r';
 

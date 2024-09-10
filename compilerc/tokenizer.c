@@ -194,6 +194,9 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("continue") == len && strncmp(start, SLEN("continue")) == 0) return TCONTINUE;
             if (LEN("const") == len && strncmp(start, SLEN("const")) == 0) return TCONST;
             break;
+        case 'd':
+            if (LEN("do") == len && strncmp(start, SLEN("do")) == 0) return TDO;
+            break;
         case 'e':
             if (LEN("else") == len && strncmp(start, SLEN("else")) == 0) return TELSE;
             break;

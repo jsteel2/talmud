@@ -12,23 +12,49 @@ function tokenizer_init(t, src)
     t.[TLINE] = 1;
 }
 
-function tokenizer_number_token(c, out)
+function tokenizer_number_token(t, out)
 {
     return FALSE;
 }
 
-function tokenizer_ident_token(c, out)
+function tokenizer_ident_token(t, out)
+(s{STRING}, p)
 {
-    print("ident unimplemented");
+    p = t.[TSRC].[STRINGPTR];
+    s.[STRINGPTR] = &p{t.[TPOS]};
+    s.[STRINGLEN] = 0;
+    do
+    {
+        s.[STRINGLEN] += 1;
+        t.[TPOS] += 1;
+    } while (t.[TPOS] <! t.[TSRC].[STRINGLEN] and (isalnum(p{t.[TPOS]}) or p{t.[TPOS]} == '_'));
+
+    t.[TCOL] += s.[STRINGLEN];
+    
+    memcpy(&out.{TOKEN_VALUE}, s, STRING);
+
+    p = s.[STRINGLEN];
+    #switch (s.[STRINGPTR]{0})
+    #{
+    #    case 'w':
+    #        if (p == 5)
+    #        {
+    #            if (strcmp(s, "while")) out.[TOKEN_TYPE] = TWHILE;
+    #            else break;
+    #        }
+    #        return TRUE;
+    #}
+
+    out.[TOKEN_TYPE] = TIDENT;
+    return TRUE;
+}
+
+function tokenizer_string_token(t, out, type)
+{
     return FALSE;
 }
 
-function tokenizer_string_token(c, out, type)
-{
-    return FALSE;
-}
-
-function tokenizer_symbol_token(c, out)
+function tokenizer_symbol_token(t, out)
 {
     return FALSE;
 }
@@ -76,10 +102,10 @@ function tokenizer_token(t, out)
     }
 
     c = p{t.[TPOS]};
-    if (isnum(c)) return tokenizer_number_token(c, out);
-    if (isalpha(c)) return tokenizer_ident_token(c, out);
-    if (c == '\'') return tokenizer_string_token(c, out, TCHARS);
-    if (c == '"') return tokenizer_string_token(c, out, TSTRING);
+    if (isnum(c)) return tokenizer_number_token(t, out);
+    if (isalpha(c)) return tokenizer_ident_token(t, out);
+    if (c == '\'') return tokenizer_string_token(t, out, TCHARS);
+    if (c == '"') return tokenizer_string_token(t, out, TSTRING);
 
     return tokenizer_symbol_token(c, out);
 }

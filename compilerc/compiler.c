@@ -1911,6 +1911,37 @@ bool compiler_continue(Compiler *c)
     return compiler_consume(c, TSEMICOLON);
 }
 
+bool compiler_do(Compiler *c)
+{
+    size_t loop = c->ip;
+
+    size_t old = c->cur_continue;
+    c->cur_continue = compiler_getlater(c);
+
+    if (compiler_match(c, TLEFTBRACE))
+    {
+        while (!compiler_match(c, TRIGHTBRACE)) HANDLE(compiler_statement(c));
+    }
+    else
+    {
+        HANDLE(compiler_statement(c));
+    }
+
+    HANDLE(compiler_setlater(c, c->cur_continue, c->ip));
+    c->cur_continue = old;
+
+    HANDLE(compiler_consume(c, TWHILE));
+    HANDLE(compiler_consume(c, TLEFTPAREN));
+    HANDLE(compiler_expr(c, NULL, (Token){0}));
+    HANDLE(compiler_consume(c, TRIGHTPAREN));
+    HANDLE(compiler_emit8(c, 0x85));
+    HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // TEST EAX, EAX
+    HANDLE(compiler_emit8(c, 0x0F));
+    HANDLE(compiler_emit8(c, 0x85));
+    HANDLE(compiler_emit32(c, compiler_relative(c, loop, 4))); // JNZ loop
+    return compiler_consume(c, TSEMICOLON);
+}
+
 bool compiler_statement(Compiler *c)
 {
     size_t x;
@@ -1982,6 +2013,7 @@ bool compiler_statement(Compiler *c)
         case TRETURN: HANDLE(compiler_return(c)); break;
         case TIF: HANDLE(compiler_if(c)); break;
         case TWHILE: HANDLE(compiler_while(c)); break;
+        case TDO: HANDLE(compiler_do(c)); break;
         case TSTRUCT: HANDLE(compiler_struct(c)); break;
         case TGLOBAL: HANDLE(compiler_global(c)); break;
         case TCONTINUE: HANDLE(compiler_continue(c)); break;

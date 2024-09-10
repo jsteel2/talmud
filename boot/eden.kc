@@ -1,9 +1,10 @@
 ORG 0x500
 USE16
 
-const STACK = $! + 48 *! 1024;
-const DISK_BUF = STACK;
-const HEAP_START = DISK_BUF + 512 *! 128;
+const LOW_STACK = $! + 4 *! 1024;
+const DISK_BUF = LOW_STACK;
+const STACK = DISK_BUF + 512 *! 128 + 64 *! 1024;
+const HEAP_START = STACK;
 
 IN AL, 0x92
 OR AL, 2
@@ -110,7 +111,6 @@ USE32
     MOV GS, AX
     JMP ESI
 
-# FIXME: this probably gives trouble if ESP is bigger than 64K
 function interrupt(int, eax, ecx, edx, ebx, esi, edi)
 {
     MOV ESI, .unreal
@@ -119,6 +119,8 @@ USE16
 .unreal:
     MOV AL, [int]
     MOV [.int + 1], AL
+    MOV [int], ESP
+    MOV ESP, LOW_STACK
     MOV EAX, [eax]
     MOV ECX, [ecx]
     MOV EDX, [edx]
@@ -134,6 +136,7 @@ USE16
     STI
 .int:
     INT 0x00
+    MOV ESP, [int]
     MOV [int], EAX
     MOV EAX, [ecx]
     MOV [EAX], ECX

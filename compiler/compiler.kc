@@ -38,6 +38,7 @@ function compiler_pass(c, src, is_first_pass)
 
     c.[CNEXT + TOKEN_TYPE] = TINVALID;
     compiler_advance(c);
+    format(print, "got token type %x value %s\n", c.[CNEXT + TOKEN_TYPE], &c{CNEXT + TOKEN_VALUE});
 }
 
 function compile(c, filename, src)
