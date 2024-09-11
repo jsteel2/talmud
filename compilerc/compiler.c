@@ -178,7 +178,7 @@ bool compiler_index(Compiler *c, TokenType t, bool align, bool addr)
     HANDLE(compiler_emit8(c, 0x5A)); // POP EDX
     HANDLE(compiler_consume(c, t + 1));
     if (!addr) addr = c->next.type >= TPLUSEQUALS && c->next.type <= TEQUALS;
-    else addr = c->next.type != TLEFTBRACKET && c->next.type != TLEFTBRACE && c->next.type != TLEFTCHEVRON;
+    else addr = c->next.type != TLEFTBRACKET && c->next.type != TLEFTBRACE && c->next.type != TLEFTCHEVRON && c->next.type != TDOT;
     if (t == TLEFTBRACKET)
     {
         HANDLE(compiler_emit8(c, addr ? 0x8D : 0x8B));
@@ -636,12 +636,13 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x85));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // TEST EAX, EAX
                 size_t lfalse = compiler_getlater(c);
-                HANDLE(compiler_emit8(c, 0x74));
-                HANDLE(compiler_emit8(c, compiler_relative(c, lfalse, 1))); // JZ lfalse
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x84));
+                HANDLE(compiler_emit32(c, compiler_relative(c, lfalse, 4))); // JZ lfalse
                 HANDLE(fn(c, NULL, t2));
                 size_t lend = compiler_getlater(c);
-                HANDLE(compiler_emit8(c, 0xEB));
-                HANDLE(compiler_emit8(c, compiler_relative(c, lend, 1))); // JMP lend
+                HANDLE(compiler_emit8(c, 0xE9));
+                HANDLE(compiler_emit32(c, compiler_relative(c, lend, 4))); // JMP lend
                 HANDLE(compiler_setlater(c, lfalse, c->ip));
                 HANDLE(compiler_emit8(c, 0x33));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // XOR EAX, EAX
@@ -651,8 +652,9 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x85));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // TEST EAX, EAX
                 lend = compiler_getlater(c);
-                HANDLE(compiler_emit8(c, 0x75));
-                HANDLE(compiler_emit8(c, compiler_relative(c, lend, 1))); // JNZ lend
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x85));
+                HANDLE(compiler_emit32(c, compiler_relative(c, lend, 4))); // JNZ lend
                 HANDLE(fn(c, NULL, t2));
                 HANDLE(compiler_setlater(c, lend, c->ip));
                 break;
@@ -775,12 +777,13 @@ bool compiler_ternary(Compiler *c, size_t *res, Token t)
         HANDLE(compiler_emit8(c, 0x85));
         HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // TEST EAX, EAX
         size_t lelse = compiler_getlater(c);
-        HANDLE(compiler_emit8(c, 0x74));
-        HANDLE(compiler_emit8(c, compiler_relative(c, lelse, 1))); // JZ lelse
+        HANDLE(compiler_emit8(c, 0x0F));
+        HANDLE(compiler_emit8(c, 0x84));
+        HANDLE(compiler_emit32(c, compiler_relative(c, lelse, 4))); // JZ lelse
         HANDLE(compiler_ternary(c, NULL, t));
         size_t lend = compiler_getlater(c);
-        HANDLE(compiler_emit8(c, 0xEB));
-        HANDLE(compiler_emit8(c, compiler_relative(c, lend, 1))); // JMP lend
+        HANDLE(compiler_emit8(c, 0xE9));
+        HANDLE(compiler_emit32(c, compiler_relative(c, lend, 4))); // JMP lend
         HANDLE(compiler_consume(c, TCOLON));
         HANDLE(compiler_setlater(c, lelse, c->ip));
         HANDLE(compiler_ternary(c, NULL, t));
@@ -2035,6 +2038,12 @@ bool compiler_break(Compiler *c)
     return compiler_consume(c, TSEMICOLON);
 }
 
+bool compiler_default(Compiler *c)
+{
+    c->cur_default_case = c->ip;
+    return compiler_consume(c, TCOLON);
+}
+
 bool compiler_statement(Compiler *c)
 {
     size_t x;
@@ -2113,6 +2122,7 @@ bool compiler_statement(Compiler *c)
         case TSWITCH: HANDLE(compiler_switch(c)); break;
         case TCASE: HANDLE(compiler_case(c)); break;
         case TBREAK: HANDLE(compiler_break(c)); break;
+        case TDEFAULT: HANDLE(compiler_default(c)); break;
         case TSEMICOLON: break;
         default: HANDLE(compiler_expr(c, NULL, c->cur)); HANDLE(compiler_consume(c, TSEMICOLON));
     }

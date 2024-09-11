@@ -2,7 +2,9 @@ struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
 struct TEND = {TINVALID}, {TNUM}, {TIDENT}, {TCHARS}, {TSTRING},
 
-              {TWHILE};
+              {TWHILE},
+              
+              {TSEMICOLON}, {TLEFTPAREN}, {TRIGHTPAREN};
 
 struct TOKEN = [TOKEN_TYPE], STRING{TOKEN_VALUE};
 
@@ -16,13 +18,15 @@ function tokenizer_init(t, src)
 
 function tokenizer_number_token(t, out)
 {
+    print("number Unimplemented");
     return FALSE;
 }
 
 function tokenizer_ident_token(t, out)
-(s{STRING}, p)
+(s, p)
 {
     p = t.[TSRC].[STRINGPTR];
+    s = &out{TOKEN_VALUE};
     s.[STRINGPTR] = &p{t.[TPOS]};
     s.[STRINGLEN] = 0;
     do
@@ -33,8 +37,6 @@ function tokenizer_ident_token(t, out)
 
     t.[TCOL] += s.[STRINGLEN];
     
-    memcpy(&out.{TOKEN_VALUE}, s, STRING);
-
     p = s.[STRINGLEN];
     switch (s.[STRINGPTR]{0})
     {
@@ -51,13 +53,30 @@ function tokenizer_ident_token(t, out)
     return TRUE;
 }
 
-function tokenizer_string_token(t, out, type)
+function tokenizer_symbol_token(t, out)
+(s, p, len)
 {
-    return FALSE;
+    s = &out{TOKEN_VALUE};
+    p = &t.[TSRC].[STRINGPTR]{t.[TPOS]};
+    s.[STRINGPTR] = p;
+
+    len = 1;
+    switch (p{0})
+    {
+        case '(': out.[TOKEN_TYPE] = TLEFTPAREN; break;
+        case ')': out.[TOKEN_TYPE] = TRIGHTPAREN; break;
+        default: format(print, "Unknown symbol '%c'", p{0}); return FALSE;
+    }
+
+    t.[TCOL] += len;
+    t.[TPOS] += len;
+    s.[STRINGLEN] = len;
+    return TRUE;
 }
 
-function tokenizer_symbol_token(t, out)
+function tokenizer_string_token(t, out, type)
 {
+    print("string Unimplemented");
     return FALSE;
 }
 
@@ -109,5 +128,5 @@ function tokenizer_token(t, out)
     if (c == '\'') return tokenizer_string_token(t, out, TCHARS);
     if (c == '"') return tokenizer_string_token(t, out, TSTRING);
 
-    return tokenizer_symbol_token(c, out);
+    return tokenizer_symbol_token(t, out);
 }

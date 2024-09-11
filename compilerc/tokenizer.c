@@ -199,6 +199,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("case") == len && strncmp(start, SLEN("case")) == 0) return TCASE;
             break;
         case 'd':
+            if (LEN("default") == len && strncmp(start, SLEN("default")) == 0) return TDEFAULT;
             if (LEN("do") == len && strncmp(start, SLEN("do")) == 0) return TDO;
             break;
         case 'e':
