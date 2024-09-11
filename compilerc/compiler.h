@@ -9,6 +9,11 @@
 
 typedef struct
 {
+    size_t i, jmp;
+} Case;
+
+typedef struct
+{
     Tokenizer t;
     uint8_t *outbin;
     size_t outbin_len;
@@ -33,6 +38,10 @@ typedef struct
     size_t later_size;
     size_t later_i;
     size_t cur_continue;
+    Case *cur_cases;
+    size_t cur_cases_len;
+    size_t cur_default_case;
+    size_t cur_break;
 } Compiler;
 
 bool compiler_init(Compiler *c);

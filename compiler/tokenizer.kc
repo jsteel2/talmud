@@ -1,6 +1,8 @@
 struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
-struct TEND = {TINVALID}, {TNUM}, {TIDENT}, {TCHARS}, {TSTRING};
+struct TEND = {TINVALID}, {TNUM}, {TIDENT}, {TCHARS}, {TSTRING},
+
+              {TWHILE};
 
 struct TOKEN = [TOKEN_TYPE], STRING{TOKEN_VALUE};
 
@@ -34,16 +36,16 @@ function tokenizer_ident_token(t, out)
     memcpy(&out.{TOKEN_VALUE}, s, STRING);
 
     p = s.[STRINGLEN];
-    #switch (s.[STRINGPTR]{0})
-    #{
-    #    case 'w':
-    #        if (p == 5)
-    #        {
-    #            if (strcmp(s, "while")) out.[TOKEN_TYPE] = TWHILE;
-    #            else break;
-    #        }
-    #        return TRUE;
-    #}
+    switch (s.[STRINGPTR]{0})
+    {
+        case 'w':
+            if (p == 5)
+            {
+                if (strcmp(s, "while")) out.[TOKEN_TYPE] = TWHILE;
+                else break;
+            }
+            return TRUE;
+    }
 
     out.[TOKEN_TYPE] = TIDENT;
     return TRUE;

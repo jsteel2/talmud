@@ -1942,6 +1942,99 @@ bool compiler_do(Compiler *c)
     return compiler_consume(c, TSEMICOLON);
 }
 
+int case_compar(const void *p, const void *q)
+{
+    Case *x = (Case *)p;
+    Case *y = (Case *)q;
+    return (x->i > y->i) - (x->i < y->i);
+}
+
+bool compiler_switch(Compiler *c)
+{
+    HANDLE(compiler_consume(c, TLEFTPAREN));
+    HANDLE(compiler_expr(c, NULL, (Token){0}));
+    HANDLE(compiler_consume(c, TRIGHTPAREN));
+
+    size_t lowest_case = compiler_getlater(c);
+    size_t highest_case = compiler_getlater(c);
+    size_t jump_table = compiler_getlater(c);
+    size_t default_case = compiler_getlater(c);
+    c->cur_break = compiler_getlater(c);
+
+    HANDLE(compiler_emit8(c, 0x3D));
+    HANDLE(compiler_emit32(c, lowest_case)); // CMP EAX, lowest_case
+    HANDLE(compiler_emit8(c, 0x0F));
+    HANDLE(compiler_emit8(c, 0x82));
+    HANDLE(compiler_emit32(c, compiler_relative(c, default_case, 4))); // JB default_case
+    HANDLE(compiler_emit8(c, 0x3D));
+    HANDLE(compiler_emit32(c, highest_case)); // CMP EAX, highest_case
+    HANDLE(compiler_emit8(c, 0x0F));
+    HANDLE(compiler_emit8(c, 0x87));
+    HANDLE(compiler_emit32(c, compiler_relative(c, default_case, 4))); // JA default_case
+    HANDLE(compiler_emit8(c, 0xFF));
+    HANDLE(compiler_emit8(c, MODRM(0, 4, 0b100)));
+    HANDLE(compiler_emit8(c, SIB(2, 0, 0b101)));
+    HANDLE(compiler_emit32(c, jump_table - lowest_case * 4)); // JMP [EAX * 4 + jump_table - lowest_case * 4]
+
+    // FIXME: save old
+    c->cur_cases = malloc(sizeof(Case));
+    c->cur_cases_len = 0;
+    c->cur_default_case = 0;
+
+    if (compiler_match(c, TLEFTBRACE))
+    {
+        while (!compiler_match(c, TRIGHTBRACE)) HANDLE(compiler_statement(c));
+    }
+    else
+    {
+        HANDLE(compiler_statement(c));
+    }
+
+    qsort(c->cur_cases, c->cur_cases_len, sizeof(Case), case_compar);
+    HANDLE(compiler_setlater(c, lowest_case, c->cur_cases[0].i));
+    HANDLE(compiler_setlater(c, highest_case, c->cur_cases[c->cur_cases_len - 1].i));
+    HANDLE(compiler_setlater(c, jump_table, c->ip));
+
+    size_t cas = 0;
+    for (size_t i = 0; i < c->cur_cases_len; i++)
+    {
+        size_t x = c->cur_cases[i].i - c->cur_cases[0].i;
+        while (cas < x)
+        {
+            HANDLE(compiler_emit32(c, default_case));
+            cas++;
+        }
+        HANDLE(compiler_emit32(c, c->cur_cases[i].jmp));
+        cas++;
+    }
+
+    HANDLE(compiler_setlater(c, default_case, c->cur_default_case ? c->cur_default_case : c->ip));
+    HANDLE(compiler_setlater(c, c->cur_break, c->ip));
+
+    free(c->cur_cases);
+
+    return true;
+}
+
+bool compiler_case(Compiler *c)
+{
+    size_t x;
+    HANDLE(compiler_const_expr(c, &x));
+
+    c->cur_cases[c->cur_cases_len].i = x;
+    c->cur_cases[c->cur_cases_len].jmp = c->ip;
+    c->cur_cases = realloc(c->cur_cases, (++c->cur_cases_len + 1) * sizeof(Case));
+
+    return compiler_consume(c, TCOLON);
+}
+
+bool compiler_break(Compiler *c)
+{
+    HANDLE(compiler_emit8(c, 0xE9));
+    HANDLE(compiler_emit32(c, compiler_relative(c, c->cur_break, 4))); // JMP c->cur_break
+    return compiler_consume(c, TSEMICOLON);
+}
+
 bool compiler_statement(Compiler *c)
 {
     size_t x;
@@ -2017,6 +2110,9 @@ bool compiler_statement(Compiler *c)
         case TSTRUCT: HANDLE(compiler_struct(c)); break;
         case TGLOBAL: HANDLE(compiler_global(c)); break;
         case TCONTINUE: HANDLE(compiler_continue(c)); break;
+        case TSWITCH: HANDLE(compiler_switch(c)); break;
+        case TCASE: HANDLE(compiler_case(c)); break;
+        case TBREAK: HANDLE(compiler_break(c)); break;
         case TSEMICOLON: break;
         default: HANDLE(compiler_expr(c, NULL, c->cur)); HANDLE(compiler_consume(c, TSEMICOLON));
     }

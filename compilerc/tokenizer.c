@@ -190,9 +190,13 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
         case 'a':
             if (LEN("and") == len && strncmp(start, SLEN("and")) == 0) return TLOGICALAND;
             break;
+        case 'b':
+            if (LEN("break") == len && strncmp(start, SLEN("break")) == 0) return TBREAK;
+            break;
         case 'c':
             if (LEN("continue") == len && strncmp(start, SLEN("continue")) == 0) return TCONTINUE;
             if (LEN("const") == len && strncmp(start, SLEN("const")) == 0) return TCONST;
+            if (LEN("case") == len && strncmp(start, SLEN("case")) == 0) return TCASE;
             break;
         case 'd':
             if (LEN("do") == len && strncmp(start, SLEN("do")) == 0) return TDO;
@@ -218,6 +222,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             break;
         case 's':
             if (LEN("struct") == len && strncmp(start, SLEN("struct")) == 0) return TSTRUCT;
+            if (LEN("switch") == len && strncmp(start, SLEN("switch")) == 0) return TSWITCH;
             break;
         case 'w':
             if (LEN("while") == len && strncmp(start, SLEN("while")) == 0) return TWHILE;
