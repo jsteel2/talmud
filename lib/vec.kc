@@ -1,0 +1,36 @@
+struct VEC = [VEC_LEN], [VEC_PTR], [VEC_SIZE], [VEC_ENTRY_SIZE];
+
+function vec_init(v, size, entry_size)
+{
+    v.[VEC_ENTRY_SIZE] = entry_size;
+    v.[VEC_SIZE] = size;
+    v.[VEC_LEN] = 0;
+    return v.[VEC_PTR] = malloc(size *! entry_size);
+}
+
+function vec_resize(v, new_len)
+{
+    if (new_len >=! v.[VEC_SIZE])
+    {
+        v.[VEC_SIZE] *!= 2;
+        v.[VEC_PTR] = realloc(v.[VEC_PTR], v.[VEC_SIZE] *! v.[VEC_ENTRY_SIZE]);
+        if (!v.[VEC_PTR]) return FALSE;
+    }
+    return TRUE;
+}
+
+function vec_push(v, p)
+{
+    if (!vec_resize(v, v.[VEC_LEN] + 1)) return FALSE;
+    memcpy(&v.[VEC_PTR]{v.[VEC_LEN]}, p, v.[VEC_ENTRY_SIZE]);
+    v.[VEC_LEN] += 1;
+    return TRUE;
+}
+
+function vec_push1(v, x)
+{
+    if (!vec_resize(v, v.[VEC_LEN] + 1)) return FALSE;
+    v.[VEC_PTR]{v.[VEC_LEN]} = x;
+    v.[VEC_LEN] += 1;
+    return TRUE;
+}

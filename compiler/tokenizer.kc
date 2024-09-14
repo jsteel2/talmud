@@ -1,10 +1,10 @@
 struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
-struct TEND = {TINVALID}, {TNUM}, {TIDENT}, {TCHARS}, {TSTRING},
+struct TEND = {TINVALID}, {TLEFTPAREN}, {TRIGHTPAREN}, {TNUM}, {TIDENT}, {TCHARS}, {TSTRING},
 
-              {TWHILE},
+              {TWHILE}, {TINCLUDE},
               
-              {TSEMICOLON}, {TLEFTPAREN}, {TRIGHTPAREN};
+              {TLEFTBRACE}, {TRIGHTBRACE}, {TSEMICOLON};
 
 struct TOKEN = [TOKEN_TYPE], STRING{TOKEN_VALUE};
 
@@ -40,12 +40,13 @@ function tokenizer_ident_token(t, out)
     p = s.[STRINGLEN];
     switch (s.[STRINGPTR]{0})
     {
+        case 'i':
+            if (strcmp(s, "include")) out.[TOKEN_TYPE] = TINCLUDE;
+            else break;
+            return TRUE;
         case 'w':
-            if (p == 5)
-            {
-                if (strcmp(s, "while")) out.[TOKEN_TYPE] = TWHILE;
-                else break;
-            }
+            if (strcmp(s, "while")) out.[TOKEN_TYPE] = TWHILE;
+            else break;
             return TRUE;
     }
 
@@ -65,6 +66,9 @@ function tokenizer_symbol_token(t, out)
     {
         case '(': out.[TOKEN_TYPE] = TLEFTPAREN; break;
         case ')': out.[TOKEN_TYPE] = TRIGHTPAREN; break;
+        case '{': out.[TOKEN_TYPE] = TLEFTBRACE; break;
+        case '}': out.[TOKEN_TYPE] = TRIGHTBRACE; break;
+        case ';': out.[TOKEN_TYPE] = TSEMICOLON; break;
         default: format(print, "Unknown symbol '%c'", p{0}); return FALSE;
     }
 
@@ -75,9 +79,40 @@ function tokenizer_symbol_token(t, out)
 }
 
 function tokenizer_string_token(t, out, type)
+(v{VEC}, p, c)
 {
-    print("string Unimplemented");
-    return FALSE;
+    c = type == TCHARS ? '\'' : '"';
+    vec_init(v, 32, 1);
+
+    p = t.[TSRC].[STRINGPTR];
+    t.[TPOS] += 1;
+    t.[TCOL] += 1;
+    while (t.[TPOS] <! t.[TSRC].[STRINGLEN] and p{t.[TPOS]} != c)
+    {
+        if (p{t.[TPOS]} == '\\')
+        {
+            t.[TPOS] += 1;
+            t.[TCOL] += 1;
+            switch (p{t.[TPOS]})
+            {
+                case 'n': vec_push1(v, '\n'); break;
+                default: format(print, "Unknown escape %c", p{t.[TPOS]}); return FALSE;
+            }
+        }
+        else
+        {
+            vec_push1(v, p{t.[TPOS]});
+        }
+        t.[TPOS] += 1;
+        t.[TCOL] += 1;
+    }
+
+    t.[TPOS] += 1;
+    t.[TCOL] += 1;
+    out.[TOKEN_TYPE] = type;
+    out.[TOKEN_VALUE + STRINGLEN] = v.[VEC_LEN];
+    out.[TOKEN_VALUE + STRINGPTR] = v.[VEC_PTR];
+    return TRUE;
 }
 
 function tokenizer_token(t, out)

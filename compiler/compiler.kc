@@ -1,6 +1,6 @@
 include "compiler/tokenizer.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, TOKEN{CCUR}, TOKEN{CNEXT}, [CBIN], [CEBP], [CCUR_FILE];
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, TOKEN{CCUR}, TOKEN{CNEXT}, [CBIN], [CEBP], [CCUR_FILE], [CIS_FIRST_PASS];
 struct COMPILER_IDENT = [COMPILER_IDENT_ADDR];
 
 function compiler_init(c)
@@ -22,6 +22,11 @@ function compiler_die(c, file, line)
     MOV EBP, EAX
 .ret:
     return 0;
+}
+
+function compiler_die_token(c, file, line, token)
+{
+    return compiler_die(c, file, line, format(print, "Unexpected token %x(\"%s\")", c.[token + TOKEN_TYPE], &c{token + TOKEN_VALUE}));
 }
 
 function compiler_advance(c)
@@ -54,11 +59,12 @@ function compiler_matches(c, t_start, t_end)
 
 function compiler_consume(c, t)
 {
-    return compiler_match(c, t) ? TRUE : compiler_die(c, $@, $*, format(print, "Unexpected token %x(\"%s\")", c.[CNEXT + TOKEN_TYPE], &c{CNEXT + TOKEN_VALUE}));
+    return compiler_match(c, t) ? TRUE : compiler_die_token(c, $@, $*, CNEXT);
 }
 
 function compiler_pass(c, src, is_first_pass)
 {
+    c.[CIS_FIRST_PASS] = is_first_pass;
     tokenizer_init(&c{CTOK}, src);
 
     c.[CNEXT + TOKEN_TYPE] = TINVALID;
@@ -73,8 +79,8 @@ function compile(c, filename, src)
     MOV [EAX + CEBP], EBP
     c.[CCUR_FILE] = filename;
 
-    compiler_pass(c, src, FALSE);
     compiler_pass(c, src, TRUE);
+    compiler_pass(c, src, FALSE);
 
     c.[CEBP] = 0;
     return NULL;
@@ -85,8 +91,15 @@ function compiler_statement(c)
     switch (compiler_peek(c))
     {
         case TWHILE: return compiler_while(c);
+        case TLEFTBRACE: return compiler_statements(c);
         default: compiler_expression(c); return compiler_consume(c, TSEMICOLON);
     }
+}
+
+function compiler_statements(c)
+{
+    compiler_consume(c, TLEFTBRACE);
+    while (!compiler_match(c, TRIGHTBRACE)) compiler_statement(c);
 }
 
 function compiler_while(c)
@@ -96,16 +109,61 @@ function compiler_while(c)
     compiler_expression(c);
     compiler_consume(c, TRIGHTPAREN);
 
-    compiler_die(c, $@, $*, print("Unimplemented"));
+    compiler_statement(c);
 }
 
 function compiler_expression(c)
 {
-    compiler_die(c, $@, $*, print("Unimplemented"));
+    return compiler_primary(c);
+}
+
+function compiler_primary(c)
+(ident{COMPILER_IDENT})
+{
+    switch (compiler_advance(c))
+    {
+        case TIDENT:
+            if (compiler_global_get(c, &c{CCUR + TOKEN_VALUE}, ident))
+            {
+                format(print, "MOV EAX, %x\n", ident.[COMPILER_IDENT_ADDR]);
+            }
+            else if (c.[CIS_FIRST_PASS])
+            {
+                format(print, "MOV EAX, 0\n");
+            }
+            else
+            {
+                compiler_die(c, $@, $*, format(print, "Undefined identifier %s", &c{CCUR + TOKEN_VALUE}));
+            }
+            break;
+        case TSTRING:
+            format(print, "MOV EAX, \"%s\"\n", &c{CCUR + TOKEN_VALUE});
+            free(c.[CCUR + TOKEN_VALUE + STRINGPTR]);
+            break;
+        default:
+            compiler_die_token(c, $@, $*, CCUR);
+            break;
+    }
+
+    while (compiler_post(c));
+}
+
+function compiler_post(c)
+{
+    if (!compiler_match(c, TLEFTPAREN)) return FALSE;
+    compiler_expression(c);
+    compiler_consume(c, TRIGHTPAREN);
+    print("CALL\n");
+    return TRUE;
 }
 
 function compiler_const_set(c, name, address)
 {
     if (!map_set(&c{CIDENTS}, name, &address)) return compiler_die(c, $@, $*, format(print, "map_set(\"%s\", %x) failed", name, address));
     return TRUE;
+}
+
+function compiler_global_get(c, name, out)
+{
+    return map_get(&c{CIDENTS}, name, out);
 }

@@ -59,5 +59,15 @@ function malloc(n)
 
 function free(p)
 {
+    format(print, "free() Unimplemented, Leaking %x of memory :p\n", p.[-MEM_HEADER + MEM_HEADER_SIZE]);
+}
 
+function realloc(p, n)
+(new)
+{
+    new = malloc(n);
+    if (!new) return NULL;
+    memcpy(new, p, p.[-MEM_HEADER + MEM_HEADER_SIZE]);
+    free(p);
+    return new;
 }
