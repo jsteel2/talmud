@@ -7,6 +7,14 @@ struct FILE = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_C
 
 struct DIR_ENTRY = 11{DIR_ENTRY_83NAME}, {DIR_ENTRY_ATTR}, {DIR_ENTRY_RESERVED}, {DIR_ENTRY_CREATE_HUNDRETHS}, <DIR_ENTRY_CREATE_TIME>, <DIR_ENTRY_CREATE_DATE>, <DIR_ENTRY_ACCESSED_DATE>, <DIR_ENTRY_CLUSTER_HI>, <DIR_ENTRY_MODIFICATION_TIME>, <DIR_ENTRY_MODIFICATION_DATE>, <DIR_ENTRY_CLUSTER_LO>, [DIR_ENTRY_FILE_SIZE];
 
+# FIXME: stub
+function open(path, file, create)
+(cwd{FILE})
+{
+    if (!openat(NULL, ":80;0/", cwd, FALSE)) return FALSE;
+    return openat(cwd, path, file, create);
+}
+
 function openat(cwd, path, file, create)
 (s{STRING}, d{DIR_ENTRY}, state, end, read)
 {

@@ -1,6 +1,6 @@
 include "compiler/tokenizer.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, TOKEN{CCUR}, TOKEN{CNEXT}, [CBIN], [CEBP], [CCUR_FILE], [CIS_FIRST_PASS];
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, TOKEN{CCUR}, TOKEN{CNEXT}, [CBIN], [CEBP], [CCUR_FILE], [CIS_FIRST_PASS], [CIS_CONST_EXPR];
 struct COMPILER_IDENT = [COMPILER_IDENT_ADDR];
 
 function compiler_init(c)
@@ -92,6 +92,8 @@ function compiler_statement(c)
     {
         case TWHILE: return compiler_while(c);
         case TLEFTBRACE: return compiler_statements(c);
+        case TINCLUDE: return compiler_include(c);
+        case TCONST: return compiler_const(c);
         default: compiler_expression(c); return compiler_consume(c, TSEMICOLON);
     }
 }
@@ -102,6 +104,47 @@ function compiler_statements(c)
     while (!compiler_match(c, TRIGHTBRACE)) compiler_statement(c);
 }
 
+function compiler_const(c)
+(x)
+{
+    compiler_consume(c, TCONST);
+    do
+    {
+        compiler_consume(c, TIDENT);
+        compiler_consume(c, TEQUALS);
+        x = compiler_const_expression(c);
+    } while (compiler_match(c, TCOMMA));
+    compiler_consume(c, TSEMICOLON);
+}
+
+function compiler_include(c)
+(f{FILE}, ocur_file, s{STRING}, src{STRING}, otok{TOKENIZER})
+{
+    compiler_consume(c, TINCLUDE);
+    compiler_consume(c, TSTRING);
+
+    ocur_file = c.[CCUR_FILE];
+    memcpy(otok, &c{CTOK}, TOKENIZER);
+
+    memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
+    c.[CCUR_FILE] = s;
+
+    if (!open(s, f, FALSE)) compiler_die(c, $@, $*, format(print, "Could not open file \"%s\"", s));
+    src.[STRINGLEN] = f.[FILE_SIZE];
+    src.[STRINGPTR] = malloc(src.[STRINGLEN]);
+    if (!src.[STRINGPTR]) compiler_die(c, $@, $*, format(print, "Failed to allocate %x bytes of memory\n", src.[STRINGLEN]));
+
+    if (!read(f, src.[STRINGLEN], src.[STRINGPTR])) compiler_die(c, $@, $*, format(print, "Could not read file \"%s\"", s));
+
+    compiler_pass(c, src, c.[CIS_FIRST_PASS]);
+
+    free(src.[STRINGPTR]); # FIXME: how do we make sure to free this if compiler_pass dies?
+    free(s.[STRINGPTR]);
+
+    c.[CCUR_FILE] = ocur_file;
+    memcpy(&c{CTOK}, otok, TOKENIZER);
+}
+
 function compiler_while(c)
 {
     compiler_consume(c, TWHILE);
@@ -110,6 +153,15 @@ function compiler_while(c)
     compiler_consume(c, TRIGHTPAREN);
 
     compiler_statement(c);
+}
+
+function compiler_const_expression(c)
+(r)
+{
+    c.[CIS_CONST_EXPR] = TRUE;
+    r = compiler_expression(c);
+    c.[CIS_CONST_EXPR] = FALSE;
+    return r;
 }
 
 function compiler_expression(c)

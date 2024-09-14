@@ -2,9 +2,11 @@ struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
 struct TEND = {TINVALID}, {TLEFTPAREN}, {TRIGHTPAREN}, {TNUM}, {TIDENT}, {TCHARS}, {TSTRING},
 
-              {TWHILE}, {TINCLUDE},
+              {TWHILE}, {TINCLUDE}, {TCONST}, {TSTRUCT},
               
-              {TLEFTBRACE}, {TRIGHTBRACE}, {TSEMICOLON};
+              {TLEFTBRACE}, {TRIGHTBRACE}, {TSEMICOLON}, {TCOMMA},
+              
+              {TEQUALS};
 
 struct TOKEN = [TOKEN_TYPE], STRING{TOKEN_VALUE};
 
@@ -40,8 +42,16 @@ function tokenizer_ident_token(t, out)
     p = s.[STRINGLEN];
     switch (s.[STRINGPTR]{0})
     {
+        case 'c':
+            if (strcmp(s, "const")) out.[TOKEN_TYPE] = TCONST;
+            else break;
+            return TRUE;
         case 'i':
             if (strcmp(s, "include")) out.[TOKEN_TYPE] = TINCLUDE;
+            else break;
+            return TRUE;
+        case 'i':
+            if (strcmp(s, "struct")) out.[TOKEN_TYPE] = TSTRUCT;
             else break;
             return TRUE;
         case 'w':
@@ -64,6 +74,7 @@ function tokenizer_symbol_token(t, out)
     len = 1;
     switch (p{0})
     {
+        case '=': out.[TOKEN_TYPE] = TEQUALS; break;
         case '(': out.[TOKEN_TYPE] = TLEFTPAREN; break;
         case ')': out.[TOKEN_TYPE] = TRIGHTPAREN; break;
         case '{': out.[TOKEN_TYPE] = TLEFTBRACE; break;
