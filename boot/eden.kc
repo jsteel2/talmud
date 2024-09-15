@@ -35,7 +35,7 @@ function eden()
     r = malloc(file.[FILE_SIZE]);
     if (!r)
     {
-        format(print, "Could not allocate %x bytes of memory\n", file.[FILE_SIZE]);
+        format(print, "Could not allocate %uB of memory\n", file.[FILE_SIZE]);
         JMP .hlt
     }
     if (!read(file, file.[FILE_SIZE], r))

@@ -294,7 +294,12 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
             t->pos--;
             return TSTAR;
         case '/':
-            if (t->src[t->pos++] == '!') return TSLASHU;
+            if (t->src[t->pos++] == '!')
+            {
+                if (t->src[t->pos++] == '=') return TSLASHUEQUALS;
+                t->pos--;
+                return TSLASHU;
+            }
             if (t->src[t->pos - 1] == '$') return TSLASHS;
             return die(t, "invalid symbol %c", t->src[t->pos - 1]);
         case '%':

@@ -82,6 +82,20 @@ function strtok(s, delim, out, state)
     return TRUE;
 }
 
+function reverse(s)
+(i, c)
+{
+    i = 0;
+    while (i <! s.[STRINGLEN] /! 2)
+    {
+        c = s.[STRINGPTR]{i};
+        s.[STRINGPTR]{i} = s.[STRINGPTR]{s.[STRINGLEN] - 1 - i};
+        s.[STRINGPTR]{s.[STRINGLEN] - 1 - i} = c;
+        i += 1;
+    }
+    return s;
+}
+
 function hex2int(s, end)
 (n, c)
 {
@@ -123,6 +137,7 @@ function format(fn, fmt)
             c = fmt.[STRINGPTR]{i};
             if (c == 's') fn(vararg(v));
             else if (c == 'x') format_hex(fn, s, vararg(v));
+            else if (c == 'u') format_udec(fn, s, vararg(v));
             else if (c == 'c') format_char(fn, s, vararg(v));
 
             start = i + 1;
@@ -137,21 +152,17 @@ function format(fn, fmt)
 }
 
 function format_hex(fn, s, n)
-(buf{8}, i)
+(buf{8}, i, c)
 {
     s.[STRINGPTR] = buf;
-    s.[STRINGLEN] = 8;
+    fn(int2str(s, n, 16, FALSE));
+}
 
-    i = 0;
-    while (i <! 8)
-    {
-        buf{i} = (n >> 28) + '0';
-        if (buf{i} >! '9') buf{i} += 7;
-        n <<= 4;
-        i += 1;
-    }
-
-    fn(s);
+function format_udec(fn, s, n)
+(buf{10}, i)
+{
+    s.[STRINGPTR] = buf;
+    fn(int2str(s, n, 10, FALSE));
 }
 
 function format_char(fn, s, c)
@@ -159,6 +170,29 @@ function format_char(fn, s, c)
     s.[STRINGPTR] = &c;
     s.[STRINGLEN] = 1;
     fn(s);
+}
+
+function int2str(s, n, radix, signed)
+(p, i)
+{
+    s.[STRINGLEN] = 0;
+    p = s.[STRINGPTR];
+    if (signed and n <$ 0)
+    {
+        p{0} = '-';
+        s.[STRINGLEN] += 1;
+    }
+
+    while (n or s.[STRINGLEN] == 0)
+    {
+        i = n %! radix;
+        n /!= radix;
+        if (i <! 10) p{s.[STRINGLEN]} = i + '0';
+        else p{s.[STRINGLEN]} = i + 'A' - 10;
+        s.[STRINGLEN] += 1;
+    }
+
+    return reverse(s);
 }
 
 vararg:

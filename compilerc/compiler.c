@@ -357,6 +357,9 @@ bool compiler_primary(Compiler *c, size_t *res, Token t)
             HANDLE(compiler_emit8(c, 0xB8));
             HANDLE(compiler_emit32(c, c->prog_end + x - c->strings_offset)); // MOV EAX, c->prog_end + x - c->strings_offset
             break;
+        case TDOT:
+            HANDLE(compiler_dot(c));
+            __attribute__((fallthrough));
         case TIDENT:
             if (c->is_first_pass)
             {
@@ -518,7 +521,7 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
 
     while ((t = compiler_matches(c, toks)))
     {
-        if (t != TLOGICALAND && t != TLOGICALOR && t != TSLASHU && t != TMODULOU)
+        if (t != TLOGICALAND && t != TLOGICALOR && t != TSLASHU && t != TMODULOU && t != TSLASHUEQUALS)
         {
             HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
             HANDLE(fn(c, NULL, (Token){0}));
@@ -584,6 +587,15 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x0F));
                 HANDLE(compiler_emit8(c, 0x92));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETB AL
+                break;
+            case TLESSTHANS:
+                HANDLE(compiler_emit8(c, 0x3B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
+                HANDLE(compiler_emit8(c, 0xB8));
+                HANDLE(compiler_emit32(c, 0)); // MOV EAX, 0
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x9C));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETL AL
                 break;
             case TGREATERTHANU:
                 HANDLE(compiler_emit8(c, 0x3B));
@@ -704,11 +716,23 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV EAX, [EDX]
                 break;
             case TSTARUEQUALS:
-                HANDLE(compiler_emit8(c, 0x91)); // XCHG EAX, ECX
                 HANDLE(compiler_emit8(c, 0xF7));
                 HANDLE(compiler_emit8(c, MODRM(0, 4, 2))); // MUL [EDX]
                 HANDLE(compiler_emit8(c, 0x89));
-                HANDLE(compiler_emit8(c, MODRM(0, 1, 2))); // MOV [EDX], ECX
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV [EDX], EAX
+                break;
+            case TSLASHUEQUALS:
+                HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
+                HANDLE(fn(c, NULL, (Token){0}));
+                HANDLE(compiler_emit8(c, 0x59)); // POP ECX
+                HANDLE(compiler_emit8(c, 0x93)); // XCHG EAX, EBX
+                HANDLE(compiler_emit8(c, 0x8B));
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 1))); // MOV EAX, [ECX]
+                HANDLE(compiler_emit8(c, 0x99)); // CDQ
+                HANDLE(compiler_emit8(c, 0xF7));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 6, 3))); // DIV EBX
+                HANDLE(compiler_emit8(c, 0x89));
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 1))); // MOV [ECX], EAX
                 break;
             default: return die(&c->t, "compiler_binary: Unimplemented");
         }
@@ -795,7 +819,7 @@ bool compiler_ternary(Compiler *c, size_t *res, Token t)
 
 bool compiler_assign(Compiler *c, size_t *res, Token t)
 {
-    return compiler_binary(c, res, t, compiler_ternary, (TokenType[]){TEQUALS, TPLUSEQUALS, TMINUSEQUALS, TSHIFTLEFTEQUALS, TSHIFTRIGHTEQUALS, TBITWISEOREQUALS, TBITWISEXOREQUALS, TSTARUEQUALS, 0});
+    return compiler_binary(c, res, t, compiler_ternary, (TokenType[]){TEQUALS, TPLUSEQUALS, TMINUSEQUALS, TSHIFTLEFTEQUALS, TSHIFTRIGHTEQUALS, TBITWISEOREQUALS, TBITWISEXOREQUALS, TSTARUEQUALS, TSLASHUEQUALS, 0});
 }
 
 bool compiler_expr(Compiler *c, size_t *res, Token t)
