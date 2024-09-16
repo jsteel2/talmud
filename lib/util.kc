@@ -195,6 +195,32 @@ function int2str(s, n, radix, signed)
     return reverse(s);
 }
 
+function str2int(s, base, len)
+(i, p, n)
+{
+    p = s.[STRINGPTR];
+    i = 0;
+
+    if (p{0} == '0')
+    {
+        if (upper(p{1}) == 'X') base = 16;
+        else if (upper(p{1}) == 'B') base = 2;
+        else i -= 1;
+        i += 2;
+    }
+
+    n = 0;
+    while (i <! s.[STRINGLEN] and (base == 16 ? ishex(p{i}) : isnum(p{i})))
+    {
+        n *!= base;
+        n += p{i} >! '9' ? upper(p{i}) - 'A' : p{i} - '0';
+        i += 1;
+    }
+
+    if (len) *len = i;
+    return n;
+}
+
 vararg:
     MOV EAX, [ESP + 4]
     MOV EAX, [EBP + EAX * 4 + 8]

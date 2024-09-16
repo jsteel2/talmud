@@ -4,7 +4,7 @@ struct TEND = {TINVALID}, {TLEFTPAREN}, {TRIGHTPAREN}, {TNUM}, {TIDENT}, {TCHARS
 
               {TWHILE}, {TINCLUDE}, {TCONST}, {TSTRUCT},
               
-              {TLEFTBRACE}, {TRIGHTBRACE}, {TSEMICOLON}, {TCOMMA},
+              {TLEFTBRACE}, {TRIGHTBRACE}, {TLEFTBRACKET}, {TRIGHTBRACKET}, {TSEMICOLON}, {TCOMMA},
               
               {TEQUALS};
 
@@ -19,9 +19,15 @@ function tokenizer_init(t, src)
 }
 
 function tokenizer_number_token(t, out)
+(s{STRING}, len)
 {
-    print("number Unimplemented");
-    return FALSE;
+    s.[STRINGLEN] = t.[TSRC].[STRINGLEN] - t.[TPOS];
+    s.[STRINGPTR] = &t.[TSRC].[STRINGPTR]{t.[TPOS]};
+    out.[TOKEN_TYPE] = TNUM;
+    out.[TOKEN_VALUE] = str2int(s, 10, &len);
+    t.[TPOS] += len;
+    t.[TCOL] += len;
+    return TRUE;
 }
 
 function tokenizer_ident_token(t, out)
@@ -50,7 +56,7 @@ function tokenizer_ident_token(t, out)
             if (strcmp(s, "include")) out.[TOKEN_TYPE] = TINCLUDE;
             else break;
             return TRUE;
-        case 'i':
+        case 's':
             if (strcmp(s, "struct")) out.[TOKEN_TYPE] = TSTRUCT;
             else break;
             return TRUE;
@@ -79,7 +85,10 @@ function tokenizer_symbol_token(t, out)
         case ')': out.[TOKEN_TYPE] = TRIGHTPAREN; break;
         case '{': out.[TOKEN_TYPE] = TLEFTBRACE; break;
         case '}': out.[TOKEN_TYPE] = TRIGHTBRACE; break;
+        case '[': out.[TOKEN_TYPE] = TLEFTBRACKET; break;
+        case ']': out.[TOKEN_TYPE] = TRIGHTBRACKET; break;
         case ';': out.[TOKEN_TYPE] = TSEMICOLON; break;
+        case ',': out.[TOKEN_TYPE] = TCOMMA; break;
         default: format(print, "Unknown symbol '%c'", p{0}); return FALSE;
     }
 

@@ -45,8 +45,15 @@ compiler_try_end:
     JMP EAX
 
 function compiler_throw_token(c, file, line, token, expected)
+(s{STRING}, buf{10}, sp)
 {
-    return compiler_throw(c, file, line, format(print, "Unexpected token %u(\"%s\"), expected type %u", c.[token + TOKEN_TYPE], &c{token + TOKEN_VALUE}, expected));
+    s.[STRINGPTR] = buf;
+    if (c.[token + TOKEN_TYPE] == TNUM) sp = int2str(s, c.[token + TOKEN_VALUE], 10, FALSE);
+    else sp = &c{token + TOKEN_VALUE};
+    format(print, "Unexpected token %u(\"%s\")", c.[token + TOKEN_TYPE], sp);
+    if (expected) sp = int2str(s, expected, 10, FALSE);
+    else sp = "Unknown";
+    return compiler_throw(c, file, line, format(print, " expected type %s", sp));
 }
 
 function compiler_advance(c)
@@ -116,6 +123,7 @@ function compiler_statement(c)
         case TLEFTBRACE: return compiler_statements(c);
         case TINCLUDE: return compiler_include(c);
         case TCONST: return compiler_const(c);
+        case TSTRUCT: return compiler_struct(c);
         default: compiler_expression(c); return compiler_consume(c, TSEMICOLON);
     }
 }
@@ -126,15 +134,30 @@ function compiler_statements(c)
     while (!compiler_match(c, TRIGHTBRACE)) compiler_statement(c);
 }
 
+function compiler_struct(c)
+{
+    compiler_consume(c, TSTRUCT);
+    compiler_consume(c, TIDENT);
+    compiler_consume(c, TEQUALS);
+    do
+    {
+        compiler_consume(c, TLEFTBRACKET);
+        compiler_consume(c, TIDENT);
+        compiler_consume(c, TRIGHTBRACKET);
+    } while (compiler_match(c, TCOMMA));
+    compiler_consume(c, TSEMICOLON);
+}
+
 function compiler_const(c)
-(x)
+(s{STRING})
 {
     compiler_consume(c, TCONST);
     do
     {
         compiler_consume(c, TIDENT);
+        memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
         compiler_consume(c, TEQUALS);
-        x = compiler_const_expression(c);
+        compiler_const_set(c, s, compiler_const_expression(c));
     } while (compiler_match(c, TCOMMA));
     compiler_consume(c, TSEMICOLON);
 }
@@ -205,6 +228,15 @@ function compiler_expression(c)
 function compiler_primary(c)
 (ident{COMPILER_IDENT})
 {
+    if (c.[CIS_CONST_EXPR])
+    {
+        switch (compiler_advance(c))
+        {
+            case TNUM: return c.[CCUR + TOKEN_VALUE];
+            default: return compiler_throw_token(c, $@, $*, CCUR, 0);
+        }
+    }
+
     switch (compiler_advance(c))
     {
         case TIDENT:
@@ -226,8 +258,11 @@ function compiler_primary(c)
             free(c.[CCUR + TOKEN_VALUE + STRINGPTR]);
             c.[CCUR + TOKEN_VALUE + STRINGPTR] = NULL;
             break;
+        case TNUM:
+            format(print, "MOV EAX, %u\n", c.[CCUR + TOKEN_VALUE]);
+            break;
         default:
-            compiler_throw_token(c, $@, $*, CCUR);
+            compiler_throw_token(c, $@, $*, CCUR, 0);
             break;
     }
 
