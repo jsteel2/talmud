@@ -318,7 +318,7 @@ bool compiler_primary(Compiler *c, size_t *res, Token t)
             break;
         case TLINE:
             HANDLE(compiler_emit8(c, 0xB8));
-            HANDLE(compiler_emit32(c, c->t.line)); // MOV EAX, c->t.line
+            HANDLE(compiler_emit32(c, c->t.line + 1)); // MOV EAX, c->t.line + 1
             break;
         case TFUNC:
             if (!map_get(&c->strings, c->cur_label, &x))
@@ -1810,6 +1810,17 @@ bool compiler_struct(Compiler *c)
     return compiler_consume(c, TSEMICOLON);
 }
 
+bool compiler_enum(Compiler *c)
+{
+    int i = 0;
+    do
+    {
+        HANDLE(compiler_consume(c, TIDENT));
+        HANDLE(map_set(&c->idents, c->cur.value, i++));
+    } while (compiler_match(c, TCOMMA));
+    return compiler_consume(c, TSEMICOLON);
+}
+
 bool compiler_return(Compiler *c)
 {
     if (!compiler_match(c, TSEMICOLON)) 
@@ -2141,6 +2152,7 @@ bool compiler_statement(Compiler *c)
         case TWHILE: HANDLE(compiler_while(c)); break;
         case TDO: HANDLE(compiler_do(c)); break;
         case TSTRUCT: HANDLE(compiler_struct(c)); break;
+        case TENUM: HANDLE(compiler_enum(c)); break;
         case TGLOBAL: HANDLE(compiler_global(c)); break;
         case TCONTINUE: HANDLE(compiler_continue(c)); break;
         case TSWITCH: HANDLE(compiler_switch(c)); break;

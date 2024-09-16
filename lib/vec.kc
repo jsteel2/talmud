@@ -19,18 +19,37 @@ function vec_resize(v, new_len)
     return TRUE;
 }
 
+function vec_set(v, i, p)
+{
+    if (!vec_resize(v, i + 1)) return FALSE;
+    memcpy(&v.[VEC_PTR]{i *! v.[VEC_ENTRY_SIZE]}, p, v.[VEC_ENTRY_SIZE]);
+    return TRUE;
+}
+
+function vec_set1(v, i, x)
+{
+    if (!vec_resize(v, i + 1)) return FALSE;
+    v.[VEC_PTR]{i} = x;
+    return TRUE;
+}
+
+function vec_set4(v, i, x)
+{
+    if (!vec_resize(v, i + 1)) return FALSE;
+    v.[VEC_PTR][i] = x;
+    return TRUE;
+}
+
 function vec_push(v, p)
 {
-    if (!vec_resize(v, v.[VEC_LEN] + 1)) return FALSE;
-    memcpy(&v.[VEC_PTR]{v.[VEC_LEN]}, p, v.[VEC_ENTRY_SIZE]);
+    if (!vec_set(v, v.[VEC_LEN], p)) return FALSE;
     v.[VEC_LEN] += 1;
     return TRUE;
 }
 
 function vec_push1(v, x)
 {
-    if (!vec_resize(v, v.[VEC_LEN] + 1)) return FALSE;
-    v.[VEC_PTR]{v.[VEC_LEN]} = x;
+    if (!vec_set1(v, v.[VEC_LEN], x)) return FALSE;
     v.[VEC_LEN] += 1;
     return TRUE;
 }

@@ -204,6 +204,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             break;
         case 'e':
             if (LEN("else") == len && strncmp(start, SLEN("else")) == 0) return TELSE;
+            if (LEN("enum") == len && strncmp(start, SLEN("enum")) == 0) return TENUM;
             break;
         case 'f':
             if (LEN("function") == len && strncmp(start, SLEN("function")) == 0) return TFUNCTION;

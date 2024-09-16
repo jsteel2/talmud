@@ -1,0 +1,7 @@
+enum MODMEM, MODDISPB, MODDISPW, MODREG;
+
+enum REAX, RECX, REDX, REBX, RESP, REBP, RESI, REDI;
+
+const OTESTW = 0x85, OJMPW = 0xE9, OMOVIMMW = 0xC7, OJZW = 0x840F;
+
+function modrm(mod, reg, rm) return (mod << 6) | (reg << 3) | rm;
