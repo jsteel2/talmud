@@ -60,7 +60,23 @@ function malloc(n)
 function free(p)
 {
     if (!p) return;
-    format(print, "free() Unimplemented, Leaking %uB of memory :p\n", p.[-MEM_HEADER + MEM_HEADER_SIZE]);
+    p -= MEM_HEADER;
+
+    p{MEM_HEADER_USED} = FALSE;
+    if (!p.[MEM_HEADER_PREV]{MEM_HEADER_USED})
+    {
+        p.[MEM_HEADER_PREV].[MEM_HEADER_SIZE] += p.[MEM_HEADER_SIZE] + MEM_HEADER;
+        p.[MEM_HEADER_PREV].[MEM_HEADER_NEXT] = p.[MEM_HEADER_NEXT];
+        p = p.[MEM_HEADER_PREV];
+        p.[MEM_HEADER_NEXT].[MEM_HEADER_PREV] = p;
+    }
+
+    if (!p.[MEM_HEADER_NEXT]{MEM_HEADER_USED})
+    {
+        p.[MEM_HEADER_SIZE] += p.[MEM_HEADER_NEXT].[MEM_HEADER_SIZE] + MEM_HEADER;
+        p.[MEM_HEADER_NEXT] = p.[MEM_HEADER_NEXT].[MEM_HEADER_NEXT];
+        p.[MEM_HEADER_NEXT].[MEM_HEADER_PREV] = p;
+    }
 }
 
 function realloc(p, n)
