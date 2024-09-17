@@ -1,16 +1,18 @@
-struct MAP = [MAP_ENTRIES], [MAP_LEN], [MAP_SIZE], [MAP_KEY_SIZE], [MAP_ENTRY_SIZE], [MAP_COMPARE], [MAP_HASH], [MAP_FREE];
+struct MAP = [MAP_ENTRIES], [MAP_LEN], [MAP_SIZE], [MAP_KEY_SIZE], [MAP_ENTRY_SIZE], [MAP_COMPARE], [MAP_HASH], [MAP_FREE], [MAP_FIRST], [MAP_LAST];
 
-# make this an ordered map by adding MAP_FIRST and MAP_LAST and MAP_ENTRY_NEXT
+struct MAP_ENTRY = {MAP_ENTRY_USED}, [MAP_ENTRY_NEXT];
 
 function map_init(m, size, key_size, value_size, compare, hash, free)
 {
+    m.[MAP_FIRST] = NULL;
+    m.[MAP_LAST] = NULL;
     m.[MAP_COMPARE] = compare;
     m.[MAP_HASH] = hash;
     m.[MAP_FREE] = free;
     m.[MAP_LEN] = 0;
     m.[MAP_SIZE] = size;
     m.[MAP_KEY_SIZE] = key_size;
-    m.[MAP_ENTRY_SIZE] = key_size + value_size + 1;
+    m.[MAP_ENTRY_SIZE] = key_size + value_size + MAP_ENTRY;
     m.[MAP_ENTRIES] = malloc(m.[MAP_ENTRY_SIZE] *! size);
     if (!m.[MAP_ENTRIES]) return FALSE;
     memset(m.[MAP_ENTRIES], 0, m.[MAP_ENTRY_SIZE] *! size);
@@ -24,8 +26,9 @@ function map_free2(m)
     i = 0;
     while (i <! m.[MAP_SIZE])
     {
-        m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE]} = 0;
-        if (m.[MAP_FREE]) m.[MAP_FREE](&m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + 1});
+        if (!m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY_USED}) continue;
+        m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY_USED} = 0;
+        if (m.[MAP_FREE]) m.[MAP_FREE](&m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY});
         i += 1;
     }
 }
@@ -52,12 +55,8 @@ function hash_string(s)
 
 function map_iter(m, state)
 {
-    while (*state <! m.[MAP_SIZE] and !m.[MAP_ENTRIES]{*state *! m[MAP_ENTRY_SIZE]}) *state += 1;
-
-    if (*state >=! m.[MAP_SIZE]) return NULL;
-
-    *state += 1;
-    return &m.[MAP_ENTRIES]{(*state - 1) *! m.[MAP_ENTRY_SIZE] + 1};
+    if (!*state) return *state = m.[MAP_FIRST];
+    return *state = (*state).[MAP_ENTRY_NEXT - MAP_ENTRY];
 }
 
 function map_ref(m, key, index)
@@ -66,9 +65,9 @@ function map_ref(m, key, index)
     hash = m.[MAP_HASH](key);
     i = hash & (m.[MAP_SIZE] - 1);
 
-    while (m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE]})
+    while (m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY_USED})
     {
-        e = &m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + 1};
+        e = &m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY};
         if (m.[MAP_COMPARE](key, e)) return e;
         i += 1;
         if (i >=! m.[MAP_SIZE]) i = 0;
@@ -83,7 +82,7 @@ function map_get(m, key, value)
 {
     e = map_ref(m, key, NULL);
     if (!e) return FALSE;
-    memcpy(value, e + m.[MAP_KEY_SIZE], m.[MAP_ENTRY_SIZE] - 1 - m.[MAP_KEY_SIZE]);
+    memcpy(value, e + m.[MAP_KEY_SIZE], m.[MAP_ENTRY_SIZE] - MAP_ENTRY - m.[MAP_KEY_SIZE]);
     return TRUE;
 }
 
@@ -100,8 +99,8 @@ function map_expand(m)
     i = 0;
     while (i <! old_size)
     {
-        if (!old_entries{i *! m.[MAP_ENTRY_SIZE]}) continue;
-        map_set(m, &old_entries{i *! m.[MAP_ENTRY_SIZE] + 1}, &old_entries{i *! m.[MAP_ENTRY_SIZE] + 1 + m.[MAP_KEY_SIZE]});
+        if (!old_entries{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY_USED}) continue;
+        map_set(m, &old_entries{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY}, &old_entries{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY + m.[MAP_KEY_SIZE]});
     }
 
     free(old_entries);
@@ -119,13 +118,24 @@ function map_set(m, key, value)
     entry = map_ref(m, key, &i);
     if (!entry)
     {
-        entry = &m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + 1};
-        entry{-1} = 1;
+        entry = &m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY};
+        entry{MAP_ENTRY_USED - MAP_ENTRY} = 1;
+        entry.[MAP_ENTRY_NEXT - MAP_ENTRY] = NULL;
         m.[MAP_LEN] += 1;
         memcpy(entry, key, m.[MAP_KEY_SIZE]);
+
+        if (!m.[MAP_FIRST])
+        {
+            m.[MAP_FIRST] = m.[MAP_LAST] = entry;
+        }
+        else
+        {
+            m.[MAP_LAST].[MAP_ENTRY_NEXT - MAP_ENTRY] = entry;
+            m.[MAP_LAST] = entry;
+        }
     }
 
-    memcpy(entry + m.[MAP_KEY_SIZE], value, m.[MAP_ENTRY_SIZE] - m.[MAP_KEY_SIZE] - 1);
+    memcpy(entry + m.[MAP_KEY_SIZE], value, m.[MAP_ENTRY_SIZE] - m.[MAP_KEY_SIZE] - MAP_ENTRY);
 
     return TRUE;
 }

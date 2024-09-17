@@ -54,6 +54,7 @@ function malloc(n)
     left.[MEM_HEADER_SIZE] = n;
     left.[MEM_HEADER_NEXT] = right;
 
+    format(print, "malloc(%uB)\n", n);
     return left + MEM_HEADER;
 }
 
@@ -62,8 +63,10 @@ function free(p)
     if (!p) return;
     p -= MEM_HEADER;
 
+    format(print, "free(%uB)\n", p.[MEM_HEADER_SIZE]);
+
     p{MEM_HEADER_USED} = FALSE;
-    if (!p.[MEM_HEADER_PREV]{MEM_HEADER_USED})
+    if (p.[MEM_HEADER_PREV] and !p.[MEM_HEADER_PREV]{MEM_HEADER_USED})
     {
         p.[MEM_HEADER_PREV].[MEM_HEADER_SIZE] += p.[MEM_HEADER_SIZE] + MEM_HEADER;
         p.[MEM_HEADER_PREV].[MEM_HEADER_NEXT] = p.[MEM_HEADER_NEXT];
@@ -71,7 +74,7 @@ function free(p)
         p.[MEM_HEADER_NEXT].[MEM_HEADER_PREV] = p;
     }
 
-    if (!p.[MEM_HEADER_NEXT]{MEM_HEADER_USED})
+    if (p.[MEM_HEADER_NEXT] and !p.[MEM_HEADER_NEXT]{MEM_HEADER_USED})
     {
         p.[MEM_HEADER_SIZE] += p.[MEM_HEADER_NEXT].[MEM_HEADER_SIZE] + MEM_HEADER;
         p.[MEM_HEADER_NEXT] = p.[MEM_HEADER_NEXT].[MEM_HEADER_NEXT];
