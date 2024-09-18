@@ -82,6 +82,14 @@ function strtok(s, delim, out, state)
     return TRUE;
 }
 
+function strdup(s, new)
+{
+    new.[STRINGPTR] = malloc(s.[STRINGLEN]);
+    new.[STRINGLEN] = s.[STRINGLEN];
+    memcpy(new.[STRINGPTR], s.[STRINGPTR], new.[STRINGLEN]);
+    return new;
+}
+
 function reverse(s)
 (i, c)
 {

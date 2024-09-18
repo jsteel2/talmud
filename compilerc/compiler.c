@@ -55,7 +55,7 @@ TokenType compiler_matches(Compiler *c, TokenType *toks)
 
 bool compiler_consume(Compiler *c, TokenType t)
 {
-    return compiler_match(c, t) ? true : die(&c->t, "Unexpected Token %d", c->next.type);
+    return compiler_match(c, t) ? true : die(&c->t, "Unexpected Token %d, expected %d", c->next.type, t);
 }
 
 bool compiler_end(Compiler *c)
@@ -476,6 +476,8 @@ bool compiler_unary(Compiler *c, size_t *res, Token t)
     return true;
 }
 
+bool compiler_assign(Compiler *c, size_t *res, Token t);
+
 bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c, size_t *res, Token t2), TokenType *toks)
 {
     TokenType t;
@@ -524,7 +526,8 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
         if (t != TLOGICALAND && t != TLOGICALOR && t != TSLASHU && t != TMODULOU && t != TSLASHUEQUALS)
         {
             HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
-            HANDLE(fn(c, NULL, (Token){0}));
+            if (t >= TPLUSEQUALS && t <= TEQUALS) HANDLE(compiler_assign(c, NULL, (Token){0})); // Disgusting little hack, we shouldnt have done the while thing and instead have fn as the same level
+            else HANDLE(fn(c, NULL, (Token){0}));
             HANDLE(compiler_emit8(c, 0x5A)); // POP EDX
         }
         switch (t)
@@ -1759,7 +1762,7 @@ bool compiler_const(Compiler *c)
         char *ident = c->cur.value;
         HANDLE(compiler_consume(c, TEQUALS));
         HANDLE(compiler_const_expr(c, &value));
-        map_set(&c->idents, ident, value);
+        HANDLE(map_set(&c->idents, ident, value));
     } while (compiler_match(c, TCOMMA));
 
     return compiler_consume(c, TSEMICOLON);

@@ -22,6 +22,8 @@ function map_init(m, size, key_size, value_size, compare, hash, free)
 function map_free2(m)
 (i)
 {
+    m.[MAP_FIRST] = NULL;
+    m.[MAP_LAST] = NULL;
     m.[MAP_LEN] = 0;
     i = 0;
     while (i <! m.[MAP_SIZE])
@@ -51,6 +53,11 @@ function hash_string(s)
         i += 1;
     }
     return hash;
+}
+
+function free_string(s)
+{
+    free(s.[STRINGPTR]);
 }
 
 function map_iter(m, state)

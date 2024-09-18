@@ -8,6 +8,11 @@ function vec_init(v, size, entry_size)
     return v.[VEC_PTR] = malloc(size *! entry_size);
 }
 
+function vec_free(v)
+{
+    free(v.[VEC_PTR]);
+}
+
 function vec_resize(v, new_len)
 {
     if (new_len >=! v.[VEC_SIZE])
