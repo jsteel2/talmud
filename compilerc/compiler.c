@@ -541,7 +541,8 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(fn(c, NULL, t2));
                 HANDLE(compiler_emit8(c, 0x91)); // XCHG EAX, ECX
                 HANDLE(compiler_emit8(c, 0x58)); // POP EAX
-                HANDLE(compiler_emit8(c, 0x99)); // CDQ
+                HANDLE(compiler_emit8(c, 0x33));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 2))); // XOR EDX, EDX
                 HANDLE(compiler_emit8(c, 0xF7));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 6, 1))); // DIV ECX
                 break;
@@ -550,7 +551,8 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(fn(c, NULL, t2));
                 HANDLE(compiler_emit8(c, 0x91)); // XCHG EAX, ECX
                 HANDLE(compiler_emit8(c, 0x58)); // POP EAX
-                HANDLE(compiler_emit8(c, 0x99)); // CDQ
+                HANDLE(compiler_emit8(c, 0x33));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 2))); // XOR EDX, EDX
                 HANDLE(compiler_emit8(c, 0xF7));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 6, 1))); // DIV ECX
                 HANDLE(compiler_emit8(c, 0x92)); // XCHG EAX, EDX
@@ -731,7 +733,8 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x93)); // XCHG EAX, EBX
                 HANDLE(compiler_emit8(c, 0x8B));
                 HANDLE(compiler_emit8(c, MODRM(0, 0, 1))); // MOV EAX, [ECX]
-                HANDLE(compiler_emit8(c, 0x99)); // CDQ
+                HANDLE(compiler_emit8(c, 0x33));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 2))); // XOR EDX, EDX
                 HANDLE(compiler_emit8(c, 0xF7));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 6, 3))); // DIV EBX
                 HANDLE(compiler_emit8(c, 0x89));

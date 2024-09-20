@@ -103,6 +103,7 @@ function compiler_consume(c, t)
 function compiler_emit8(c, b)
 {
     format(print, "%x\n", b);
+    if (!c.[CIS_FIRST_PASS]) c.[CBIN]{c.[CIP] - c.[CORG]} = b;
     c.[CIP] += 1;
 }
 
@@ -143,7 +144,7 @@ function compiler_pass(c, src, is_first_pass)
 {
     c.[CIS_FIRST_PASS] = is_first_pass;
     c.[CLATER_I] = 0;
-    c.[CIP] = c.[CORG] = 0;
+    c.[CIP] = c.[CORG];
     tokenizer_init(&c{CTOK}, src);
 
     c.[CNEXT + TOKEN_TYPE] = TINVALID;
@@ -155,7 +156,7 @@ function compiler_pass(c, src, is_first_pass)
     while (s = map_iter(&c{CSTRINGS}, &state))
     {
         compiler_emit32(c, s.[STRINGLEN]);
-        compiler_emit32(c, s.[STRING + COMPILER_STRING_ADDR] + c.[CPROG_END] - c.{CSTRING_OFFSET} + 8);
+        compiler_emit32(c, c.[CIP] + 4);
         i = 0;
         while (i <! s.[STRINGLEN])
         {
@@ -163,24 +164,30 @@ function compiler_pass(c, src, is_first_pass)
             i += 1;
         }
     }
-
-    c.[CPROG_END] = c.[CIP];
 }
 
 function compile(c, filename, src)
+(ret)
 {
     compiler_try(c, .catch);
     c.[CCUR_FILE] = filename;
     c.[CSTRING_OFFSET] = 0;
+    ret = c.[CBIN] = NULL;
 
+    c.[CORG] = 0;
     compiler_pass(c, src, TRUE);
+    c.[CORG] = c.[CBIN] = malloc(c.[CIP]);
+    if (!c.[CBIN]) compiler_throw(c, $@, $*, format(print, "Failed to allocate %uB of memory\n", c.[CIP]));
+    c.[CPROG_END] = c.[CIP] + c.[CORG];
     compiler_pass(c, src, FALSE);
 
     compiler_try_end(c);
+    ret = c.[CBIN];
 .catch:
     if ((c.[CCUR + TOKEN_TYPE] == TSTRING or c.[CCUR + TOKEN_TYPE] == TCHARS) and c.[CCUR + TOKEN_VALUE + STRINGPTR]) free(c.[CCUR + TOKEN_VALUE + STRINGPTR]);
     if ((c.[CNEXT + TOKEN_TYPE] == TSTRING or c.[CNEXT + TOKEN_TYPE] == TCHARS) and c.[CNEXT + TOKEN_VALUE + STRINGPTR]) free(c.[CNEXT + TOKEN_VALUE + STRINGPTR]);
-    return NULL;
+    free(c.[CBIN]);
+    return ret;
 }
 
 function compiler_statement(c)
@@ -290,7 +297,7 @@ function compiler_while(c)
 
     loopend = compiler_getlater(c);
     compiler_emit16(c, OJZW);
-    compiler_emit32(c, compiler_relative(c, loopend, 4));
+    compiler_emit32(c, compiler_relative(c, loopend + c.[CORG], 4));
 
     compiler_statement(c);
 
@@ -331,7 +338,7 @@ function compiler_primary(c)
         case TIDENT:
             if (compiler_global_get(c, &c{CCUR + TOKEN_VALUE}, ident))
             {
-                compiler_emit8(c, OMOVIMMW);
+                compiler_emit8(c, OMOVMIMMW);
                 compiler_emit8(c, modrm(MODREG, 0, REAX));
                 compiler_emit32(c, ident.[COMPILER_IDENT_ADDR]);
             }
@@ -345,11 +352,11 @@ function compiler_primary(c)
             }
             break;
         case TSTRING:
-            compiler_emit8(c, OMOVREGIMMW + REAX);
+            compiler_emit8(c, OMOVRIMMW + REAX);
             compiler_emit32(c, compiler_string_get(c, &c{CCUR + TOKEN_VALUE}));
             break;
         case TNUM:
-            compiler_emit8(c, OMOVIMMW);
+            compiler_emit8(c, OMOVMIMMW);
             compiler_emit8(c, modrm(MODREG, 0, REAX));
             compiler_emit32(c, c.[CCUR + TOKEN_VALUE]);
             break;
@@ -363,11 +370,55 @@ function compiler_primary(c)
 
 function compiler_post(c)
 {
-    if (!compiler_match(c, TLEFTPAREN)) return FALSE;
-    compiler_expression(c);
+    switch (compiler_peek(c))
+    {
+        case TLEFTPAREN: compiler_call(c);
+        default: return FALSE;
+    }
+}
+
+function compiler_call(c)
+(s, i)
+{
+    s = compiler_getlater(c);
+    compiler_consume(c, TLEFTPAREN);
+
+    if (compiler_match(c, TRIGHTPAREN)) JMP .noargs
+
+    compiler_emit8(c, OGRP1MIMMWB);
+    compiler_emit8(c, modrm(MODREG, OGRP1SUB, RESP));
+    compiler_emit8(c, s *! 4);
+
+    compiler_emit8(c, OPUSHR + REAX);
+
+    i = 1;
+    do
+    {
+        compiler_expression(c);
+
+        compiler_emit8(c, OMOVMRW);
+        compiler_emit8(c, modrm(MODDISPB, REAX, RSIB));
+        compiler_emit8(c, sib(SIBSCALE1, SIBNOINDEX, RESP));
+        compiler_emit8(c, i *! 4);
+
+        i += 1;
+    } while (compiler_match(c, TCOMMA));
     compiler_consume(c, TRIGHTPAREN);
-    print("CALL\n");
-    return TRUE;
+
+    compiler_setlater(c, s, i - 1);
+
+    compiler_emit8(c, OPOPR + REAX);
+
+.noargs:
+    compiler_emit8(c, OGRP5);
+    compiler_emit8(c, modrm(MODREG, OGRP5CALL, REAX));
+
+    if (i >! 1)
+    {
+        compiler_emit8(c, OGRP1MIMMWB);
+        compiler_emit8(c, modrm(MODREG, OGRP1ADD, RESP));
+        compiler_emit8(c, s *! 4);
+    }
 }
 
 function compiler_const_set(c, name, address)

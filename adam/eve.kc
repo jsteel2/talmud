@@ -1,6 +1,6 @@
 while (TRUE)
 {
-    print("COOL\n");
+    print("JUST IN TIME\n");
 }
 
 include "lib/def.kc"
