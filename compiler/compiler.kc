@@ -380,6 +380,7 @@ function compiler_post(c)
 function compiler_call(c)
 (s, i)
 {
+    i = 1;
     s = compiler_getlater(c);
     compiler_consume(c, TLEFTPAREN);
 
@@ -391,7 +392,6 @@ function compiler_call(c)
 
     compiler_emit8(c, OPUSHR + REAX);
 
-    i = 1;
     do
     {
         compiler_expression(c);
