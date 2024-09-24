@@ -113,7 +113,7 @@ function read(file, n, buf)
         {
             if (n >! 512)
             {
-                sectors_read = minu(n /! 512, (file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] %! file{FILE_SECTORS_PER_CLUSTER}) /! 512);
+                sectors_read = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] %! file{FILE_SECTORS_PER_CLUSTER});
                 if (!lba_read(file{FILE_DRIVE}, sectors_read, cur_sector(file), buf)) return FALSE;
                 x = sectors_read *! 512;
                 file.[FILE_SEEK] += x;

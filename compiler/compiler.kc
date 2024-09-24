@@ -210,16 +210,26 @@ function compiler_statements(c)
 }
 
 function compiler_struct(c)
+(size, i, t, a)
 {
     compiler_consume(c, TSTRUCT);
     compiler_consume(c, TIDENT);
+    size = compiler_getlater(c);
+    compiler_const_set(c, &c{CCUR + TOKEN_VALUE}, size);
     compiler_consume(c, TEQUALS);
+    i = 0;
     do
     {
-        compiler_consume(c, TLEFTBRACKET);
+        if (t = compiler_match(c, TLEFTBRACKET)) a = 4;
+        else if (t = compiler_match(c, TLEFTCHEVRON)) a = 2;
+        else if (t = compiler_match(c, TLEFTBRACE)) a = 1;
+        else compiler_throw_token(c, $@, $*, CNEXT, TLEFTBRACKET);
         compiler_consume(c, TIDENT);
-        compiler_consume(c, TRIGHTBRACKET);
+        compiler_const_set(c, &c{CCUR + TOKEN_VALUE}, i);
+        compiler_consume(c, t + 1);
+        i += 4;
     } while (compiler_match(c, TCOMMA));
+    compiler_setlater(c, size, i);
     compiler_consume(c, TSEMICOLON);
 }
 
@@ -238,13 +248,15 @@ function compiler_const(c)
 }
 
 function compiler_include(c)
-(f{FILE}, ocur_file, s{STRING}, src{STRING}, otok{TOKENIZER})
+(f{FILE}, ocur_file, ocur{TOKEN}, onext{TOKEN}, s{STRING}, src{STRING}, otok{TOKENIZER})
 {
     compiler_consume(c, TINCLUDE);
     compiler_consume(c, TSTRING);
 
     ocur_file = c.[CCUR_FILE];
     memcpy(otok, &c{CTOK}, TOKENIZER);
+    memcpy(ocur, &c{CCUR}, TOKEN);
+    memcpy(onext, &c{CNEXT}, TOKEN);
 
     memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
     c.[CCUR_FILE] = s;
@@ -273,6 +285,8 @@ function compiler_include(c)
 
     c.[CCUR_FILE] = ocur_file;
     memcpy(&c{CTOK}, otok, TOKENIZER);
+    memcpy(&c{CCUR}, ocur, TOKEN);
+    memcpy(&c{CNEXT}, onext, TOKEN);
     return;
 
 .catch:
@@ -424,7 +438,8 @@ function compiler_call(c)
 function compiler_const_set(c, name, address)
 (s{STRING})
 {
-    if (map_get(&c{CIDENTS}, name, s)) return TRUE;
+    if (map_get(&c{CIDENTS}, name, s)) s = name;
+    else strdup(name, s);
     if (!map_set(&c{CIDENTS}, strdup(name, s), &address)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), free(s.[STRINGPTR]));
     return TRUE;
 }
