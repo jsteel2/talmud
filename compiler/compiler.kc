@@ -199,6 +199,8 @@ function compiler_statement(c)
         case TINCLUDE: return compiler_include(c);
         case TCONST: return compiler_const(c);
         case TSTRUCT: return compiler_struct(c);
+        case TFUNCTION: return compiler_function(c);
+        case TRETURN: return compiler_return(c);
         default: compiler_expression(c); return compiler_consume(c, TSEMICOLON);
     }
 }
@@ -207,6 +209,33 @@ function compiler_statements(c)
 {
     compiler_consume(c, TLEFTBRACE);
     while (!compiler_match(c, TRIGHTBRACE)) compiler_statement(c);
+}
+
+function compiler_return(c)
+{
+    compiler_consume(c, TRETURN);
+    compiler_expression(c);
+    compiler_consume(c, TSEMICOLON);
+}
+
+function compiler_function(c)
+{
+    compiler_consume(c, TFUNCTION);
+    compiler_consume(c, TIDENT);
+    compiler_consume(c, TLEFTPAREN);
+
+    while (compiler_match(c, TIDENT))
+    {
+        if (compiler_peek(c) != TRIGHTPAREN) compiler_consume(c, TCOMMA);
+    }
+    compiler_consume(c, TRIGHTPAREN);
+
+    if (compiler_match(c, TLEFTPAREN))
+    {
+        compiler_throw(c, $@, $*, print("Unimplemented"));
+    }
+
+    compiler_statement(c);
 }
 
 function compiler_struct(c)
@@ -332,6 +361,34 @@ function compiler_const_expression(c)
 
 function compiler_expression(c)
 {
+    return compiler_binary(c, precs);
+}
+
+function compiler_binary(c, prec)
+(t)
+{
+    if (!prec{PREC_START}) return compiler_unary(c);
+
+    compiler_binary(c, prec + PREC);
+
+    while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
+    {
+        if (prec{PREC_ASSOC} == ASSOC_LEFT) compiler_binary(c, prec + PREC);
+        else compiler_binary(c, prec);
+
+        if (c.[CIS_CONST_EXPR])
+        {
+            compiler_throw(c, $@, $*, print("Unimplemented"));
+        }
+        else
+        {
+            format(print, "got %u\n", t);
+        }
+    }
+}
+
+function compiler_unary(c)
+{
     return compiler_primary(c);
 }
 
@@ -383,10 +440,17 @@ function compiler_primary(c)
 }
 
 function compiler_post(c)
+(align)
 {
+    align = TRUE;
+.l:
     switch (compiler_peek(c))
     {
-        case TLEFTPAREN: compiler_call(c);
+        case TLEFTPAREN: compiler_call(c); return TRUE;
+        case TDOT: compiler_advance(c); align = FALSE; JMP .l
+        case TLEFTBRACKET:
+        case TLEFTCHEVRON:
+        case TLEFTBRACE: compiler_index(c, align); return TRUE;
         default: return FALSE;
     }
 }
@@ -435,6 +499,17 @@ function compiler_call(c)
     }
 }
 
+function compiler_index(c, align)
+(scale, t)
+{
+    if (t = compiler_match(c, TLEFTBRACKET)) scale = 4;
+    else if (t = compiler_match(c, TLEFTCHEVRON)) scale = 2;
+    else if (t = compiler_match(c, TLEFTBRACE)) scale = 1;
+
+    compiler_expression(c);
+    compiler_consume(c, t + 1);
+}
+
 function compiler_const_set(c, name, address)
 (s{STRING})
 {
@@ -465,3 +540,9 @@ function compiler_string_get(c, s)
 
     return 0;
 }
+
+enum ASSOC_LEFT, ASSOC_RIGHT;
+struct PREC = {PREC_ASSOC}, {PREC_START}, {PREC_END};
+precs:
+    DB ASSOC_RIGHT, TEQUALS, TEQUALS # assign
+    DB 0, 0, 0

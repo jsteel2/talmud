@@ -2,7 +2,7 @@ struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
 struct TEND = {TINVALID}, {TNUM}, {TIDENT}, {TCHARS}, {TSTRING},
 
-              {TWHILE}, {TINCLUDE}, {TCONST}, {TSTRUCT},
+              {TWHILE}, {TINCLUDE}, {TCONST}, {TSTRUCT}, {TFUNCTION}, {TRETURN},
               
               {TDOT}, {TLEFTPAREN}, {TRIGHTPAREN}, {TLEFTBRACE}, {TRIGHTBRACE}, {TLEFTBRACKET}, {TRIGHTBRACKET}, {TLEFTCHEVRON}, {TRIGHTCHEVRON}, {TSEMICOLON}, {TCOMMA},
               
@@ -52,8 +52,16 @@ function tokenizer_ident_token(t, out)
             if (strcmp(s, "const")) out.[TOKEN_TYPE] = TCONST;
             else break;
             return TRUE;
+        case 'f':
+            if (strcmp(s, "function")) out.[TOKEN_TYPE] = TFUNCTION;
+            else break;
+            return TRUE;
         case 'i':
             if (strcmp(s, "include")) out.[TOKEN_TYPE] = TINCLUDE;
+            else break;
+            return TRUE;
+        case 'r':
+            if (strcmp(s, "return")) out.[TOKEN_TYPE] = TRETURN;
             else break;
             return TRUE;
         case 's':
@@ -89,6 +97,7 @@ function tokenizer_symbol_token(t, out)
         case ']': out.[TOKEN_TYPE] = TRIGHTBRACKET; break;
         case ';': out.[TOKEN_TYPE] = TSEMICOLON; break;
         case ',': out.[TOKEN_TYPE] = TCOMMA; break;
+        case '.': out.[TOKEN_TYPE] = TDOT; break;
         default: format(print, "Unknown symbol '%c'", p{0}); return FALSE;
     }
 
