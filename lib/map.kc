@@ -20,19 +20,17 @@ function map_init(m, size, key_size, value_size, compare, hash, free)
 }
 
 function map_free2(m)
-(i)
+(state, s)
 {
+    state = 0;
+    while (s = map_iter(m, &state))
+    {
+        s{MAP_ENTRY_USED - MAP_ENTRY} = 0;
+        if (m.[MAP_FREE]) m.[MAP_FREE](s);
+    }
     m.[MAP_FIRST] = NULL;
     m.[MAP_LAST] = NULL;
     m.[MAP_LEN] = 0;
-    i = 0;
-    while (i <! m.[MAP_SIZE])
-    {
-        if (!m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY_USED}) continue;
-        m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY_USED} = 0;
-        if (m.[MAP_FREE]) m.[MAP_FREE](&m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY});
-        i += 1;
-    }
 }
 
 function map_free(m)

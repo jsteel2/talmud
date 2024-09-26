@@ -1,7 +1,7 @@
 include "compiler/tokenizer.kc"
 include "compiler/asm.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIS_CONST_EXPR], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END];
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIS_CONST_EXPR], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END];
 struct COMPILER_IDENT = [COMPILER_IDENT_ADDR];
 struct COMPILER_STRING = [COMPILER_STRING_ADDR];
 
@@ -11,6 +11,7 @@ function compiler_init(c)
     c.[CCUR_FILE] = "None";
     if (!map_init(&c{CIDENTS}, 1024, STRING, COMPILER_IDENT, strcmp, hash_string, free_string)) return FALSE;
     if (!map_init(&c{CSTRINGS}, 1024, STRING, COMPILER_STRING, strcmp, hash_string, free_string)) return FALSE;
+    if (!map_init(&c{CLOCALS}, 32, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
     if (!vec_init(&c{CLATER}, 1024, 4)) return FALSE;
     return TRUE;
 }
@@ -19,6 +20,7 @@ function compiler_free(c)
 {
     map_free(&c{CIDENTS});
     map_free(&c{CSTRINGS});
+    map_free(&c{CLOCALS});
     vec_free(&c{CLATER});
 }
 
@@ -167,12 +169,11 @@ function compiler_pass(c, src, is_first_pass)
 }
 
 function compile(c, filename, src)
-(ret)
 {
     compiler_try(c, .catch);
     c.[CCUR_FILE] = filename;
     c.[CSTRING_OFFSET] = 0;
-    ret = c.[CBIN] = NULL;
+    c.[CBIN] = NULL;
 
     c.[CORG] = 0;
     compiler_pass(c, src, TRUE);
@@ -182,12 +183,13 @@ function compile(c, filename, src)
     compiler_pass(c, src, FALSE);
 
     compiler_try_end(c);
-    ret = c.[CBIN];
+    return c.[CBIN];
+
 .catch:
     if ((c.[CCUR + TOKEN_TYPE] == TSTRING or c.[CCUR + TOKEN_TYPE] == TCHARS) and c.[CCUR + TOKEN_VALUE + STRINGPTR]) free(c.[CCUR + TOKEN_VALUE + STRINGPTR]);
     if ((c.[CNEXT + TOKEN_TYPE] == TSTRING or c.[CNEXT + TOKEN_TYPE] == TCHARS) and c.[CNEXT + TOKEN_VALUE + STRINGPTR]) free(c.[CNEXT + TOKEN_VALUE + STRINGPTR]);
     free(c.[CBIN]);
-    return ret;
+    return NULL;
 }
 
 function compiler_statement(c)
@@ -223,10 +225,12 @@ function compiler_function(c)
 {
     compiler_consume(c, TFUNCTION);
     compiler_consume(c, TIDENT);
+    compiler_label_set(c, &c{CCUR + TOKEN_VALUE});
     compiler_consume(c, TLEFTPAREN);
 
     while (compiler_match(c, TIDENT))
     {
+        compiler_local_set(c, &c{CCUR + TOKEN_VALUE}, 0);
         if (compiler_peek(c) != TRIGHTPAREN) compiler_consume(c, TCOMMA);
     }
     compiler_consume(c, TRIGHTPAREN);
@@ -237,6 +241,7 @@ function compiler_function(c)
     }
 
     compiler_statement(c);
+    map_free2(&c{CLOCALS});
 }
 
 function compiler_struct(c)
@@ -375,11 +380,11 @@ function compiler_expression(c)
 }
 
 function compiler_binary(c, prec)
-(t)
+(t, r)
 {
     if (!prec{PREC_START}) return compiler_unary(c);
 
-    compiler_binary(c, prec + PREC);
+    r = compiler_binary(c, prec + PREC);
 
     while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
     {
@@ -396,6 +401,8 @@ function compiler_binary(c, prec)
             format(print, "got %u\n", t);
         }
     }
+
+    return r;
 }
 
 function compiler_unary(c)
@@ -431,7 +438,7 @@ function compiler_primary(c)
     switch (compiler_advance(c))
     {
         case TIDENT:
-            if (compiler_global_get(c, &c{CCUR + TOKEN_VALUE}, ident))
+            if (compiler_ident_get(c, &c{CCUR + TOKEN_VALUE}, ident))
             {
                 compiler_emit8(c, OMOVMIMMW);
                 compiler_emit8(c, modrm(MODREG, 0, REAX));
@@ -535,17 +542,27 @@ function compiler_index(c, align)
 }
 
 function compiler_const_set(c, name, address)
-(s{STRING})
+(s{STRING}, x)
 {
-    if (map_get(&c{CIDENTS}, name, s)) s = name;
-    else strdup(name, s);
-    if (!map_set(&c{CIDENTS}, strdup(name, s), &address)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), free(s.[STRINGPTR]));
+    if (map_get(&c{CIDENTS}, name, s)) x = name;
+    else x = strdup(name, s);
+    if (!map_set(&c{CIDENTS}, x, &address)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), x == name ? 0 : free(s.[STRINGPTR]));
     return TRUE;
 }
 
-function compiler_global_get(c, name, out)
+function compiler_label_set(c, name)
 {
-    return map_get(&c{CIDENTS}, name, out);
+    return compiler_const_set(c, name, 0);
+}
+
+function compiler_local_set(c, name, offset)
+{
+    if (!map_set(&c{CLOCALS}, name, &offset)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, offset));
+}
+
+function compiler_ident_get(c, name, out)
+{
+    return map_get(&c{CLOCALS}, name, out) or map_get(&c{CIDENTS}, name, out);
 }
 
 function compiler_string_get(c, s)
