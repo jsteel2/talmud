@@ -1,7 +1,9 @@
 while (TRUE)
 {
-    print("JUST IN TIME\n");
+    f("JUST IN TIME\n");
 }
+
+function f(s) print(s);
 
 include "lib/def.kc"
 include "lib/vec.kc"

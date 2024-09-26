@@ -2,7 +2,11 @@ include "compiler/tokenizer.kc"
 include "compiler/asm.kc"
 
 struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIS_CONST_EXPR], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END];
-struct COMPILER_IDENT = [COMPILER_IDENT_ADDR];
+const IDENT_FLAG_VALID = 1;
+const IDENT_FLAG_LOCAL = 1 << 1;
+const IDENT_FLAG_ADDRESS = 1 << 2;
+const IDENT_FLAG_RELOCATE = 1 << 3;
+struct COMPILER_IDENT = [COMPILER_IDENT_ADDR], {COMPILER_IDENT_FLAGS};
 struct COMPILER_STRING = [COMPILER_STRING_ADDR];
 
 function compiler_init(c)
@@ -222,15 +226,17 @@ function compiler_return(c)
 }
 
 function compiler_function(c)
+(i)
 {
     compiler_consume(c, TFUNCTION);
     compiler_consume(c, TIDENT);
     compiler_label_set(c, &c{CCUR + TOKEN_VALUE});
     compiler_consume(c, TLEFTPAREN);
 
+    i = 4;
     while (compiler_match(c, TIDENT))
     {
-        compiler_local_set(c, &c{CCUR + TOKEN_VALUE}, 0);
+        compiler_local_set(c, &c{CCUR + TOKEN_VALUE}, i += 4);
         if (compiler_peek(c) != TRIGHTPAREN) compiler_consume(c, TCOMMA);
     }
     compiler_consume(c, TRIGHTPAREN);
@@ -240,8 +246,15 @@ function compiler_function(c)
         compiler_throw(c, $@, $*, print("Unimplemented"));
     }
 
+    compiler_emit8(c, OPUSHR + REBP);
+    compiler_emit8(c, OMOVRMW);
+    compiler_emit8(c, modrm(MODREG, REBP, RESP));
+
     compiler_statement(c);
     map_free2(&c{CLOCALS});
+
+    compiler_emit8(c, OLEAVE);
+    compiler_emit8(c, ORET);
 }
 
 function compiler_struct(c)
@@ -424,7 +437,7 @@ function compiler_unary(c)
 }
 
 function compiler_primary(c)
-(ident{COMPILER_IDENT})
+(ident, f)
 {
     if (c.[CIS_CONST_EXPR])
     {
@@ -438,11 +451,12 @@ function compiler_primary(c)
     switch (compiler_advance(c))
     {
         case TIDENT:
-            if (compiler_ident_get(c, &c{CCUR + TOKEN_VALUE}, ident))
+            if (f = compiler_ident_get(c, &c{CCUR + TOKEN_VALUE}, &ident))
             {
-                compiler_emit8(c, OMOVMIMMW);
-                compiler_emit8(c, modrm(MODREG, 0, REAX));
-                compiler_emit32(c, ident.[COMPILER_IDENT_ADDR]);
+                compiler_emit8(c, f & IDENT_FLAG_ADDRESS ? OMOVMIMMW : OMOVRMW);
+                if (f & IDENT_FLAG_ADDRESS) compiler_emit8(c, modrm(MODREG, 0, REAX));
+                else compiler_emit8(c, modrm(MODDISPW, REAX, f & IDENT_FLAG_LOCAL ? REBP : RDISP));
+                compiler_emit32(c, ident);
             }
             else if (c.[CIS_FIRST_PASS])
             {
@@ -542,27 +556,50 @@ function compiler_index(c, align)
 }
 
 function compiler_const_set(c, name, address)
-(s{STRING}, x)
+(s{STRING}, x, ident{COMPILER_IDENT})
 {
     if (map_get(&c{CIDENTS}, name, s)) x = name;
     else x = strdup(name, s);
-    if (!map_set(&c{CIDENTS}, x, &address)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), x == name ? 0 : free(s.[STRINGPTR]));
+    ident.[COMPILER_IDENT_ADDR] = address;
+    ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_ADDRESS;
+    if (!map_set(&c{CIDENTS}, x, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), x == name ? 0 : free(s.[STRINGPTR]));
     return TRUE;
 }
 
 function compiler_label_set(c, name)
+(s{STRING}, ident{COMPILER_IDENT})
 {
-    return compiler_const_set(c, name, 0);
+    if (c.[CIS_FIRST_PASS]) 
+    {
+        ident.[COMPILER_IDENT_ADDR] = c.[CIP];
+        ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_RELOCATE | IDENT_FLAG_ADDRESS;
+        if (!map_set(&c{CIDENTS}, strdup(name, s), ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR]));
+    }
 }
 
 function compiler_local_set(c, name, offset)
+(ident{COMPILER_IDENT})
 {
-    if (!map_set(&c{CLOCALS}, name, &offset)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, offset));
+    ident.[COMPILER_IDENT_ADDR] = offset;
+    ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_LOCAL;
+    if (!map_set(&c{CLOCALS}, name, ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, offset));
 }
 
 function compiler_ident_get(c, name, out)
+(ident{COMPILER_IDENT})
 {
-    return map_get(&c{CLOCALS}, name, out) or map_get(&c{CIDENTS}, name, out);
+    if (map_get(&c{CLOCALS}, name, ident))
+    {
+        *out = ident.[COMPILER_IDENT_ADDR];
+        return ident{COMPILER_IDENT_FLAGS};
+    }
+
+    if (map_get(&c{CIDENTS}, name, ident))
+    {
+        *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] : 0);
+        return ident{COMPILER_IDENT_FLAGS};
+    }
+    return FALSE;
 }
 
 function compiler_string_get(c, s)
