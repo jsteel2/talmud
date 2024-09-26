@@ -1,12 +1,23 @@
 struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
-struct TEND = {TINVALID}, {TNUM}, {TIDENT}, {TCHARS}, {TSTRING},
+enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
 
-              {TWHILE}, {TINCLUDE}, {TCONST}, {TSTRUCT}, {TFUNCTION}, {TRETURN},
+    TWHILE, TIF, TINCLUDE, TCONST, TSTRUCT, TFUNCTION, TRETURN,
               
-              {TDOT}, {TLEFTPAREN}, {TRIGHTPAREN}, {TLEFTBRACE}, {TRIGHTBRACE}, {TLEFTBRACKET}, {TRIGHTBRACKET}, {TLEFTCHEVRON}, {TRIGHTCHEVRON}, {TSEMICOLON}, {TCOMMA},
+    TDOT, TLEFTPAREN, TRIGHTPAREN, TLEFTBRACE, TRIGHTBRACE, TLEFTBRACKET, TRIGHTBRACKET, TLEFTCHEVRON, TRIGHTCHEVRON, TSEMICOLON, TCOMMA,
+
+    TEQUALS, TSTARUEQUALS, TSTARSEQUALS, TMINUSEQUALS, TPLUSEQUALS,
+    TQMARK, TCOLON,
+    TLOGICALOR,
+    TLOGICALAND,
+    TEQUALSEQUALS, TNOTEQUALS,
+    TGREATERTHANU, TGREATERTHANS, TGREATEREQUALSU, TGREATEREQUALSS, TLESSTHANU, TLESSTHANS, TLESSEQUALSU, TLESSEQUALSS,
+    TSHIFTRIGHT, TBITWISEAND,
+    TPLUS, TMINUS,
+    TMODULOU, TMODULOS, TSTARU, TSTARS,
+    TSTAR, TAMPERSAND, TBANG,
               
-              {TEQUALS};
+    TEND;
 
 struct TOKEN = [TOKEN_TYPE], STRING{TOKEN_VALUE};
 
@@ -58,6 +69,7 @@ function tokenizer_ident_token(t, out)
             return TRUE;
         case 'i':
             if (strcmp(s, "include")) out.[TOKEN_TYPE] = TINCLUDE;
+            else if (strcmp(s, "if")) out.[TOKEN_TYPE] = TIF;
             else break;
             return TRUE;
         case 'r':
@@ -88,6 +100,25 @@ function tokenizer_symbol_token(t, out)
     len = 1;
     switch (p{0})
     {
+        case '>':
+            if (p{1} == '=') len = 2;
+            if (p{len} == '!') out.[TOKEN_TYPE] = len == 1 ? TGREATERTHANU : TGREATEREQUALSU;
+            else if (p{len} == '$') out.[TOKEN_TYPE] = len == 1 ? TGREATERTHANS : TGREATEREQUALSS;
+            else { format(print, "Unknown symbol '%c'", p{len}); return FALSE; }
+            len += 1;
+            break;
+        case '*':
+            len = 2;
+            if (p{1} == '!') out.[TOKEN_TYPE] = TSTARU;
+            else if (p{1} == '$') out.[TOKEN_TYPE] = TSTARS;
+            else { out.[TOKEN_TYPE] = TSTAR; len = 1; }
+            if (len == 2 and p{2} == '=') { out.[TOKEN_TYPE] = p{1} == '!' ? TSTARUEQUALS : TSTARSEQUALS; len = 3; }
+            break;
+        case '+': 
+            if (p{1} == '=') { out.[TOKEN_TYPE] = TPLUSEQUALS; len = 2; }
+            else out.[TOKEN_TYPE] = TPLUS;
+            break;
+        case '&': out.[TOKEN_TYPE] = TAMPERSAND; break;
         case '=': out.[TOKEN_TYPE] = TEQUALS; break;
         case '(': out.[TOKEN_TYPE] = TLEFTPAREN; break;
         case ')': out.[TOKEN_TYPE] = TRIGHTPAREN; break;
@@ -98,6 +129,7 @@ function tokenizer_symbol_token(t, out)
         case ';': out.[TOKEN_TYPE] = TSEMICOLON; break;
         case ',': out.[TOKEN_TYPE] = TCOMMA; break;
         case '.': out.[TOKEN_TYPE] = TDOT; break;
+        case '!': out.[TOKEN_TYPE] = TBANG; break;
         default: format(print, "Unknown symbol '%c'", p{0}); return FALSE;
     }
 

@@ -44,11 +44,11 @@ function malloc(n)
     if (!left) return NULL;
     
     left{MEM_HEADER_USED} = TRUE;
-    if (left.[MEM_HEADER_SIZE] == n) return left + MEM_HEADER;
+    if (left.[MEM_HEADER_SIZE] <=! n + MEM_HEADER) return left + MEM_HEADER;
 
     right = left + MEM_HEADER + n;
     right{MEM_HEADER_USED} = FALSE;
-    right.[MEM_HEADER_SIZE] = left.[MEM_HEADER_SIZE] - n;
+    right.[MEM_HEADER_SIZE] = left.[MEM_HEADER_SIZE] - n - MEM_HEADER;
     right.[MEM_HEADER_NEXT] = left.[MEM_HEADER_NEXT];
     right.[MEM_HEADER_PREV] = left;
     left.[MEM_HEADER_SIZE] = n;
@@ -71,7 +71,7 @@ function free(p)
         p.[MEM_HEADER_PREV].[MEM_HEADER_SIZE] += p.[MEM_HEADER_SIZE] + MEM_HEADER;
         p.[MEM_HEADER_PREV].[MEM_HEADER_NEXT] = p.[MEM_HEADER_NEXT];
         p = p.[MEM_HEADER_PREV];
-        p.[MEM_HEADER_NEXT].[MEM_HEADER_PREV] = p;
+        if (p.[MEM_HEADER_NEXT]) p.[MEM_HEADER_NEXT].[MEM_HEADER_PREV] = p;
     }
 
     if (p.[MEM_HEADER_NEXT] and !p.[MEM_HEADER_NEXT]{MEM_HEADER_USED})

@@ -177,7 +177,7 @@ function compile(c, filename, src)
     c.[CORG] = 0;
     compiler_pass(c, src, TRUE);
     c.[CORG] = c.[CBIN] = malloc(c.[CIP]);
-    if (!c.[CBIN]) compiler_throw(c, $@, $*, format(print, "Failed to allocate %uB of memory\n", c.[CIP]));
+    if (!c.[CBIN]) compiler_throw(c, $@, $*, format(print, "Failed to allocate %uB of memory", c.[CIP]));
     c.[CPROG_END] = c.[CIP] + c.[CORG];
     compiler_pass(c, src, FALSE);
 
@@ -195,6 +195,7 @@ function compiler_statement(c)
     switch (compiler_peek(c))
     {
         case TWHILE: return compiler_while(c);
+        case TIF: return compiler_if(c);
         case TLEFTBRACE: return compiler_statements(c);
         case TINCLUDE: return compiler_include(c);
         case TCONST: return compiler_const(c);
@@ -350,6 +351,15 @@ function compiler_while(c)
     compiler_setlater(c, loopend, c.[CIP]);
 }
 
+function compiler_if(c)
+{
+    compiler_consume(c, TIF);
+    compiler_consume(c, TLEFTPAREN);
+    compiler_expression(c);
+    compiler_consume(c, TRIGHTPAREN);
+    compiler_statement(c);
+}
+
 function compiler_const_expression(c)
 (r)
 {
@@ -374,6 +384,7 @@ function compiler_binary(c, prec)
     while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
     {
         if (prec{PREC_ASSOC} == ASSOC_LEFT) compiler_binary(c, prec + PREC);
+        else if (prec{PREC_ASSOC} == ASSOC_MIDDLE) compiler_binary(c, precs);
         else compiler_binary(c, prec);
 
         if (c.[CIS_CONST_EXPR])
@@ -388,7 +399,20 @@ function compiler_binary(c, prec)
 }
 
 function compiler_unary(c)
+(t)
 {
+    while (t = compiler_matches(c, TSTAR, TBANG))
+    {
+        if (c.[CIS_CONST_EXPR])
+        {
+            compiler_throw(c, $@, $*, print("Unimplemented"));
+        }
+        else
+        {
+            format(print, "got %u\n", t);
+        }
+    }
+
     return compiler_primary(c);
 }
 
@@ -541,8 +565,16 @@ function compiler_string_get(c, s)
     return 0;
 }
 
-enum ASSOC_LEFT, ASSOC_RIGHT;
+enum ASSOC_LEFT, ASSOC_RIGHT, ASSOC_MIDDLE;
 struct PREC = {PREC_ASSOC}, {PREC_START}, {PREC_END};
 precs:
-    DB ASSOC_RIGHT, TEQUALS, TEQUALS # assign
-    DB 0, 0, 0
+    DB ASSOC_RIGHT, TEQUALS, TPLUSEQUALS # assign
+    DB ASSOC_MIDDLE, TQMARK, TQMARK # ternary
+    DB ASSOC_LEFT, TLOGICALOR, TLOGICALOR # logical or
+    DB ASSOC_LEFT, TLOGICALAND, TLOGICALAND # logical and
+    DB ASSOC_LEFT, TEQUALSEQUALS, TNOTEQUALS # equality
+    DB ASSOC_LEFT, TGREATERTHANU, TLESSEQUALSS # comparison
+    DB ASSOC_LEFT, TSHIFTRIGHT, TBITWISEAND # bitwise
+    DB ASSOC_LEFT, TPLUS, TMINUS # term
+    DB ASSOC_LEFT, TMODULOU, TSTARS # factor
+    DB 0, 0, 0 # unary
