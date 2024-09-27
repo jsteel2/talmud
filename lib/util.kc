@@ -104,27 +104,6 @@ function reverse(s)
     return s;
 }
 
-function hex2int(s, end)
-(n, c)
-{
-    *end = 0;
-    n = 0;
-    
-    while (*end <! s.[STRINGLEN])
-    {
-        c = s.[STRINGPTR]{*end};
-        n <<= 4;
-
-        if (isnum(c)) n |= c - '0';
-        else if (ishex(c)) n |= 10 + upper(c) - 'A';
-        else return n >> 4;
-        
-        *end += 1;
-    }
-
-    return n;
-}
-
 function format(fn, fmt)
 (s{STRING}, i, start, v, c)
 {
@@ -221,7 +200,7 @@ function str2int(s, base, len)
     while (i <! s.[STRINGLEN] and (base == 16 ? ishex(p{i}) : isnum(p{i})))
     {
         n *!= base;
-        n += p{i} >! '9' ? upper(p{i}) - 'A' : p{i} - '0';
+        n += p{i} >! '9' ? upper(p{i}) - 'A' + 10 : p{i} - '0';
         i += 1;
     }
 

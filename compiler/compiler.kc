@@ -425,13 +425,43 @@ function compiler_binary(c, prec, econst)
     while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
     {
         rconst = TRUE;
-        if (prec{PREC_ASSOC} == ASSOC_LEFT) compiler_binary(c, prec + PREC, &rconst);
-        else if (prec{PREC_ASSOC} == ASSOC_MIDDLE) compiler_binary(c, precs, &rconst);
-        else compiler_binary(c, prec, &rconst);
+        if (prec{PREC_ASSOC} == ASSOC_LEFT) r = compiler_binary(c, prec + PREC, &rconst);
+        else if (prec{PREC_ASSOC} == ASSOC_MIDDLE) r = compiler_binary(c, precs, &rconst);
+        else r = compiler_binary(c, prec, &rconst);
         if (!rconst) *econst = FALSE;
 
         switch (t)
         {
+            case TPLUS:
+                if (*econst)
+                {
+                    l = l + r;
+                }
+                break;
+            case TSTARU:
+            case TSTARS:
+                print("todo\n");
+                break;
+            case TEQUALS:
+                print("todo\n");
+                break;
+            case TPLUSEQUALS:
+                print("todo\n");
+                break;
+            case TSTARUEQUALS:
+            case TSTARSEQUALS:
+                print("todo\n");
+                break;
+            case TGREATERTHANU:
+            case TGREATERTHANS:
+            case TGREATEREQUALSU:
+            case TGREATEREQUALSS:
+            case TLESSTHANU:
+            case TLESSTHANS:
+            case TLESSEQUALSU:
+            case TLESSEQUALSS:
+                print("todo\n");
+                break;
             default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
         if (lconst) lconst = rconst;

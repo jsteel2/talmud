@@ -528,7 +528,8 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
             HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
             if (t >= TPLUSEQUALS && t <= TEQUALS) HANDLE(compiler_assign(c, NULL, (Token){0})); // Disgusting little hack, we shouldnt have done the while thing and instead have fn as the same level
             else HANDLE(fn(c, NULL, (Token){0}));
-            HANDLE(compiler_emit8(c, 0x5A)); // POP EDX
+            if (t == TSTARUEQUALS) compiler_emit8(c, 0x59); // POP ECX
+            else compiler_emit8(c, 0x5A); // POP EDX
         }
         switch (t)
         {
@@ -722,9 +723,9 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 break;
             case TSTARUEQUALS:
                 HANDLE(compiler_emit8(c, 0xF7));
-                HANDLE(compiler_emit8(c, MODRM(0, 4, 2))); // MUL [EDX]
+                HANDLE(compiler_emit8(c, MODRM(0, 4, 1))); // MUL [ECX]
                 HANDLE(compiler_emit8(c, 0x89));
-                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV [EDX], EAX
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 1))); // MOV [ECX], EAX
                 break;
             case TSLASHUEQUALS:
                 HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX

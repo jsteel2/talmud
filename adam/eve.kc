@@ -1,9 +1,7 @@
-while (TRUE)
+function eve()
 {
-    f("JUST IN TIME\n");
+    while (TRUE) format(print, "%u\n", 1 + 0b101);
 }
-
-function f(s) print(s);
 
 include "lib/def.kc"
 #include "lib/vec.kc"

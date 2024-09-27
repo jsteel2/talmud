@@ -27,14 +27,14 @@ function openat(cwd, path, file, create)
         if (s.[STRINGPTR]{0} == ':')
         {
             s.[STRINGPTR] += 1;
-            file{FILE_DRIVE} = hex2int(s, &end);
+            file{FILE_DRIVE} = str2int(s, 16, &end);
             s.[STRINGPTR] += end;
             s.[STRINGLEN] -= end + 1;
         }
         if (s.[STRINGPTR]{0} == ';')
         {
             s.[STRINGPTR] += 1;
-            file{FILE_PARTITION} = hex2int(s, &end);
+            file{FILE_PARTITION} = str2int(s, 16, &end);
             s.[STRINGPTR] += end;
             s.[STRINGLEN] -= end + 1;
         }

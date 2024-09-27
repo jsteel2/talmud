@@ -53,6 +53,7 @@ function eden()
     }
 
     if (!compiler_const_set(compiler, "print", print)) JMP .hlt
+    if (!compiler_const_set(compiler, "format", format)) JMP .hlt # TEMPORARY
     if (!compiler_const_set(compiler, "malloc", malloc)) JMP .hlt # TEMPORARY
     if (!compiler_const_set(compiler, "free", free)) JMP .hlt # TEMPORARY
     if (!compiler_const_set(compiler, "realloc", realloc)) JMP .hlt # TEMPORARY
