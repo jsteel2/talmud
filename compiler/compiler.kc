@@ -434,6 +434,7 @@ function compiler_binary(c, prec, econst)
         {
             default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
+        if (lconst) lconst = rconst;
     }
 
     return l;
