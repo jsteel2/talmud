@@ -1,7 +1,7 @@
 include "compiler/tokenizer.kc"
 include "compiler/asm.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIS_CONST_EXPR], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END];
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END];
 const IDENT_FLAG_VALID = 1;
 const IDENT_FLAG_LOCAL = 1 << 1;
 const IDENT_FLAG_ADDRESS = 1 << 2;
@@ -14,7 +14,7 @@ function compiler_init(c)
     c.[CEXCEPT] = 0;
     c.[CCUR_FILE] = "None";
     if (!map_init(&c{CIDENTS}, 1024, STRING, COMPILER_IDENT, strcmp, hash_string, free_string)) return FALSE;
-    if (!map_init(&c{CSTRINGS}, 1024, STRING, COMPILER_STRING, strcmp, hash_string, free_string)) return FALSE;
+    if (!map_init(&c{CSTRINGS}, 64, STRING, COMPILER_STRING, strcmp, hash_string, free_string)) return FALSE;
     if (!map_init(&c{CLOCALS}, 32, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
     if (!vec_init(&c{CLATER}, 1024, 4)) return FALSE;
     return TRUE;
@@ -187,16 +187,19 @@ function compile(c, filename, src)
     compiler_pass(c, src, FALSE);
 
     compiler_try_end(c);
+    map_free2(&c{CSTRINGS});
     return c.[CBIN];
 
 .catch:
     if ((c.[CCUR + TOKEN_TYPE] == TSTRING or c.[CCUR + TOKEN_TYPE] == TCHARS) and c.[CCUR + TOKEN_VALUE + STRINGPTR]) free(c.[CCUR + TOKEN_VALUE + STRINGPTR]);
     if ((c.[CNEXT + TOKEN_TYPE] == TSTRING or c.[CNEXT + TOKEN_TYPE] == TCHARS) and c.[CNEXT + TOKEN_VALUE + STRINGPTR]) free(c.[CNEXT + TOKEN_VALUE + STRINGPTR]);
     free(c.[CBIN]);
+    map_free2(&c{CSTRINGS});
     return NULL;
 }
 
 function compiler_statement(c)
+(econst)
 {
     switch (compiler_peek(c))
     {
@@ -208,7 +211,7 @@ function compiler_statement(c)
         case TSTRUCT: return compiler_struct(c);
         case TFUNCTION: return compiler_function(c);
         case TRETURN: return compiler_return(c);
-        default: compiler_expression(c); return compiler_consume(c, TSEMICOLON);
+        default: compiler_expression(c, &econst); return compiler_consume(c, TSEMICOLON);
     }
 }
 
@@ -219,9 +222,15 @@ function compiler_statements(c)
 }
 
 function compiler_return(c)
+(r, econst)
 {
     compiler_consume(c, TRETURN);
-    compiler_expression(c);
+    r = compiler_expression(c, &econst);
+    if (econst)
+    {
+        compiler_emit8(c, OMOVRIMMW + REAX);
+        compiler_emit32(c, r);
+    }
     compiler_consume(c, TSEMICOLON);
 }
 
@@ -345,21 +354,32 @@ function compiler_include(c)
 }
 
 function compiler_while(c)
-(loop, loopend)
+(loop, loopend, r, econst)
 {
     loop = c.[CIP];
 
     compiler_consume(c, TWHILE);
     compiler_consume(c, TLEFTPAREN);
-    compiler_expression(c);
+    r = compiler_expression(c, &econst);
     compiler_consume(c, TRIGHTPAREN);
 
-    compiler_emit8(c, OTESTW);
-    compiler_emit8(c, modrm(MODREG, REAX, REAX));
-
     loopend = compiler_getlater(c);
-    compiler_emit16(c, OJZW);
-    compiler_emit32(c, compiler_relative(c, loopend + c.[CORG], 4));
+    if (econst)
+    {
+        if (!r)
+        {
+            compiler_emit8(c, OJMPW);
+            compiler_emit32(c, compiler_relative(c, loopend + c.[CORG], 4));
+        }
+    }
+    else
+    {
+        compiler_emit8(c, OTESTW);
+        compiler_emit8(c, modrm(MODREG, REAX, REAX));
+
+        compiler_emit16(c, OJZW);
+        compiler_emit32(c, compiler_relative(c, loopend + c.[CORG], 4));
+    }
 
     compiler_statement(c);
 
@@ -370,173 +390,184 @@ function compiler_while(c)
 }
 
 function compiler_if(c)
+(econst)
 {
     compiler_consume(c, TIF);
     compiler_consume(c, TLEFTPAREN);
-    compiler_expression(c);
+    compiler_expression(c, &econst);
     compiler_consume(c, TRIGHTPAREN);
     compiler_statement(c);
 }
 
 function compiler_const_expression(c)
-(r)
+(r, econst)
 {
-    c.[CIS_CONST_EXPR] = TRUE;
-    r = compiler_expression(c);
-    c.[CIS_CONST_EXPR] = FALSE;
+    r = compiler_expression(c, &econst);
+    if (!econst) compiler_throw(c, $@, $*, print("Expression not constant"));
     return r;
 }
 
-function compiler_expression(c)
+function compiler_expression(c, econst)
 {
-    return compiler_binary(c, precs);
+    *econst = TRUE;
+    return compiler_binary(c, precs, econst);
 }
 
-function compiler_binary(c, prec)
-(t, r)
+function compiler_binary(c, prec, econst)
+(t, l, r, lconst, rconst)
 {
-    if (!prec{PREC_START}) return compiler_unary(c);
+    if (!prec{PREC_START}) return compiler_unary(c, econst);
 
-    r = compiler_binary(c, prec + PREC);
+    lconst = TRUE;
+    l = compiler_binary(c, prec + PREC, &lconst);
+    if (!lconst) *econst = FALSE;
 
     while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
     {
-        if (prec{PREC_ASSOC} == ASSOC_LEFT) compiler_binary(c, prec + PREC);
-        else if (prec{PREC_ASSOC} == ASSOC_MIDDLE) compiler_binary(c, precs);
-        else compiler_binary(c, prec);
+        rconst = TRUE;
+        if (prec{PREC_ASSOC} == ASSOC_LEFT) compiler_binary(c, prec + PREC, &rconst);
+        else if (prec{PREC_ASSOC} == ASSOC_MIDDLE) compiler_binary(c, precs, &rconst);
+        else compiler_binary(c, prec, &rconst);
+        if (!rconst) *econst = FALSE;
 
-        if (c.[CIS_CONST_EXPR])
+        switch (t)
         {
-            compiler_throw(c, $@, $*, print("Unimplemented"));
-        }
-        else
-        {
-            format(print, "got %u\n", t);
+            default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
     }
 
-    return r;
+    return l;
 }
 
-function compiler_unary(c)
+function compiler_unary(c, econst)
 (t)
 {
     while (t = compiler_matches(c, TSTAR, TBANG))
     {
-        if (c.[CIS_CONST_EXPR])
-        {
-            compiler_throw(c, $@, $*, print("Unimplemented"));
-        }
-        else
-        {
-            format(print, "got %u\n", t);
-        }
+        format(print, "got %u\n", t);
     }
 
-    return compiler_primary(c);
+    return compiler_primary(c, econst);
 }
 
-function compiler_primary(c)
-(ident, f)
+function compiler_primary(c, econst)
+(ident, f, r)
 {
-    if (c.[CIS_CONST_EXPR])
-    {
-        switch (compiler_advance(c))
-        {
-            case TNUM: return c.[CCUR + TOKEN_VALUE];
-            default: return compiler_throw_token(c, $@, $*, CCUR, 0);
-        }
-    }
-
     switch (compiler_advance(c))
     {
         case TIDENT:
             if (f = compiler_ident_get(c, &c{CCUR + TOKEN_VALUE}, &ident))
             {
-                compiler_emit8(c, f & IDENT_FLAG_ADDRESS ? OMOVMIMMW : OMOVRMW);
-                if (f & IDENT_FLAG_ADDRESS) compiler_emit8(c, modrm(MODREG, 0, REAX));
-                else compiler_emit8(c, modrm(MODDISPW, REAX, f & IDENT_FLAG_LOCAL ? REBP : RDISP));
-                compiler_emit32(c, ident);
+                if (f & IDENT_FLAG_ADDRESS)
+                {
+                    r = ident;
+                }
+                else
+                {
+                    *econst = FALSE;
+                    compiler_emit8(c, OMOVRMW);
+                    compiler_emit8(c, modrm(MODDISPW, REAX, f & IDENT_FLAG_LOCAL ? REBP : RDISP));
+                    compiler_emit32(c, ident);
+                }
             }
-            else if (c.[CIS_FIRST_PASS])
-            {
-                c.[CIP] += 6;
-            }
-            else
+            else if (!c.[CIS_FIRST_PASS])
             {
                 compiler_throw(c, $@, $*, format(print, "Undefined identifier %s", &c{CCUR + TOKEN_VALUE}));
             }
             break;
         case TSTRING:
-            compiler_emit8(c, OMOVRIMMW + REAX);
-            compiler_emit32(c, compiler_string_get(c, &c{CCUR + TOKEN_VALUE}));
+            r = compiler_string_get(c, &c{CCUR + TOKEN_VALUE});
             break;
         case TNUM:
-            compiler_emit8(c, OMOVMIMMW);
-            compiler_emit8(c, modrm(MODREG, 0, REAX));
-            compiler_emit32(c, c.[CCUR + TOKEN_VALUE]);
+            r = c.[CCUR + TOKEN_VALUE];
             break;
         default:
             compiler_throw_token(c, $@, $*, CCUR, 0);
             break;
     }
 
-    while (compiler_post(c));
+    while (compiler_post(c, econst, r));
+    return r;
 }
 
-function compiler_post(c)
+function compiler_post(c, econst, r)
 (align)
 {
     align = TRUE;
 .l:
     switch (compiler_peek(c))
     {
-        case TLEFTPAREN: compiler_call(c); return TRUE;
+        case TLEFTPAREN: compiler_call(c, econst, r); break;
         case TDOT: compiler_advance(c); align = FALSE; JMP .l
         case TLEFTBRACKET:
         case TLEFTCHEVRON:
-        case TLEFTBRACE: compiler_index(c, align); return TRUE;
+        case TLEFTBRACE: compiler_index(c, align, econst, r); break;
         default: return FALSE;
     }
+
+    *econst = FALSE;
+    return TRUE;
 }
 
-function compiler_call(c)
-(s, i)
+function compiler_call(c, lconst, r)
+(s, i, e, econst)
 {
-    i = 1;
+    i = 0;
     s = compiler_getlater(c);
     compiler_consume(c, TLEFTPAREN);
 
     if (compiler_match(c, TRIGHTPAREN)) JMP .noargs
-
     compiler_emit8(c, OGRP1MIMMWB);
     compiler_emit8(c, modrm(MODREG, OGRP1SUB, RESP));
     compiler_emit8(c, s *! 4);
 
-    compiler_emit8(c, OPUSHR + REAX);
+    if (!*lconst) 
+    {
+        compiler_emit8(c, OPUSHR + REAX);
+        i = 1;
+    }
 
     do
     {
-        compiler_expression(c);
+        e = compiler_expression(c, &econst);
 
-        compiler_emit8(c, OMOVMRW);
-        compiler_emit8(c, modrm(MODDISPB, REAX, RSIB));
-        compiler_emit8(c, sib(SIBSCALE1, SIBNOINDEX, RESP));
-        compiler_emit8(c, i *! 4);
+        if (econst)
+        {
+            compiler_emit8(c, OMOVMIMMW);
+            compiler_emit8(c, modrm(MODDISPB, REAX, RSIB));
+            compiler_emit8(c, sib(SIBSCALE1, SIBNOINDEX, RESP));
+            compiler_emit8(c, i *! 4);
+            compiler_emit32(c, e);
+        }
+        else
+        {
+            compiler_emit8(c, OMOVMRW);
+            compiler_emit8(c, modrm(MODDISPB, REAX, RSIB));
+            compiler_emit8(c, sib(SIBSCALE1, SIBNOINDEX, RESP));
+            compiler_emit8(c, i *! 4);
+        }
 
         i += 1;
     } while (compiler_match(c, TCOMMA));
     compiler_consume(c, TRIGHTPAREN);
 
-    compiler_setlater(c, s, i - 1);
+    compiler_setlater(c, s, *lconst ? i : i - 1);
 
-    compiler_emit8(c, OPOPR + REAX);
+    if (!*lconst) compiler_emit8(c, OPOPR + REAX);
 
 .noargs:
-    compiler_emit8(c, OGRP5);
-    compiler_emit8(c, modrm(MODREG, OGRP5CALL, REAX));
+    if (*lconst)
+    {
+        compiler_emit8(c, OCALL);
+        compiler_emit32(c, compiler_relative(c, r, 4));
+    }
+    else
+    {
+        compiler_emit8(c, OGRP5);
+        compiler_emit8(c, modrm(MODREG, OGRP5CALL, REAX));
+    }
 
-    if (i >! 1)
+    if (i >! 1 or (*lconst and i >! 0))
     {
         compiler_emit8(c, OGRP1MIMMWB);
         compiler_emit8(c, modrm(MODREG, OGRP1ADD, RESP));
@@ -544,14 +575,14 @@ function compiler_call(c)
     }
 }
 
-function compiler_index(c, align)
-(scale, t)
+function compiler_index(c, align, lconst, r)
+(scale, t, econst)
 {
     if (t = compiler_match(c, TLEFTBRACKET)) scale = 4;
     else if (t = compiler_match(c, TLEFTCHEVRON)) scale = 2;
     else if (t = compiler_match(c, TLEFTBRACE)) scale = 1;
 
-    compiler_expression(c);
+    compiler_expression(c, &econst);
     compiler_consume(c, t + 1);
 }
 

@@ -6,4 +6,4 @@ while (TRUE)
 function f(s) print(s);
 
 include "lib/def.kc"
-include "lib/vec.kc"
+#include "lib/vec.kc"
