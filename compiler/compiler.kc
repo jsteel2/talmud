@@ -211,6 +211,7 @@ function compiler_statement(c)
         case TSTRUCT: return compiler_struct(c);
         case TFUNCTION: return compiler_function(c);
         case TRETURN: return compiler_return(c);
+        case TSEMICOLON: return compiler_advance(c);
         default: compiler_expression(c, &econst); return compiler_consume(c, TSEMICOLON);
     }
 }
@@ -232,10 +233,12 @@ function compiler_return(c)
         compiler_emit32(c, r);
     }
     compiler_consume(c, TSEMICOLON);
+    compiler_emit8(c, OLEAVE);
+    compiler_emit8(c, ORET);
 }
 
 function compiler_function(c)
-(i)
+(i, x, t, s{STRING})
 {
     compiler_consume(c, TFUNCTION);
     compiler_consume(c, TIDENT);
@@ -245,14 +248,26 @@ function compiler_function(c)
     i = 4;
     while (compiler_match(c, TIDENT))
     {
-        compiler_local_set(c, &c{CCUR + TOKEN_VALUE}, i += 4);
+        compiler_local_set(c, &c{CCUR + TOKEN_VALUE}, i += 4, 0);
         if (compiler_peek(c) != TRIGHTPAREN) compiler_consume(c, TCOMMA);
     }
     compiler_consume(c, TRIGHTPAREN);
 
+    i = 0;
     if (compiler_match(c, TLEFTPAREN))
     {
-        compiler_throw(c, $@, $*, print("Unimplemented"));
+        do
+        {
+            compiler_consume(c, TIDENT);
+            memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
+            if (t = compiler_match(c, TLEFTBRACE)) x = 1 *! compiler_const_expression(c);
+            else if (t = compiler_match(c, TLEFTCHEVRON)) x = 2 *! compiler_const_expression(c);
+            else if (t = compiler_match(c, TLEFTBRACKET)) x = 4 *! compiler_const_expression(c);
+            else x = 4;
+            compiler_local_set(c, s, i -= x, t ? IDENT_FLAG_ADDRESS : 0);
+            if (t) compiler_consume(c, t + 1);
+        } while (compiler_match(c, TCOMMA));
+        compiler_consume(c, TRIGHTPAREN);
     }
 
     compiler_emit8(c, OPUSHR + REBP);
@@ -607,13 +622,14 @@ function compiler_call(c, lconst, r)
 }
 
 function compiler_index(c, align, lconst, r)
-(scale, t, econst)
+(scale, t, e, econst)
 {
     if (t = compiler_match(c, TLEFTBRACKET)) scale = 4;
     else if (t = compiler_match(c, TLEFTCHEVRON)) scale = 2;
     else if (t = compiler_match(c, TLEFTBRACE)) scale = 1;
+    if (!align) scale = 1;
 
-    compiler_expression(c, &econst);
+    e = compiler_expression(c, &econst);
     compiler_consume(c, t + 1);
 }
 
@@ -639,11 +655,11 @@ function compiler_label_set(c, name)
     }
 }
 
-function compiler_local_set(c, name, offset)
+function compiler_local_set(c, name, offset, flags)
 (ident{COMPILER_IDENT})
 {
     ident.[COMPILER_IDENT_ADDR] = offset;
-    ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_LOCAL;
+    ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_LOCAL | flags;
     if (!map_set(&c{CLOCALS}, name, ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, offset));
 }
 

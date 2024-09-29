@@ -1,7 +1,10 @@
 function eve()
+(v{VEC})
 {
-    while (TRUE) format(print, "%u\n", 1 + 0b101);
+    vec_init(v, 69, 1);
+    format(print, "hi %u\n", v.[VEC_SIZE]);
+    while (TRUE);
 }
 
 include "lib/def.kc"
-#include "lib/vec.kc"
+include "lib/vec.kc"
