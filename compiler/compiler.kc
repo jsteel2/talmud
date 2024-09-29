@@ -125,6 +125,13 @@ function compiler_emit32(c, dw)
     compiler_emit16(c, dw >> 16);
 }
 
+function compiler_emitvar(c, x)
+{
+    if (x >! 0xffff) compiler_emit32(c, x);
+    else if (x >! 0xff) compiler_emit16(c, x);
+    else compiler_emit8(c, x);
+}
+
 function compiler_getlater(c)
 (r)
 {
@@ -458,7 +465,18 @@ function compiler_binary(c, prec, econst)
                 print("todo\n");
                 break;
             case TEQUALS:
-                print("todo\n");
+                if (*econst)
+                {
+                    print("todo\n");
+                }
+                else if (rconst)
+                {
+                    print("todo\n");
+                }
+                else
+                {
+                    print("todo\n");
+                }
                 break;
             case TPLUSEQUALS:
                 print("todo\n");
@@ -507,12 +525,20 @@ function compiler_primary(c, econst)
                 if (f & IDENT_FLAG_ADDRESS)
                 {
                     r = ident;
+                    if (f & IDENT_FLAG_LOCAL)
+                    {
+                        *econst = FALSE;
+                        compiler_emit8(c, OLEA);
+                        compiler_emit8(c, modrm(MODDISPW, REAX, REBP));
+                        compiler_emit32(c, ident);
+                    }
                 }
                 else
                 {
                     *econst = FALSE;
                     compiler_emit8(c, OMOVRMW);
-                    compiler_emit8(c, modrm(MODDISPW, REAX, f & IDENT_FLAG_LOCAL ? REBP : RDISP));
+                    if (f & IDENT_FLAG_LOCAL) compiler_emit8(c, modrm(MODDISPW, REAX, REBP));
+                    else compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
                     compiler_emit32(c, ident);
                 }
             }
@@ -532,7 +558,7 @@ function compiler_primary(c, econst)
             break;
     }
 
-    while (compiler_post(c, econst, r));
+    while (compiler_post(c, econst, &r));
     return r;
 }
 
@@ -543,15 +569,14 @@ function compiler_post(c, econst, r)
 .l:
     switch (compiler_peek(c))
     {
-        case TLEFTPAREN: compiler_call(c, econst, r); break;
+        case TLEFTPAREN: compiler_call(c, econst, *r); break;
         case TDOT: compiler_advance(c); align = FALSE; JMP .l
         case TLEFTBRACKET:
         case TLEFTCHEVRON:
-        case TLEFTBRACE: compiler_index(c, align, econst, r); break;
+        case TLEFTBRACE: *r = compiler_index(c, align, econst, *r); break;
         default: return FALSE;
     }
 
-    *econst = FALSE;
     return TRUE;
 }
 
@@ -619,18 +644,55 @@ function compiler_call(c, lconst, r)
         compiler_emit8(c, modrm(MODREG, OGRP1ADD, RESP));
         compiler_emit8(c, s *! 4);
     }
+    *lconst = FALSE;
 }
 
 function compiler_index(c, align, lconst, r)
-(scale, t, e, econst)
+(scale, t, e, econst, op)
 {
-    if (t = compiler_match(c, TLEFTBRACKET)) scale = 4;
-    else if (t = compiler_match(c, TLEFTCHEVRON)) scale = 2;
-    else if (t = compiler_match(c, TLEFTBRACE)) scale = 1;
-    if (!align) scale = 1;
+    if (t = compiler_match(c, TLEFTBRACKET)) { scale = SIBSCALE4; op = OMOVRMW; }
+    else if (t = compiler_match(c, TLEFTCHEVRON)) { scale = SIBSCALE2; op = OMOVZXW; }
+    else if (t = compiler_match(c, TLEFTBRACE)) { scale = SIBSCALE1; op = OMOVZXB; }
+    if (!align) scale = SIBSCALE1;
 
     e = compiler_expression(c, &econst);
     compiler_consume(c, t + 1);
+    if (compiler_peek(c) == TEQUALS) op = OLEA;
+
+    if (*lconst and econst)
+    {
+        if (op == OLEA) return r + e *! scale;
+        *lconst = FALSE;
+        compiler_emitvar(c, op);
+        compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+        compiler_emit32(c, r + e *! scale);
+    }
+    else if (*lconst)
+    {
+        *lconst = FALSE;
+        compiler_emitvar(c, op);
+        if (sib == SIBSCALE1)
+        {
+            compiler_emit8(c, modrm(MODDISPW, REAX, REAX));
+        }
+        else
+        {
+            compiler_emit8(c, modrm(MODMEM, REAX, RSIB));
+            compiler_emit8(c, sib(scale, REAX, RDISP));
+        }
+        compiler_emit32(c, r);
+    }
+    else if (econst)
+    {
+        *lconst = FALSE;
+        compiler_emitvar(c, op);
+        compiler_emit8(c, modrm(MODDISPW, REAX, REAX));
+        compiler_emit32(c, e *! scale);
+    }
+    else
+    {
+        compiler_throw(c, $@, $*, print("Unimplemented"));
+    }
 }
 
 function compiler_const_set(c, name, address)

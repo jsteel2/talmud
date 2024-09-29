@@ -1,10 +1,15 @@
 function eve()
-(v{VEC})
+(vec[4])
 {
-    vec_init(v, 69, 1);
-    format(print, "hi %u\n", v.[VEC_SIZE]);
+    vec[0] = 69420;
+    vec.[4] = 3;
+    vec<4> = 63333;
+    vec<5> = 0;
+    vec[3] = 256;
+    vec{12} = 255;
+    format(print, "vec{[3]=%u, [1]=%u, [0]=%u, [2]=%u}", vec[3], vec[1], vec[0], vec[2]);
     while (TRUE);
 }
 
 include "lib/def.kc"
-include "lib/vec.kc"
+#include "lib/vec.kc"

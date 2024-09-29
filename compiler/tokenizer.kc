@@ -104,7 +104,14 @@ function tokenizer_symbol_token(t, out)
             if (p{1} == '=') len = 2;
             if (p{len} == '!') out.[TOKEN_TYPE] = len == 1 ? TGREATERTHANU : TGREATEREQUALSU;
             else if (p{len} == '$') out.[TOKEN_TYPE] = len == 1 ? TGREATERTHANS : TGREATEREQUALSS;
-            else { format(print, "Unknown symbol '%c'", p{len}); return FALSE; }
+            else { len = 0; out.[TOKEN_TYPE] = TRIGHTCHEVRON; }
+            len += 1;
+            break;
+        case '<':
+            if (p{1} == '=') len = 2;
+            if (p{len} == '!') out.[TOKEN_TYPE] = len == 1 ? TLESSTHANU : TLESSEQUALSU;
+            else if (p{len} == '$') out.[TOKEN_TYPE] = len == 1 ? TLESSTHANS : TLESSEQUALSS;
+            else { len = 0; out.[TOKEN_TYPE] = TLEFTCHEVRON; }
             len += 1;
             break;
         case '*':
