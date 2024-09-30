@@ -3,8 +3,8 @@ function eve()
 {
     vec[0] = 69420;
     vec.[4] = 3;
-    vec<4> = 63333;
-    vec<5> = 0;
+    vec<4> = 64;
+    vec<5> = 1;
     vec[3] = 256;
     vec{12} = 255;
     format(print, "vec{[3]=%u, [1]=%u, [0]=%u, [2]=%u}", vec[3], vec[1], vec[0], vec[2]);

@@ -281,6 +281,13 @@ function compiler_function(c)
     compiler_emit8(c, OMOVRMW);
     compiler_emit8(c, modrm(MODREG, REBP, RESP));
 
+    if (i)
+    {
+        compiler_emit8(c, OGRP1MIMMWW);
+        compiler_emit8(c, modrm(MODREG, OGRP1SUB, RESP));
+        compiler_emit32(c, -i);
+    }
+
     compiler_statement(c);
     map_free2(&c{CLOCALS});
 
@@ -436,7 +443,7 @@ function compiler_expression(c, econst)
 }
 
 function compiler_binary(c, prec, econst)
-(t, l, r, lconst, rconst)
+(t, last, l, r, lconst, rconst)
 {
     if (!prec{PREC_START}) return compiler_unary(c, econst);
 
@@ -444,6 +451,7 @@ function compiler_binary(c, prec, econst)
     l = compiler_binary(c, prec + PREC, &lconst);
     if (!lconst) *econst = FALSE;
 
+    last = c{CCUR + TOKEN_TYPE};
     while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
     {
         rconst = TRUE;
@@ -471,7 +479,13 @@ function compiler_binary(c, prec, econst)
                 }
                 else if (rconst)
                 {
-                    print("todo\n");
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMIMMB);
+                    else compiler_emit8(c, OMOVMIMMW);
+                    compiler_emit8(c, modrm(MODMEM, 0, REAX));
+                    if (last == TRIGHTBRACE) compiler_emit8(c, r);
+                    else if (last == TRIGHTCHEVRON) compiler_emit16(c, r);
+                    else compiler_emit32(c, r);
                 }
                 else
                 {
@@ -498,6 +512,7 @@ function compiler_binary(c, prec, econst)
             default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
         if (lconst) lconst = rconst;
+        last = c{CCUR + TOKEN_TYPE};
     }
 
     return l;
@@ -661,11 +676,11 @@ function compiler_index(c, align, lconst, r)
 
     if (*lconst and econst)
     {
-        if (op == OLEA) return r + e *! scale;
+        if (op == OLEA) return r + e *! (1 << scale);
         *lconst = FALSE;
         compiler_emitvar(c, op);
         compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
-        compiler_emit32(c, r + e *! scale);
+        compiler_emit32(c, r + e *! (1 << scale));
     }
     else if (*lconst)
     {
@@ -684,10 +699,9 @@ function compiler_index(c, align, lconst, r)
     }
     else if (econst)
     {
-        *lconst = FALSE;
         compiler_emitvar(c, op);
         compiler_emit8(c, modrm(MODDISPW, REAX, REAX));
-        compiler_emit32(c, e *! scale);
+        compiler_emit32(c, e *! (1 << scale));
     }
     else
     {
