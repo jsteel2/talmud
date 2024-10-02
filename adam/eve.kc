@@ -1,15 +1,10 @@
 function eve()
-(vec[4])
+(vec{VEC})
 {
-    vec[0] = 69420;
-    vec.[4] = 3;
-    vec<4> = 64;
-    vec<5> = 1;
-    vec[3] = 256;
-    vec{12} = 255;
-    format(print, "vec{[3]=%u, [1]=%u, [0]=%u, [2]=%u}", vec[3], vec[1], vec[0], vec[2]);
+    vec_init(vec, 64, 1);
+    format(print, "allocated vector of size %u\n", vec.[VEC_SIZE]);
     while (TRUE);
 }
 
 include "lib/def.kc"
-#include "lib/vec.kc"
+include "lib/vec.kc"

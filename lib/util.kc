@@ -17,6 +17,20 @@ function memcpy(dest, src, n)
     REP MOVSB
 }
 
+function memmove(dest, src, n)
+{
+    if (dest <=! src) return memcpy(dest, src, n);
+    STD
+    MOV ESI, [src]
+    MOV EDI, [dest]
+    ADD ESI, [n]
+    ADD EDI, [n]
+    DEC ESI
+    DEC EDI
+    MOV ECX, [n]
+    REP MOVSB
+}
+
 function memcmp(x, y, n)
 {
     if (x == y) return TRUE;

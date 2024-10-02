@@ -537,6 +537,10 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0xF7));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 4, 2))); // MUL EDX
                 break;
+            case TSTARS:
+                HANDLE(compiler_emit8(c, 0xF7));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 5, 2))); // IMUL EDX
+                break;
             case TSLASHU:
                 HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
                 HANDLE(fn(c, NULL, t2));
@@ -2143,6 +2147,7 @@ bool compiler_statement(Compiler *c)
         case TSHL: HANDLE(compiler_grp2(c, 4)); break;
         case TSHR: HANDLE(compiler_grp2(c, 5)); break;
         case TSTI: HANDLE(compiler_emit8(c, 0xFB)); break;
+        case TSTD: HANDLE(compiler_emit8(c, 0xFD)); break;
         case TSUB: HANDLE(compiler_grp1(c, 0x28, 5)); break;
         case TTEST: HANDLE(compiler_test(c)); break;
         case TUSE16: c->use32 = false; break;

@@ -111,18 +111,21 @@ function compiler_emit8(c, b)
     format(print, "%x\n", b);
     if (!c.[CIS_FIRST_PASS]) c.[CBIN]{c.[CIP] - c.[CORG]} = b;
     c.[CIP] += 1;
+    return c.[CIP] - 1;
 }
 
 function compiler_emit16(c, w)
 {
     compiler_emit8(c, w & 0xff);
     compiler_emit8(c, w >> 8);
+    return c.[CIP] - 2;
 }
 
 function compiler_emit32(c, dw)
 {
     compiler_emit16(c, dw & 0xffff);
     compiler_emit16(c, dw >> 16);
+    return c.[CIP] - 4;
 }
 
 function compiler_emitvar(c, x)
@@ -150,6 +153,15 @@ function compiler_setlater(c, index, value)
 function compiler_relative(c, abs, opsize)
 {
     return abs - c.[CIP] - opsize;
+}
+
+function compiler_shift(c, i)
+(ip)
+{
+    ip = c.[CIP] - c.[CORG];
+    i -= c.[CORG];
+    if (!c.[CIS_FIRST_PASS]) memmove(c.[CBIN] + i, c.[CBIN] + ip, ip - i);
+    c.[CIP] -= ip - i;
 }
 
 function compiler_pass(c, src, is_first_pass)
@@ -443,7 +455,7 @@ function compiler_expression(c, econst)
 }
 
 function compiler_binary(c, prec, econst)
-(t, last, l, r, lconst, rconst)
+(t, last, l, r, lconst, rconst, i)
 {
     if (!prec{PREC_START}) return compiler_unary(c, econst);
 
@@ -455,10 +467,12 @@ function compiler_binary(c, prec, econst)
     while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
     {
         rconst = TRUE;
+        i = compiler_emit8(c, OPUSHR + REAX);
         if (prec{PREC_ASSOC} == ASSOC_LEFT) r = compiler_binary(c, prec + PREC, &rconst);
         else if (prec{PREC_ASSOC} == ASSOC_MIDDLE) r = compiler_binary(c, precs, &rconst);
         else r = compiler_binary(c, prec, &rconst);
         if (!rconst) *econst = FALSE;
+        if (lconst or rconst) compiler_shift(c, i);
 
         switch (t)
         {
@@ -470,7 +484,24 @@ function compiler_binary(c, prec, econst)
                 break;
             case TSTARU:
             case TSTARS:
-                print("todo\n");
+                if (*econst)
+                {
+                    l = t == TSTARS ? l *$ r : l *! r;
+                }
+                else if (lconst)
+                {
+                    print("todo\n");
+                }
+                else if (rconst)
+                {
+                    print("todo\n");
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + REDX);
+                    compiler_emit8(c, OGRP3W);
+                    compiler_emit8(c, modrm(MODREG, t == TSTARS ? OGRP3IMUL : OGRP3MUL, REDX));
+                }
                 break;
             case TEQUALS:
                 if (*econst)
@@ -487,9 +518,17 @@ function compiler_binary(c, prec, econst)
                     else if (last == TRIGHTCHEVRON) compiler_emit16(c, r);
                     else compiler_emit32(c, r);
                 }
-                else
+                else if (lconst)
                 {
                     print("todo\n");
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + RECX);
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMRB);
+                    else compiler_emit8(c, OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RECX));
                 }
                 break;
             case TPLUSEQUALS:
@@ -663,16 +702,19 @@ function compiler_call(c, lconst, r)
 }
 
 function compiler_index(c, align, lconst, r)
-(scale, t, e, econst, op)
+(scale, t, e, econst, op, i)
 {
     if (t = compiler_match(c, TLEFTBRACKET)) { scale = SIBSCALE4; op = OMOVRMW; }
     else if (t = compiler_match(c, TLEFTCHEVRON)) { scale = SIBSCALE2; op = OMOVZXW; }
     else if (t = compiler_match(c, TLEFTBRACE)) { scale = SIBSCALE1; op = OMOVZXB; }
     if (!align) scale = SIBSCALE1;
 
+    i = compiler_emit8(c, OPUSHR + REAX);
     e = compiler_expression(c, &econst);
     compiler_consume(c, t + 1);
     if (compiler_peek(c) == TEQUALS) op = OLEA;
+
+    if (*lconst or econst) compiler_shift(c, i);
 
     if (*lconst and econst)
     {
@@ -705,7 +747,9 @@ function compiler_index(c, align, lconst, r)
     }
     else
     {
-        compiler_throw(c, $@, $*, print("Unimplemented"));
+        compiler_emit8(c, OPOPR + RECX);
+        compiler_emit8(c, modrm(MODMEM, REAX, RSIB));
+        compiler_emit8(c, sib(scale, REAX, RECX));
     }
 }
 
