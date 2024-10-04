@@ -58,6 +58,7 @@ function eden()
     if (!compiler_const_set(compiler, "free", free)) JMP .hlt # TEMPORARY
     if (!compiler_const_set(compiler, "realloc", realloc)) JMP .hlt # TEMPORARY
     if (!compiler_const_set(compiler, "memcpy", memcpy)) JMP .hlt # TEMPORARY
+    if (!compiler_const_set(compiler, "interrupt", interrupt)) JMP .hlt # TEMPORARY
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)
@@ -138,6 +139,11 @@ USE16
     MOV EBX, [EBX]
     MOV ESI, [ESI]
     MOV EDI, [EDI]
+    MOV BL, [int]
+    CMP BL, 0x16
+    JZ $
+    MOV EBX, [ebx]
+    MOV EBX, [EBX]
     STI
 .int:
     INT 0x00

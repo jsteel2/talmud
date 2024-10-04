@@ -223,6 +223,7 @@ function compiler_statement(c)
     switch (compiler_peek(c))
     {
         case TWHILE: return compiler_while(c);
+        case TDO: return compiler_do(c);
         case TIF: return compiler_if(c);
         case TLEFTBRACE: return compiler_statements(c);
         case TINCLUDE: return compiler_include(c);
@@ -430,6 +431,36 @@ function compiler_while(c)
     compiler_setlater(c, loopend, c.[CIP]);
 }
 
+function compiler_do(c)
+(loop, r, econst)
+{
+    loop = c.[CIP];
+    compiler_consume(c, TDO);
+    compiler_statement(c);
+
+    compiler_consume(c, TWHILE);
+    compiler_consume(c, TLEFTPAREN);
+    r = compiler_expression(c, &econst);
+    compiler_consume(c, TRIGHTPAREN);
+
+    if (econst)
+    {
+        if (r)
+        {
+            compiler_emit8(c, OJMPW);
+            compiler_emit32(c, compiler_relative(c, loop, 4));
+        }
+    }
+    else
+    {
+        compiler_emit8(c, OTESTW);
+        compiler_emit8(c, modrm(MODREG, REAX, REAX));
+
+        compiler_emit16(c, OJNZW);
+        compiler_emit32(c, compiler_relative(c, loop, 4));
+    }
+}
+
 function compiler_if(c)
 (econst)
 {
@@ -481,6 +512,11 @@ function compiler_binary(c, prec, econst)
                 {
                     l = l + r;
                 }
+                else if (rconst)
+                {
+                    compiler_emit8(c, OADDEAXIMMW);
+                    compiler_emit32(c, r);
+                }
                 break;
             case TSTARU:
             case TSTARS:
@@ -490,11 +526,11 @@ function compiler_binary(c, prec, econst)
                 }
                 else if (lconst)
                 {
-                    print("todo\n");
+                    #print("todo\n");
                 }
                 else if (rconst)
                 {
-                    print("todo\n");
+                    #print("todo\n");
                 }
                 else
                 {
@@ -506,7 +542,7 @@ function compiler_binary(c, prec, econst)
             case TEQUALS:
                 if (*econst)
                 {
-                    print("todo\n");
+                    #print("todo\n");
                 }
                 else if (rconst)
                 {
@@ -520,7 +556,7 @@ function compiler_binary(c, prec, econst)
                 }
                 else if (lconst)
                 {
-                    print("todo\n");
+                    #print("todo\n");
                 }
                 else
                 {
@@ -532,11 +568,11 @@ function compiler_binary(c, prec, econst)
                 }
                 break;
             case TPLUSEQUALS:
-                print("todo\n");
+                #print("todo\n");
                 break;
             case TSTARUEQUALS:
             case TSTARSEQUALS:
-                print("todo\n");
+                #print("todo\n");
                 break;
             case TGREATERTHANU:
             case TGREATERTHANS:
@@ -546,7 +582,46 @@ function compiler_binary(c, prec, econst)
             case TLESSTHANS:
             case TLESSEQUALSU:
             case TLESSEQUALSS:
-                print("todo\n");
+                #print("todo\n");
+                break;
+            case TEQUALSEQUALS:
+            case TNOTEQUALS:
+                if (*econst)
+                {
+                    #print("todo\n");
+                }
+                else if (rconst)
+                {
+                    compiler_emit8(c, OCMPEAXIMMW);
+                    compiler_emit32(c, r);
+
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, 0);
+
+                    compiler_emit16(c, t == TEQUALS ? OSETZ : OSETNZ);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                }
+                else
+                {
+                    #print("todo\n");
+                }
+                break;
+            case TBITWISEAND:
+            case TBITWISEOR:
+            case TBITWISEXOR:
+                if (*econst)
+                {
+                    #print("todo\n");
+                }
+                else if (rconst)
+                {
+                    compiler_emit8(c, t == TBITWISEAND ? OANDEAXIMMW : t == TBITWISEOR ? OOREAXIMMW : OXOREAXIMMW);
+                    compiler_emit32(c, r);
+                }
+                else
+                {
+                    #print("todo\n");
+                }
                 break;
             default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
@@ -558,14 +633,53 @@ function compiler_binary(c, prec, econst)
 }
 
 function compiler_unary(c, econst)
-(t)
+(t, ident)
 {
-    while (t = compiler_matches(c, TSTAR, TBANG))
+    switch (compiler_peek(c))
     {
-        format(print, "got %u\n", t);
-    }
+        case TSTAR:
+            #print("todo\n");
+            compiler_advance(c);
+            *econst = FALSE;
+            compiler_unary(c, econst);
+            return;
+        case TBANG:
+            compiler_advance(c);
+            t = compiler_unary(c, econst);
+            if (*econst) return !t;
 
-    return compiler_primary(c, econst);
+            compiler_emit8(c, OTESTW);
+            compiler_emit8(c, modrm(MODREG, REAX, REAX));
+
+            compiler_emit8(c, OMOVRIMMW + REAX);
+            compiler_emit32(c, 0);
+
+            compiler_emitvar(c, OSETZ);
+            compiler_emit8(c, modrm(MODREG, REAX, REAX));
+            return;
+        case TBITWISEAND:
+            compiler_advance(c);
+            compiler_consume(c, TIDENT);
+            if (t = compiler_ident_get(c, &c{CCUR + TOKEN_VALUE}, &ident))
+            {
+                if (t & IDENT_FLAG_LOCAL)
+                {
+                    *econst = FALSE;
+                    compiler_emit8(c, OLEA);
+                    compiler_emit8(c, modrm(MODDISPW, REAX, REBP));
+                    compiler_emit32(c, ident);
+                }
+                return ident;
+            }
+            else if (!c.[CIS_FIRST_PASS])
+            {
+                compiler_throw(c, $@, $*, format(print, "Undefined identifier %s", &c{CCUR + TOKEN_VALUE}));
+            }
+            return 0;
+        default:
+            print("Don't ask me why this has to be here, it just does.\n");
+            return compiler_primary(c, econst);
+    }
 }
 
 function compiler_primary(c, econst)
@@ -576,7 +690,7 @@ function compiler_primary(c, econst)
         case TIDENT:
             if (f = compiler_ident_get(c, &c{CCUR + TOKEN_VALUE}, &ident))
             {
-                if (f & IDENT_FLAG_ADDRESS)
+                if (f & IDENT_FLAG_ADDRESS or compiler_peek(c) == TEQUALS)
                 {
                     r = ident;
                     if (f & IDENT_FLAG_LOCAL)
@@ -606,6 +720,22 @@ function compiler_primary(c, econst)
             break;
         case TNUM:
             r = c.[CCUR + TOKEN_VALUE];
+            break;
+        case TCHARS:
+            r = 0;
+            f = 0;
+            while (f <! c.[CCUR + TOKEN_VALUE + STRINGLEN])
+            {
+                r <<= 8;
+                r |= c.[CCUR + TOKEN_VALUE + STRINGPTR]{f};
+                f += 1;
+            }
+            free(c.[CCUR + TOKEN_VALUE + STRINGPTR]);
+            c.[CCUR + TOKEN_VALUE + STRINGPTR] = NULL;
+            break;
+        case TLEFTPAREN:
+            r = compiler_expression(c, econst);
+            compiler_consume(c, TRIGHTPAREN);
             break;
         default:
             compiler_throw_token(c, $@, $*, CCUR, 0);

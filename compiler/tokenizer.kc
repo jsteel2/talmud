@@ -2,7 +2,7 @@ struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
 enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
 
-    TWHILE, TIF, TINCLUDE, TCONST, TSTRUCT, TFUNCTION, TRETURN,
+    TWHILE, TDO, TIF, TINCLUDE, TCONST, TSTRUCT, TFUNCTION, TRETURN,
               
     TDOT, TLEFTPAREN, TRIGHTPAREN, TLEFTBRACE, TRIGHTBRACE, TLEFTBRACKET, TRIGHTBRACKET, TLEFTCHEVRON, TRIGHTCHEVRON, TSEMICOLON, TCOMMA,
 
@@ -12,10 +12,10 @@ enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
     TLOGICALAND,
     TEQUALSEQUALS, TNOTEQUALS,
     TGREATERTHANU, TGREATERTHANS, TGREATEREQUALSU, TGREATEREQUALSS, TLESSTHANU, TLESSTHANS, TLESSEQUALSU, TLESSEQUALSS,
-    TSHIFTRIGHT, TBITWISEAND,
+    TSHIFTRIGHT, TBITWISEOR, TBITWISEXOR, TBITWISEAND,
     TPLUS, TMINUS,
     TMODULOU, TMODULOS, TSTARU, TSTARS,
-    TSTAR, TAMPERSAND, TBANG,
+    TSTAR, TBANG,
               
     TEND;
 
@@ -61,6 +61,10 @@ function tokenizer_ident_token(t, out)
     {
         case 'c':
             if (strcmp(s, "const")) out.[TOKEN_TYPE] = TCONST;
+            else break;
+            return TRUE;
+        case 'd':
+            if (strcmp(s, "do")) out.[TOKEN_TYPE] = TDO;
             else break;
             return TRUE;
         case 'f':
@@ -125,7 +129,11 @@ function tokenizer_symbol_token(t, out)
             if (p{1} == '=') { out.[TOKEN_TYPE] = TPLUSEQUALS; len = 2; }
             else out.[TOKEN_TYPE] = TPLUS;
             break;
-        case '&': out.[TOKEN_TYPE] = TAMPERSAND; break;
+        case '!':
+            if (p{1} == '=') { out.[TOKEN_TYPE] = TNOTEQUALS; len = 2; }
+            else out.[TOKEN_TYPE] = TBANG;
+            break;
+        case '&': out.[TOKEN_TYPE] = TBITWISEAND; break;
         case '=': out.[TOKEN_TYPE] = TEQUALS; break;
         case '(': out.[TOKEN_TYPE] = TLEFTPAREN; break;
         case ')': out.[TOKEN_TYPE] = TRIGHTPAREN; break;
@@ -136,7 +144,6 @@ function tokenizer_symbol_token(t, out)
         case ';': out.[TOKEN_TYPE] = TSEMICOLON; break;
         case ',': out.[TOKEN_TYPE] = TCOMMA; break;
         case '.': out.[TOKEN_TYPE] = TDOT; break;
-        case '!': out.[TOKEN_TYPE] = TBANG; break;
         default: format(print, "Unknown symbol '%c'", p{0}); return FALSE;
     }
 
@@ -164,6 +171,7 @@ function tokenizer_string_token(t, out, type)
             switch (p{t.[TPOS]})
             {
                 case 'n': vec_push1(v, '\n'); break;
+                case 'r': vec_push1(v, '\r'); break;
                 default: format(print, "Unknown escape %c", p{t.[TPOS]}); return FALSE;
             }
         }
