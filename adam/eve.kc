@@ -14,10 +14,11 @@ function input(v)
     do {
         eax = 0;
         interrupt(0x16, &eax, &unused, &unused, &unused, &unused, &unused);
-        format(print, "HI %x %u\n", eax & 0xff, (eax & 0xff) != 0xD);
+        format(print, "%c", eax & 0xff);
         vec_push1(v, eax);
     } while ((eax & 0xff) != '\r');
 
+    print("\n");
     return v;
 }
 

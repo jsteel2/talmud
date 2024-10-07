@@ -526,11 +526,11 @@ function compiler_binary(c, prec, econst)
                 }
                 else if (lconst)
                 {
-                    #print("todo\n");
+                    print("todo\n");
                 }
                 else if (rconst)
                 {
-                    #print("todo\n");
+                    print("todo\n");
                 }
                 else
                 {
@@ -542,7 +542,7 @@ function compiler_binary(c, prec, econst)
             case TEQUALS:
                 if (*econst)
                 {
-                    #print("todo\n");
+                    print("todo\n");
                 }
                 else if (rconst)
                 {
@@ -556,7 +556,7 @@ function compiler_binary(c, prec, econst)
                 }
                 else if (lconst)
                 {
-                    #print("todo\n");
+                    print("todo\n");
                 }
                 else
                 {
@@ -568,11 +568,11 @@ function compiler_binary(c, prec, econst)
                 }
                 break;
             case TPLUSEQUALS:
-                #print("todo\n");
+                print("todo\n");
                 break;
             case TSTARUEQUALS:
             case TSTARSEQUALS:
-                #print("todo\n");
+                print("todo\n");
                 break;
             case TGREATERTHANU:
             case TGREATERTHANS:
@@ -582,13 +582,13 @@ function compiler_binary(c, prec, econst)
             case TLESSTHANS:
             case TLESSEQUALSU:
             case TLESSEQUALSS:
-                #print("todo\n");
+                print("todo\n");
                 break;
             case TEQUALSEQUALS:
             case TNOTEQUALS:
                 if (*econst)
                 {
-                    #print("todo\n");
+                    print("todo\n");
                 }
                 else if (rconst)
                 {
@@ -603,7 +603,7 @@ function compiler_binary(c, prec, econst)
                 }
                 else
                 {
-                    #print("todo\n");
+                    print("todo\n");
                 }
                 break;
             case TBITWISEAND:
@@ -611,7 +611,7 @@ function compiler_binary(c, prec, econst)
             case TBITWISEXOR:
                 if (*econst)
                 {
-                    #print("todo\n");
+                    print("todo\n");
                 }
                 else if (rconst)
                 {
@@ -620,7 +620,7 @@ function compiler_binary(c, prec, econst)
                 }
                 else
                 {
-                    #print("todo\n");
+                    print("todo\n");
                 }
                 break;
             default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
@@ -638,7 +638,7 @@ function compiler_unary(c, econst)
     switch (compiler_peek(c))
     {
         case TSTAR:
-            #print("todo\n");
+            print("todo\n");
             compiler_advance(c);
             *econst = FALSE;
             compiler_unary(c, econst);
@@ -842,7 +842,8 @@ function compiler_index(c, align, lconst, r)
     i = compiler_emit8(c, OPUSHR + REAX);
     e = compiler_expression(c, &econst);
     compiler_consume(c, t + 1);
-    if (compiler_peek(c) == TEQUALS) op = OLEA;
+    t = compiler_peek(c);
+    if (t == TEQUALS) op = OLEA;
 
     if (*lconst or econst) compiler_shift(c, i);
 
@@ -878,6 +879,7 @@ function compiler_index(c, align, lconst, r)
     else
     {
         compiler_emit8(c, OPOPR + RECX);
+        compiler_emitvar(c, op);
         compiler_emit8(c, modrm(MODMEM, REAX, RSIB));
         compiler_emit8(c, sib(scale, REAX, RECX));
     }
