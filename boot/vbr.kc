@@ -61,7 +61,7 @@ main:
 
     MOV [bsDriveNumber], DL
 
-    PUSH 0x50
+    PUSH 0x100
     POP ES
 
     AND BYTE [bsRootDirectoryClusterNo + 3], 0x0F
@@ -115,7 +115,7 @@ FileReadContinue:
     XOR SP, SP
     MOV BH, 5
     PUSH 0
-    PUSH 0x500
+    PUSH 0x1000
     RETF
 
 ReadCluster:

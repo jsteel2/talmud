@@ -11,8 +11,9 @@ function malloc_init(lowmem_start)
     ecx = 0;
     edx = 0;
     interrupt(0x15, &eax, &ecx, &edx, &unused, &unused, &unused);
-    himem = (ecx & 0xffff) *! 1024;
-    extmem = (edx & 0xffff) *! 1024 *! 64;
+    #himem = (ecx & 0xffff) *! 1024;
+    #extmem = (edx & 0xffff) *! 1024 *! 64;
+    himem=0;extmem=0; # bandaid fix, fix splitting properly
     format(print, "%uK of low, %uM of high and %uM of extended memory available for use.\n", lowmem /! 1024, himem /! 1024 /! 1024, extmem /! 1024 /! 1024);
     lowmem_start{MEM_HEADER_USED} = FALSE;
     lowmem_start.[MEM_HEADER_SIZE] = lowmem - MEM_HEADER;

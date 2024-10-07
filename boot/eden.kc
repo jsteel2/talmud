@@ -1,8 +1,8 @@
-ORG 0x500
+ORG 0x1000
 USE16
 
-const LOW_STACK = $! + 4 *! 1024;
-const DISK_BUF = LOW_STACK;
+const LOW_STACK = $$;
+const DISK_BUF = $!;
 const STACK = DISK_BUF + 512 *! 128 + 64 *! 1024;
 const HEAP_START = STACK;
 
@@ -139,11 +139,6 @@ USE16
     MOV EBX, [EBX]
     MOV ESI, [ESI]
     MOV EDI, [EDI]
-    MOV BL, [int]
-    CMP BL, 0x16
-    JZ $
-    MOV EBX, [ebx]
-    MOV EBX, [EBX]
     STI
 .int:
     INT 0x00
