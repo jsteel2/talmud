@@ -842,8 +842,7 @@ function compiler_index(c, align, lconst, r)
     i = compiler_emit8(c, OPUSHR + REAX);
     e = compiler_expression(c, &econst);
     compiler_consume(c, t + 1);
-    t = compiler_peek(c);
-    if (t == TEQUALS) op = OLEA;
+    if (compiler_peek(c) == TEQUALS) op = OLEA;
 
     if (*lconst or econst) compiler_shift(c, i);
 
