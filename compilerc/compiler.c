@@ -719,6 +719,12 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x8B));
                 HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV EAX, [EDX]
                 break;
+            case TBITWISEANDEQUALS:
+                HANDLE(compiler_emit8(c, 0x21));
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // AND [EDX], EAX
+                HANDLE(compiler_emit8(c, 0x8B));
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV EAX, [EDX]
+                break;
             case TBITWISEXOREQUALS:
                 HANDLE(compiler_emit8(c, 0x31));
                 HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // XOR [EDX], EAX
@@ -830,7 +836,7 @@ bool compiler_ternary(Compiler *c, size_t *res, Token t)
 
 bool compiler_assign(Compiler *c, size_t *res, Token t)
 {
-    return compiler_binary(c, res, t, compiler_ternary, (TokenType[]){TEQUALS, TPLUSEQUALS, TMINUSEQUALS, TSHIFTLEFTEQUALS, TSHIFTRIGHTEQUALS, TBITWISEOREQUALS, TBITWISEXOREQUALS, TSTARUEQUALS, TSLASHUEQUALS, 0});
+    return compiler_binary(c, res, t, compiler_ternary, (TokenType[]){TEQUALS, TPLUSEQUALS, TMINUSEQUALS, TSHIFTLEFTEQUALS, TSHIFTRIGHTEQUALS, TBITWISEOREQUALS, TBITWISEXOREQUALS, TBITWISEANDEQUALS, TSTARUEQUALS, TSLASHUEQUALS, 0});
 }
 
 bool compiler_expr(Compiler *c, size_t *res, Token t)
