@@ -288,13 +288,14 @@ function compiler_function(c)
             if (t) compiler_consume(c, t + 1);
         } while (compiler_match(c, TCOMMA));
         compiler_consume(c, TRIGHTPAREN);
+        x = TRUE;
     }
 
     compiler_emit8(c, OPUSHR + REBP);
     compiler_emit8(c, OMOVRMW);
     compiler_emit8(c, modrm(MODREG, REBP, RESP));
 
-    if (i)
+    if (x)
     {
         compiler_emit8(c, OGRP1MIMMWW);
         compiler_emit8(c, modrm(MODREG, OGRP1SUB, RESP));
@@ -309,12 +310,11 @@ function compiler_function(c)
 }
 
 function compiler_struct(c)
-(size, i, t, a)
+(s{STRING}, i, t, a)
 {
     compiler_consume(c, TSTRUCT);
     compiler_consume(c, TIDENT);
-    size = compiler_getlater(c);
-    compiler_const_set(c, &c{CCUR + TOKEN_VALUE}, size);
+    memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
     compiler_consume(c, TEQUALS);
     i = 0;
     do
@@ -328,7 +328,7 @@ function compiler_struct(c)
         compiler_consume(c, t + 1);
         i += 4;
     } while (compiler_match(c, TCOMMA));
-    compiler_setlater(c, size, i);
+    compiler_const_set(c, s, i);
     compiler_consume(c, TSEMICOLON);
 }
 
@@ -413,6 +413,11 @@ function compiler_while(c)
             compiler_emit8(c, OJMPW);
             compiler_emit32(c, compiler_relative(c, loopend + c.[CORG], 4));
         }
+        else
+        {
+            compiler_emit8(c, ONOP);
+            compiler_emit32(c, 0x90909090);
+        }
     }
     else
     {
@@ -449,6 +454,11 @@ function compiler_do(c)
         {
             compiler_emit8(c, OJMPW);
             compiler_emit32(c, compiler_relative(c, loop, 4));
+        }
+        else
+        {
+            compiler_emit8(c, ONOP);
+            compiler_emit32(c, 0x90909090);
         }
     }
     else
@@ -677,7 +687,6 @@ function compiler_unary(c, econst)
             }
             return 0;
         default:
-            print("Don't ask me why this has to be here, it just does.\n");
             return compiler_primary(c, econst);
     }
 }
@@ -902,7 +911,7 @@ function compiler_label_set(c, name)
     {
         ident.[COMPILER_IDENT_ADDR] = c.[CIP];
         ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_RELOCATE | IDENT_FLAG_ADDRESS;
-        if (!map_set(&c{CIDENTS}, strdup(name, s), ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR]));
+        if (!map_set(&c{CIDENTS}, strdup(name, s), ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR])); # FIX leak later
     }
 }
 

@@ -2045,6 +2045,9 @@ bool compiler_switch(Compiler *c)
         HANDLE(compiler_statement(c));
     }
 
+    HANDLE(compiler_emit8(c, 0xE9));
+    HANDLE(compiler_emit32(c, compiler_relative(c, c->cur_break, 4))); // JMP c->cur_break
+
     qsort(c->cur_cases, c->cur_cases_len, sizeof(Case), case_compar);
     HANDLE(compiler_setlater(c, lowest_case, c->cur_cases[0].i));
     HANDLE(compiler_setlater(c, highest_case, c->cur_cases[c->cur_cases_len - 1].i));
