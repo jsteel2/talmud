@@ -2014,6 +2014,7 @@ bool compiler_switch(Compiler *c)
     size_t highest_case = compiler_getlater(c);
     size_t jump_table = compiler_getlater(c);
     size_t default_case = compiler_getlater(c);
+    size_t cb = c->cur_break;
     c->cur_break = compiler_getlater(c);
 
     HANDLE(compiler_emit8(c, 0x3D));
@@ -2031,7 +2032,9 @@ bool compiler_switch(Compiler *c)
     HANDLE(compiler_emit8(c, SIB(2, 0, 0b101)));
     HANDLE(compiler_emit32(c, jump_table - lowest_case * 4)); // JMP [EAX * 4 + jump_table - lowest_case * 4]
 
-    // FIXME: save old
+    void *cc = c->cur_cases;
+    size_t cl = c->cur_cases_len;
+    size_t cd = c->cur_default_case;
     c->cur_cases = malloc(sizeof(Case));
     c->cur_cases_len = 0;
     c->cur_default_case = 0;
@@ -2070,6 +2073,10 @@ bool compiler_switch(Compiler *c)
     HANDLE(compiler_setlater(c, c->cur_break, c->ip));
 
     free(c->cur_cases);
+    c->cur_cases = cc;
+    c->cur_cases_len = cl;
+    c->cur_default_case = cd;
+    c->cur_break = cb;
 
     return true;
 }

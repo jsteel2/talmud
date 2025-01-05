@@ -59,6 +59,7 @@ function eden()
     if (!compiler_const_set(compiler, "realloc", realloc)) JMP .hlt # TEMPORARY
     if (!compiler_const_set(compiler, "memcpy", memcpy)) JMP .hlt # TEMPORARY
     if (!compiler_const_set(compiler, "interrupt", interrupt)) JMP .hlt # TEMPORARY
+    if (!compiler_const_set(compiler, "compile", compile)) JMP .hlt # TEMPORARY
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)
@@ -67,7 +68,7 @@ function eden()
         JMP .hlt
     }
 
-    JMP [eve]
+    eve(compiler);
 .hlt:
     HLT
     JMP .hlt

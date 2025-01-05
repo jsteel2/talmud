@@ -1,9 +1,13 @@
-function eve()
-(vec{VEC})
+function eve(compiler)
+(vec{VEC}, x)
 {   
     vec_init(vec, 64, 1);
-    format(print, "allocated vector of size %u\n", vec.[VEC_SIZE]);
-    while (TRUE) format(print, "echo: %s\n", input(vec));
+    while (TRUE)
+    {
+        input(vec);
+        x = compile(compiler, "stdin", vec);
+        if (x) x();
+    }
 }
 
 function input(v)
@@ -22,40 +26,5 @@ function input(v)
     return v;
 }
 
-struct VEC = [VEC_LEN], [VEC_PTR], [VEC_SIZE], [VEC_ENTRY_SIZE];
-
-function vec_init(v, size, entry_size)
-{
-    v.[VEC_ENTRY_SIZE] = entry_size;
-    v.[VEC_SIZE] = size;
-    v.[VEC_LEN] = 0;
-    return v.[VEC_PTR] = malloc(size *! entry_size);
-}
-
-function vec_push1(v, x)
-{
-    if (!vec_set1(v, v.[VEC_LEN], x)) ;
-    v.[VEC_LEN] = v.[VEC_LEN] + 1;
-    return TRUE;
-}
-
-function vec_set1(v, i, x)
-{
-    if (!vec_resize(v, i + 1)) ;
-    v.[VEC_PTR]{i} = x;
-    return TRUE;
-}
-
-function vec_resize(v, new_len)
-{
-#    if (new_len >=! v.[VEC_SIZE])
-#    {
-#        v.[VEC_SIZE] *!= 2;
-#        v.[VEC_PTR] = realloc(v.[VEC_PTR], v.[VEC_SIZE] *! v.[VEC_ENTRY_SIZE]);
-#        if (!v.[VEC_PTR]) return FALSE;
-#    }
-    return TRUE;
-}
-
 include "lib/def.kc"
-#include "lib/vec.kc"
+include "lib/vec.kc"

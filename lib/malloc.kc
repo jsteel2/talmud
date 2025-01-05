@@ -61,7 +61,6 @@ function malloc(n)
 
     left{MEM_HEADER_FLAGS} = MEM_HEADER_FUSED;
 
-    format(print, "malloc(%uB)\n", n);
     return left + MEM_HEADER;
 }
 
@@ -69,8 +68,6 @@ function free(p)
 {
     if (!p) return;
     p -= MEM_HEADER;
-
-    format(print, "free(%uB)\n", p.[MEM_HEADER_SIZE]);
 
     p{MEM_HEADER_FLAGS} &= ~MEM_HEADER_FUSED;
     if (p.[MEM_HEADER_PREV] and !(p.[MEM_HEADER_PREV]{MEM_HEADER_FLAGS} & MEM_HEADER_FUSED))
