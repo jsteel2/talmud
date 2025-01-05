@@ -233,8 +233,15 @@ function compiler_statement(c)
         case TFUNCTION: return compiler_function(c);
         case TRETURN: return compiler_return(c);
         case TSEMICOLON: return compiler_advance(c);
+        case TCLD: return compiler_cemit8(c, TCLD, OCLD);
         default: compiler_expression(c, &econst); return compiler_consume(c, TSEMICOLON);
     }
+}
+
+function compiler_cemit8(c, t, o)
+{
+    compiler_consume(c, t);
+    compiler_emit8(c, o);
 }
 
 function compiler_statements(c)
@@ -558,6 +565,17 @@ function compiler_binary(c, prec, econst)
                     compiler_emit32(c, r);
                 }
                 break;
+            case TMINUS:
+                if (*econst)
+                {
+                    l = l - r;
+                }
+                else if (rconst)
+                {
+                    compiler_emit8(c, OSUBEAXIMMW);
+                    compiler_emit32(c, r);
+                }
+                break;
             case TSTARU:
             case TSTARS:
                 if (*econst)
@@ -694,6 +712,18 @@ function compiler_binary(c, prec, econst)
                 {
                     print("todo\n");
                 }
+                break;
+            case TQMARK:
+                print("todo tern\n");
+                compiler_consume(c, TCOLON);
+                compiler_expression(c, &rconst);
+                if (!rconst) *econst = FALSE;
+                break;
+            case TLOGICALAND:
+                print("todo and\n");
+                break;
+            case TLOGICALOR:
+                print("todo or\n");
                 break;
             default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }

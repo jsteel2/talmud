@@ -1959,6 +1959,16 @@ bool compiler_global(Compiler *c)
     return compiler_consume(c, TSEMICOLON);
 }
 
+bool compiler_extern(Compiler *c)
+{
+    do
+    {
+        HANDLE(compiler_consume(c, TIDENT));
+        map_set2(&c->idents, c->cur.value, 0, false);
+    } while (compiler_match(c, TCOMMA));
+    return compiler_consume(c, TSEMICOLON);
+}
+
 bool compiler_continue(Compiler *c)
 {
     HANDLE(compiler_emit8(c, 0xE9));
@@ -2182,6 +2192,7 @@ bool compiler_statement(Compiler *c)
         case TSTRUCT: HANDLE(compiler_struct(c)); break;
         case TENUM: HANDLE(compiler_enum(c)); break;
         case TGLOBAL: HANDLE(compiler_global(c)); break;
+        case TEXTERN: HANDLE(compiler_extern(c)); break;
         case TCONTINUE: HANDLE(compiler_continue(c)); break;
         case TSWITCH: HANDLE(compiler_switch(c)); break;
         case TCASE: HANDLE(compiler_case(c)); break;

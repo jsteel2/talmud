@@ -16,7 +16,15 @@ enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
     TPLUS, TMINUS,
     TMODULOU, TMODULOS, TSTARU, TSTARS,
     TSTAR, TBANG,
-              
+
+    TAAA, TAAD, TAAM, TAAS, TADC, TADD, TAND, TCALL, TCBW, TCLC, TCLD, TCLI, TCMC, TCMP, TCMPSB, TCMPSW, TCWDE, TCWD, TCDQ, TDAA, TDAS, TDEC, TDIV, TESC, THLT, TIDIV, TIMUL, TIN, TINC, TINT, TINTO, TIRET, TJO, TJNO, TJB, TJNB, TJZ, TJNZ, TJBE, TJA, TJS, TJNS, TJPE, TJPO, TJL, TJGE, TJLE, TJG, TJCXZ, TJMP, TLAHF, TLDS, TLEA, TLES, TLGDT, TLOCK, TLODSB, TLODSW, TLOOP, TLOOPZ, LOOPNZ, TMOV, TMOVSB, TMOVSW, TMOVZX, TMUL, TNEG, TNOP, TNOT, TOR, TOUT, TPOPAD, TPOP, TPOPF, TPUSHAD, TPUSH, TPUSHF, TRCL, TRCR, TREP, TREPNZ, TRET, TRETF, TRETN, TROL, TROR, TSAHF, TSAL, TSAR, TSBB, TSCASB, TSCASW, TSETB, TSHL, TSHR, TSTC, TSTD, TSTI, TSTOSB, TSTOSW, TSUB, TTEST, TWAIT, TXCHG, TXLAT, TXOR,
+
+    TAX, TCX, TDX, TBX, TSP, TBP, TSI, TDI,
+    TAL, TCL, TDL, TBL, TAH, TCH, TDH, TBH,
+    TES, TCS, TSS, TDS, TFS, TGS,
+    TEAX, TECX, TEDX, TEBX, TESP, TEBP, TESI, TEDI,
+    TCR0, TCR1, TCR2, TCR3, TCR4, TCR5, TCR6, TCR7,
+
     TEND;
 
 struct TOKEN = [TOKEN_TYPE], STRING{TOKEN_VALUE};
@@ -59,6 +67,34 @@ function tokenizer_ident_token(t, out)
     p = s.[STRINGLEN];
     switch (s.[STRINGPTR]{0})
     {
+        case 'C':
+            if (strcmp(s, "CLD")) out.[TOKEN_TYPE] = TCLD;
+            else break;
+            return TRUE;
+        case 'E':
+            if (strcmp(s, "EAX")) out.[TOKEN_TYPE] = TEAX;
+            if (strcmp(s, "ECX")) out.[TOKEN_TYPE] = TECX;
+            if (strcmp(s, "EDX")) out.[TOKEN_TYPE] = TEDX;
+            if (strcmp(s, "EBX")) out.[TOKEN_TYPE] = TEBX;
+            if (strcmp(s, "ESP")) out.[TOKEN_TYPE] = TESP;
+            if (strcmp(s, "EBP")) out.[TOKEN_TYPE] = TEBP;
+            if (strcmp(s, "ESI")) out.[TOKEN_TYPE] = TESI;
+            if (strcmp(s, "EDI")) out.[TOKEN_TYPE] = TEDI;
+            else break;
+            return TRUE;
+        case 'M':
+            if (strcmp(s, "MOVSB")) out.[TOKEN_TYPE] = TMOVSB;
+            if (strcmp(s, "MOV")) out.[TOKEN_TYPE] = TMOV;
+            else break;
+            return TRUE;
+        case 'R':
+            if (strcmp(s, "REP")) out.[TOKEN_TYPE] = TREP;
+            else break;
+            return TRUE;
+        case 'a':
+            if (strcmp(s, "and")) out.[TOKEN_TYPE] = TLOGICALAND;
+            else break;
+            return TRUE;
         case 'c':
             if (strcmp(s, "const")) out.[TOKEN_TYPE] = TCONST;
             else break;
@@ -74,6 +110,10 @@ function tokenizer_ident_token(t, out)
         case 'i':
             if (strcmp(s, "include")) out.[TOKEN_TYPE] = TINCLUDE;
             else if (strcmp(s, "if")) out.[TOKEN_TYPE] = TIF;
+            else break;
+            return TRUE;
+        case 'o':
+            if (strcmp(s, "or")) out.[TOKEN_TYPE] = TLOGICALOR;
             else break;
             return TRUE;
         case 'r':
@@ -129,12 +169,19 @@ function tokenizer_symbol_token(t, out)
             if (p{1} == '=') { out.[TOKEN_TYPE] = TPLUSEQUALS; len = 2; }
             else out.[TOKEN_TYPE] = TPLUS;
             break;
+        case '-': 
+            if (p{1} == '=') { out.[TOKEN_TYPE] = TMINUSEQUALS; len = 2; }
+            else out.[TOKEN_TYPE] = TMINUS;
+            break;
         case '!':
             if (p{1} == '=') { out.[TOKEN_TYPE] = TNOTEQUALS; len = 2; }
             else out.[TOKEN_TYPE] = TBANG;
             break;
+        case '=':
+            if (p{1} == '=') { out.[TOKEN_TYPE] = TEQUALSEQUALS; len = 2; }
+            else out.[TOKEN_TYPE] = TEQUALS;
+            break;
         case '&': out.[TOKEN_TYPE] = TBITWISEAND; break;
-        case '=': out.[TOKEN_TYPE] = TEQUALS; break;
         case '(': out.[TOKEN_TYPE] = TLEFTPAREN; break;
         case ')': out.[TOKEN_TYPE] = TRIGHTPAREN; break;
         case '{': out.[TOKEN_TYPE] = TLEFTBRACE; break;
@@ -142,8 +189,10 @@ function tokenizer_symbol_token(t, out)
         case '[': out.[TOKEN_TYPE] = TLEFTBRACKET; break;
         case ']': out.[TOKEN_TYPE] = TRIGHTBRACKET; break;
         case ';': out.[TOKEN_TYPE] = TSEMICOLON; break;
+        case ':': out.[TOKEN_TYPE] = TCOLON; break;
         case ',': out.[TOKEN_TYPE] = TCOMMA; break;
         case '.': out.[TOKEN_TYPE] = TDOT; break;
+        case '?': out.[TOKEN_TYPE] = TQMARK; break;
         default: format(print, "Unknown symbol '%c'", p{0}); return FALSE;
     }
 
@@ -172,6 +221,7 @@ function tokenizer_string_token(t, out, type)
             {
                 case 'n': vec_push1(v, '\n'); break;
                 case 'r': vec_push1(v, '\r'); break;
+                case 't': vec_push1(v, '\t'); break;
                 default: format(print, "Unknown escape %c", p{t.[TPOS]}); return FALSE;
             }
         }

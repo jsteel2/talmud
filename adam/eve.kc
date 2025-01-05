@@ -1,6 +1,9 @@
-function eve(compiler)
+#extern first_free;
+
+function eve(compiler, f)
 (vec{VEC}, x)
-{   
+{
+    first_free = f;
     vec_init(vec, 64, 1);
     while (TRUE)
     {
@@ -27,4 +30,9 @@ function input(v)
 }
 
 include "lib/def.kc"
+include "lib/util.kc"
+include "lib/fs.kc"
+include "lib/malloc.kc"
+include "lib/map.kc"
 include "lib/vec.kc"
+include "compiler/compiler.kc"
