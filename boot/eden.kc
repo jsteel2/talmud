@@ -53,6 +53,9 @@ function eden()
     }
 
     if (!compiler_const_set(compiler, "print", print)) JMP .hlt
+    if (!compiler_const_set(compiler, "interrupt", interrupt)) JMP .hlt
+    if (!compiler_const_set(compiler, "lba_read", lba_read)) JMP .hlt
+    if (!compiler_const_set(compiler, "lba_write", lba_write)) JMP .hlt
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)

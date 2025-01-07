@@ -1,7 +1,7 @@
 include "compiler/tokenizer.kc"
 include "compiler/asm.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END];
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END], {CUSE32};
 const IDENT_FLAG_VALID = 1;
 const IDENT_FLAG_LOCAL = 1 << 1;
 const IDENT_FLAG_ADDRESS = 1 << 2;
@@ -169,6 +169,7 @@ function compiler_pass(c, src, is_first_pass)
     c.[CIS_FIRST_PASS] = is_first_pass;
     c.[CLATER_I] = 0;
     c.[CIP] = c.[CORG];
+    c{CUSE32} = TRUE;
     tokenizer_init(&c{CTOK}, src);
 
     c.[CNEXT + TOKEN_TYPE] = TINVALID;
@@ -233,14 +234,22 @@ function compiler_statement(c)
         case TFUNCTION: return compiler_function(c);
         case TRETURN: return compiler_return(c);
         case TSEMICOLON: return compiler_advance(c);
-        case TCLD: return compiler_cemit8(c, TCLD, OCLD);
+        case TCLD: return compiler_aemit8(c, OCLD);
+        case TSTD: return compiler_aemit8(c, OSTD);
+        case TREP: return compiler_aemit8(c, OREP);
+        case TMOVSB: return compiler_aemit8(c, OMOVSB);
+        case TCMPSB: return compiler_aemit8(c, OCMPSB);
+        case TMOV: return compiler_asm_mov(c);
+        case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
+        case TDEC: return compiler_asm_incdec(c, ODECR);
+        case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
         default: compiler_expression(c, &econst); return compiler_consume(c, TSEMICOLON);
     }
 }
 
-function compiler_cemit8(c, t, o)
+function compiler_aemit8(c, o)
 {
-    compiler_consume(c, t);
+    compiler_advance(c);
     compiler_emit8(c, o);
 }
 

@@ -21,9 +21,13 @@ enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
 
     TAX, TCX, TDX, TBX, TSP, TBP, TSI, TDI,
     TAL, TCL, TDL, TBL, TAH, TCH, TDH, TBH,
-    TES, TCS, TSS, TDS, TFS, TGS,
     TEAX, TECX, TEDX, TEBX, TESP, TEBP, TESI, TEDI,
+
+    TES, TCS, TSS, TDS, TFS, TGS,
+
     TCR0, TCR1, TCR2, TCR3, TCR4, TCR5, TCR6, TCR7,
+
+    TBYTE, TWORD, TDWORD, TSHORT,
 
     TEND;
 
@@ -67,28 +71,45 @@ function tokenizer_ident_token(t, out)
     p = s.[STRINGLEN];
     switch (s.[STRINGPTR]{0})
     {
+        case 'A':
+            if (strcmp(s, "ADD")) out.[TOKEN_TYPE] = TADD;
+            else break;
+            return TRUE;
         case 'C':
-            if (strcmp(s, "CLD")) out.[TOKEN_TYPE] = TCLD;
+            if (strcmp(s, "CMPSB")) out.[TOKEN_TYPE] = TCMPSB;
+            else if (strcmp(s, "CLD")) out.[TOKEN_TYPE] = TCLD;
+            else break;
+            return TRUE;
+        case 'D':
+            if (strcmp(s, "DEC")) out.[TOKEN_TYPE] = TDEC;
             else break;
             return TRUE;
         case 'E':
             if (strcmp(s, "EAX")) out.[TOKEN_TYPE] = TEAX;
-            if (strcmp(s, "ECX")) out.[TOKEN_TYPE] = TECX;
-            if (strcmp(s, "EDX")) out.[TOKEN_TYPE] = TEDX;
-            if (strcmp(s, "EBX")) out.[TOKEN_TYPE] = TEBX;
-            if (strcmp(s, "ESP")) out.[TOKEN_TYPE] = TESP;
-            if (strcmp(s, "EBP")) out.[TOKEN_TYPE] = TEBP;
-            if (strcmp(s, "ESI")) out.[TOKEN_TYPE] = TESI;
-            if (strcmp(s, "EDI")) out.[TOKEN_TYPE] = TEDI;
+            else if (strcmp(s, "ECX")) out.[TOKEN_TYPE] = TECX;
+            else if (strcmp(s, "EDX")) out.[TOKEN_TYPE] = TEDX;
+            else if (strcmp(s, "EBX")) out.[TOKEN_TYPE] = TEBX;
+            else if (strcmp(s, "ESP")) out.[TOKEN_TYPE] = TESP;
+            else if (strcmp(s, "EBP")) out.[TOKEN_TYPE] = TEBP;
+            else if (strcmp(s, "ESI")) out.[TOKEN_TYPE] = TESI;
+            else if (strcmp(s, "EDI")) out.[TOKEN_TYPE] = TEDI;
+            else break;
+            return TRUE;
+        case 'J':
+            if (strcmp(s, "JZ")) out.[TOKEN_TYPE] = TJZ;
             else break;
             return TRUE;
         case 'M':
             if (strcmp(s, "MOVSB")) out.[TOKEN_TYPE] = TMOVSB;
-            if (strcmp(s, "MOV")) out.[TOKEN_TYPE] = TMOV;
+            else if (strcmp(s, "MOV")) out.[TOKEN_TYPE] = TMOV;
             else break;
             return TRUE;
         case 'R':
             if (strcmp(s, "REP")) out.[TOKEN_TYPE] = TREP;
+            else break;
+            return TRUE;
+        case 'S':
+            if (strcmp(s, "STD")) out.[TOKEN_TYPE] = TSTD;
             else break;
             return TRUE;
         case 'a':
