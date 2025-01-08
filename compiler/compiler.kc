@@ -1,7 +1,7 @@
 include "compiler/tokenizer.kc"
 include "compiler/asm.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END], {CUSE32};
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END], {CUSE32};
 const IDENT_FLAG_VALID = 1;
 const IDENT_FLAG_LOCAL = 1 << 1;
 const IDENT_FLAG_ADDRESS = 1 << 2;
@@ -16,6 +16,7 @@ function compiler_init(c)
     if (!map_init(&c{CIDENTS}, 1024, STRING, COMPILER_IDENT, strcmp, hash_string, free_string)) return FALSE;
     if (!map_init(&c{CSTRINGS}, 64, STRING, COMPILER_STRING, strcmp, hash_string, free_string)) return FALSE;
     if (!map_init(&c{CLOCALS}, 32, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
+    if (!map_init(&c{CLOCAL_LABELS}, 8, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
     if (!vec_init(&c{CLATER}, 1024, 4)) return FALSE;
     return TRUE;
 }
@@ -25,6 +26,7 @@ function compiler_free(c)
     map_free(&c{CIDENTS});
     map_free(&c{CSTRINGS});
     map_free(&c{CLOCALS});
+    map_free(&c{CLOCAL_LABELS});
     vec_free(&c{CLATER});
 }
 
@@ -220,8 +222,9 @@ function compile(c, filename, src)
 }
 
 function compiler_statement(c)
-(econst)
+(econst, local)
 {
+    local = FALSE;
     switch (compiler_peek(c))
     {
         case TWHILE: return compiler_while(c);
@@ -239,12 +242,33 @@ function compiler_statement(c)
         case TREP: return compiler_aemit8(c, OREP);
         case TMOVSB: return compiler_aemit8(c, OMOVSB);
         case TCMPSB: return compiler_aemit8(c, OCMPSB);
+        case TSTOSB: return compiler_aemit8(c, OSTOSB);
         case TMOV: return compiler_asm_mov(c);
         case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
         case TDEC: return compiler_asm_incdec(c, ODECR);
         case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
+        case TDOT: local = TRUE; compiler_advance(c);
+        case TIDENT: if (compiler_label(c, local)) break;
         default: compiler_expression(c, &econst); return compiler_consume(c, TSEMICOLON);
     }
+}
+
+function compiler_label(c, local)
+(t{TOKENIZER}, b{TOKEN})
+{
+    memcpy(t, &c{CTOK}, TOKENIZER);
+    memcpy(b, &c{CCUR}, TOKEN);
+    compiler_advance(c);
+    if (compiler_peek(c) != TCOLON)
+    {
+        memcpy(&c{CTOK}, t, TOKENIZER);
+        memcpy(&c{CNEXT}, &c{CCUR}, TOKEN);
+        memcpy(&c{CCUR}, b, TOKEN);
+        return FALSE;
+    }
+    compiler_label_set(c, local ? &c{CLOCAL_LABELS} : &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
+    compiler_consume(c, TCOLON);
+    return TRUE;
 }
 
 function compiler_aemit8(c, o)
@@ -282,7 +306,7 @@ function compiler_function(c)
 {
     compiler_consume(c, TFUNCTION);
     compiler_consume(c, TIDENT);
-    compiler_label_set(c, &c{CCUR + TOKEN_VALUE});
+    compiler_label_set(c, &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
     compiler_consume(c, TLEFTPAREN);
 
     i = 4;
@@ -385,7 +409,7 @@ function compiler_include(c)
     if (!open(s, f, FALSE)) compiler_throw(c, $@, $*, format(print, "Could not open file \"%s\"", s));
     src.[STRINGLEN] = f.[FILE_SIZE];
     src.[STRINGPTR] = malloc(src.[STRINGLEN]);
-    if (!src.[STRINGPTR]) compiler_throw(c, $@, $*, format(print, "Failed to allocate %uB of memory\n", src.[STRINGLEN]));
+    if (!src.[STRINGPTR]) compiler_throw(c, $@, $*, format(print, "Failed to allocate %uB of memory", src.[STRINGLEN]));
 
     if (!read(f, src.[STRINGLEN], src.[STRINGPTR])) compiler_throw(c, $@, $*, format(print, "Could not read file \"%s\"", s));
 
@@ -523,6 +547,12 @@ function compiler_if(c)
     }
 
     compiler_statement(c);
+
+    if (compiler_match(c, TELSE))
+    {
+        print("todo else");
+        compiler_statement(c);
+    }
     
     compiler_setlater(c, ifend, c.[CIP]);
 }
@@ -606,8 +636,18 @@ function compiler_binary(c, prec, econst)
                     compiler_emit8(c, modrm(MODREG, t == TSTARS ? OGRP3IMUL : OGRP3MUL, REDX));
                 }
                 break;
+            case TSLASHU:
+            case TSLASHS:
+                print("todo di\n");
+                break;
+            case TMODULOU:
+            case TMODULOS:
+                print("todo mod\n");
+                break;
             case TEQUALS:
             case TPLUSEQUALS:
+            case TMINUSEQUALS:
+                if (t == TMINUSEQUALS) print("todo me");
                 if (*econst)
                 {
                     print("todo\n");
@@ -638,6 +678,10 @@ function compiler_binary(c, prec, econst)
             case TSTARUEQUALS:
             case TSTARSEQUALS:
                 print("todo se\n");
+                break;
+            case TSLASHUEQUALS:
+            case TSLASHSEQUALS:
+                print("todo de\n");
                 break;
             case TGREATERTHANU:
             case TGREATERTHANS:
@@ -777,12 +821,16 @@ function compiler_unary(c, econst)
 }
 
 function compiler_primary(c, econst, ref)
-(ident, f, r)
+(ident, f, r, ig)
 {
+    ig = compiler_ident_get;
     switch (compiler_advance(c))
     {
+        case TDOT:
+            compiler_advance(c);
+            ig = compiler_local_label_get;
         case TIDENT:
-            if (f = compiler_ident_get(c, &c{CCUR + TOKEN_VALUE}, &ident))
+            if (f = ig(c, &c{CCUR + TOKEN_VALUE}, &ident))
             {
                 if (ref or f & IDENT_FLAG_ADDRESS or (compiler_peek(c) >=! TEQUALS and compiler_peek(c) <=! TPLUSEQUALS))
                 {
@@ -989,20 +1037,20 @@ function compiler_const_set(c, name, address)
     return TRUE;
 }
 
-function compiler_label_set(c, name)
+function compiler_label_set(c, m, name)
 (s{STRING}, ident{COMPILER_IDENT})
 {
     if (c.[CIS_FIRST_PASS]) 
     {
         ident.[COMPILER_IDENT_ADDR] = c.[CIP];
         ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_RELOCATE | IDENT_FLAG_ADDRESS;
-        if (!map_set(&c{CIDENTS}, strdup(name, s), ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR])); # FIX leak later (i dont remember what the leak is or if this still applies, curse you)
+        if (!map_set(m, strdup(name, s), ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR])); # FIX leak later (i dont remember what the leak is or if this still applies, curse you)
     }
     else
     {
         ident.[COMPILER_IDENT_ADDR] = c.[CIP];
         ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_ADDRESS;
-        if (!map_set(&c{CIDENTS}, name, ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR]));
+        if (!map_set(m, name, ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR]));
     }
 }
 
@@ -1026,6 +1074,17 @@ function compiler_ident_get(c, name, out)
     if (map_get(&c{CIDENTS}, name, ident))
     {
         *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] : 0);
+        return ident{COMPILER_IDENT_FLAGS};
+    }
+    return FALSE;
+}
+
+function compiler_local_label_get(c, name, out)
+(ident{COMPILER_IDENT})
+{
+    if (map_get(&c{CLOCAL_LABELS}, name, ident))
+    {
+        *out = ident.[COMPILER_IDENT_ADDR];
         return ident{COMPILER_IDENT_FLAGS};
     }
     return FALSE;

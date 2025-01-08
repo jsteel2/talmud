@@ -3,7 +3,7 @@ struct FAT_BS = 3{BS_BOOTJMP}, 8{BS_OEM_NAME}, <BS_BYTES_PER_SECTOR>, {BS_SECTOR
 const PARTITION_TABLE = 0x1BE;
 struct PARTITION = {PARTITION_ATTRIBUTES}, 3{PARTITION_CHS}, {PARTITION_TYPE}, 3{PARTITION_CHS_END}, [PARTITION_LBA], [PARTITION_LBA_SECTORS];
 
-struct FILE = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_CLUSTER}, [FILE_DATA_SECTOR], [FILE_CLUSTER_CUR], [FILE_SEEK], [FILE_SIZE];
+struct FILE = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_CLUSTER}, [FILE_DATA_SECTOR], [FILE_FAT_SECTOR], [FILE_CLUSTER_CUR], [FILE_SEEK], [FILE_SIZE];
 
 struct DIR_ENTRY = 11{DIR_ENTRY_83NAME}, {DIR_ENTRY_ATTR}, {DIR_ENTRY_RESERVED}, {DIR_ENTRY_CREATE_HUNDRETHS}, <DIR_ENTRY_CREATE_TIME>, <DIR_ENTRY_CREATE_DATE>, <DIR_ENTRY_ACCESSED_DATE>, <DIR_ENTRY_CLUSTER_HI>, <DIR_ENTRY_MODIFICATION_TIME>, <DIR_ENTRY_MODIFICATION_DATE>, <DIR_ENTRY_CLUSTER_LO>, [DIR_ENTRY_FILE_SIZE];
 
@@ -45,7 +45,8 @@ function openat(cwd, path, file, create)
             if (!lba_read(file{FILE_DRIVE}, 1, file.[PARTITION_TABLE + file{FILE_PARTITION} *! 16 + PARTITION_LBA], file)) return FALSE;
 
             file{FILE_SECTORS_PER_CLUSTER} = file{BS_SECTORS_PER_CLUSTER};
-            file.[FILE_DATA_SECTOR] = file.<BS_RESERVED_SECTOR_COUNT> + file.[BS_HIDDEN_SECTOR_COUNT] + file{BS_TABLE_COUNT} *! file.[BS_TABLE_SIZE_32];
+            file.[FILE_FAT_SECTOR] = file.<BS_RESERVED_SECTOR_COUNT> + file.[BS_HIDDEN_SECTOR_COUNT];
+            file.[FILE_DATA_SECTOR] = file.[FILE_FAT_SECTOR] + file{BS_TABLE_COUNT} *! file.[BS_TABLE_SIZE_32];
             file.[FILE_CLUSTER_CUR] = file.[BS_ROOT_CLUSTER];
             file.[FILE_SEEK] = 0;
             read = TRUE;
@@ -101,7 +102,7 @@ function dir_next(file, outentry)
 
 function cur_sector(file)
 {
-    return cluster2sector(file, file.[FILE_CLUSTER_CUR]) + (file.[FILE_SEEK] & 2047) /! 512;
+    return cluster2sector(file, file.[FILE_CLUSTER_CUR]) + (file.[FILE_SEEK] %! (file{FILE_SECTORS_PER_CLUSTER} *! 512)) /! 512;
 }
 
 function read(file, n, buf)
@@ -111,9 +112,15 @@ function read(file, n, buf)
     {
         if (file.[FILE_SEEK] & 511 == 0)
         {
-            if (n >! 512)
+            if (file.[FILE_SEEK] %! file{FILE_SECTORS_PER_CLUSTER} == 0 and file.[FILE_SEEK] != 0)
             {
-                sectors_read = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] %! file{FILE_SECTORS_PER_CLUSTER});
+                if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512, file)) return FALSE;
+                file.[FILE_CLUSTER_CUR] = file.[file.[FILE_CLUSTER_CUR] *! 4 %! 512] & 0x0FFFFFFF;
+                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return FALSE;
+            }
+            if (n >=! 512)
+            {
+                sectors_read = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER});
                 if (!lba_read(file{FILE_DRIVE}, sectors_read, cur_sector(file), buf)) return FALSE;
                 x = sectors_read *! 512;
                 file.[FILE_SEEK] += x;

@@ -2,11 +2,11 @@ struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
 enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
 
-    TWHILE, TDO, TIF, TINCLUDE, TCONST, TSTRUCT, TFUNCTION, TRETURN,
+    TWHILE, TDO, TIF, TELSE, TINCLUDE, TCONST, TSTRUCT, TFUNCTION, TRETURN,
               
     TDOT, TLEFTPAREN, TRIGHTPAREN, TLEFTBRACE, TRIGHTBRACE, TLEFTBRACKET, TRIGHTBRACKET, TLEFTCHEVRON, TRIGHTCHEVRON, TSEMICOLON, TCOMMA,
 
-    TEQUALS, TSTARUEQUALS, TSTARSEQUALS, TMINUSEQUALS, TPLUSEQUALS,
+    TEQUALS, TSTARUEQUALS, TSTARSEQUALS, TSLASHUEQUALS, TSLASHSEQUALS, TMODULOUEQUALS, TMODULOSEQUALS, TMINUSEQUALS, TPLUSEQUALS,
     TQMARK, TCOLON,
     TLOGICALOR,
     TLOGICALAND,
@@ -14,7 +14,7 @@ enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
     TGREATERTHANU, TGREATERTHANS, TGREATEREQUALSU, TGREATEREQUALSS, TLESSTHANU, TLESSTHANS, TLESSEQUALSU, TLESSEQUALSS,
     TSHIFTRIGHT, TBITWISEOR, TBITWISEXOR, TBITWISEAND,
     TPLUS, TMINUS,
-    TMODULOU, TMODULOS, TSTARU, TSTARS,
+    TMODULOU, TMODULOS, TSLASHU, TSLASHS, TSTARU, TSTARS,
     TSTAR, TBANG,
 
     TAAA, TAAD, TAAM, TAAS, TADC, TADD, TAND, TCALL, TCBW, TCLC, TCLD, TCLI, TCMC, TCMP, TCMPSB, TCMPSW, TCWDE, TCWD, TCDQ, TDAA, TDAS, TDEC, TDIV, TESC, THLT, TIDIV, TIMUL, TIN, TINC, TINT, TINTO, TIRET, TJO, TJNO, TJB, TJNB, TJZ, TJNZ, TJBE, TJA, TJS, TJNS, TJPE, TJPO, TJL, TJGE, TJLE, TJG, TJCXZ, TJMP, TLAHF, TLDS, TLEA, TLES, TLGDT, TLOCK, TLODSB, TLODSW, TLOOP, TLOOPZ, LOOPNZ, TMOV, TMOVSB, TMOVSW, TMOVZX, TMUL, TNEG, TNOP, TNOT, TOR, TOUT, TPOPAD, TPOP, TPOPF, TPUSHAD, TPUSH, TPUSHF, TRCL, TRCR, TREP, TREPNZ, TRET, TRETF, TRETN, TROL, TROR, TSAHF, TSAL, TSAR, TSBB, TSCASB, TSCASW, TSETB, TSHL, TSHR, TSTC, TSTD, TSTI, TSTOSB, TSTOSW, TSUB, TTEST, TWAIT, TXCHG, TXLAT, TXOR,
@@ -73,6 +73,7 @@ function tokenizer_ident_token(t, out)
     {
         case 'A':
             if (strcmp(s, "ADD")) out.[TOKEN_TYPE] = TADD;
+            else if (strcmp(s, "AL")) out.[TOKEN_TYPE] = TAL;
             else break;
             return TRUE;
         case 'C':
@@ -109,7 +110,8 @@ function tokenizer_ident_token(t, out)
             else break;
             return TRUE;
         case 'S':
-            if (strcmp(s, "STD")) out.[TOKEN_TYPE] = TSTD;
+            if (strcmp(s, "STOSB")) out.[TOKEN_TYPE] = TSTOSB;
+            else if (strcmp(s, "STD")) out.[TOKEN_TYPE] = TSTD;
             else break;
             return TRUE;
         case 'a':
@@ -122,6 +124,10 @@ function tokenizer_ident_token(t, out)
             return TRUE;
         case 'd':
             if (strcmp(s, "do")) out.[TOKEN_TYPE] = TDO;
+            else break;
+            return TRUE;
+        case 'e':
+            if (strcmp(s, "else")) out.[TOKEN_TYPE] = TELSE;
             else break;
             return TRUE;
         case 'f':
@@ -185,6 +191,20 @@ function tokenizer_symbol_token(t, out)
             else if (p{1} == '$') out.[TOKEN_TYPE] = TSTARS;
             else { out.[TOKEN_TYPE] = TSTAR; len = 1; }
             if (len == 2 and p{2} == '=') { out.[TOKEN_TYPE] = p{1} == '!' ? TSTARUEQUALS : TSTARSEQUALS; len = 3; }
+            break;
+        case '/':
+            len = 2;
+            if (p{1} == '!') out.[TOKEN_TYPE] = TSLASHU;
+            else if (p{1} == '$') out.[TOKEN_TYPE] = TSLASHS;
+            else { format(print, "Unknown symbol '%c'", p{0}); return FALSE; }
+            if (len == 2 and p{2} == '=') { out.[TOKEN_TYPE] = p{1} == '!' ? TSLASHUEQUALS : TSLASHSEQUALS; len = 3; }
+            break;
+        case '%':
+            len = 2;
+            if (p{1} == '!') out.[TOKEN_TYPE] = TMODULOU;
+            else if (p{1} == '$') out.[TOKEN_TYPE] = TMODULOS;
+            else { format(print, "Unknown symbol '%c'", p{0}); return FALSE; }
+            if (len == 2 and p{2} == '=') { out.[TOKEN_TYPE] = p{1} == '!' ? TMODULOUEQUALS : TMODULOSEQUALS; len = 3; }
             break;
         case '+': 
             if (p{1} == '=') { out.[TOKEN_TYPE] = TPLUSEQUALS; len = 2; }
