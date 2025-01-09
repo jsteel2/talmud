@@ -240,6 +240,7 @@ function compiler_statement(c)
         case TCLD: return compiler_aemit8(c, OCLD);
         case TSTD: return compiler_aemit8(c, OSTD);
         case TREP: return compiler_aemit8(c, OREP);
+        case TRET: return compiler_aemit8(c, ORET);
         case TMOVSB: return compiler_aemit8(c, OMOVSB);
         case TCMPSB: return compiler_aemit8(c, OCMPSB);
         case TSTOSB: return compiler_aemit8(c, OSTOSB);
@@ -598,10 +599,16 @@ function compiler_binary(c, prec, econst)
                 {
                     l = l + r;
                 }
-                else if (rconst)
+                else if (rconst or lconst)
                 {
                     compiler_emit8(c, OADDEAXIMMW);
-                    compiler_emit32(c, r);
+                    compiler_emit32(c, rconst ? r : l);
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + REDX);
+                    compiler_emit8(c, OADDRMW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REDX));
                 }
                 break;
             case TMINUS:
@@ -613,6 +620,24 @@ function compiler_binary(c, prec, econst)
                 {
                     compiler_emit8(c, OSUBEAXIMMW);
                     compiler_emit32(c, r);
+                }
+                else if (lconst)
+                {
+                    # what the hell? FIXME.
+                    compiler_emit8(c, OXCHGEAX + REDX);
+                    #compiler_emit8(c, OMOVRIMMW + REAX);
+                    #compiler_emit32(c, l);
+                    #compiler_emit8(c, OSUBRMW);
+                    #compiler_emit8(c, modrm(MODREG, REAX, REDX));
+                }
+                else
+                {
+                    # I just dont know what went wrong!
+                    #compiler_emit8(c, OPOPR + REDX);
+                    #compiler_emit8(c, OXCHGEAX + REDX);
+                    #compiler_emit8(c, OSUBRMW);
+                    #compiler_emit8(c, modrm(MODREG, REAX, REDX));
+                    print("todo\n");
                 }
                 break;
             case TSTARU:

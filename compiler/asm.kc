@@ -6,7 +6,7 @@ const RSIB = RESP;
 const RDISP = REBP;
 const SIBNOINDEX = RESP;
 
-const OTESTW = 0x85, OJMPW = 0xE9, OCALL = 0xE8, OMOVMRB = 0x88, OMOVMRW = 0x89, OMOVRMB = 0x8A, OMOVRMW = 0x8B, OMOVRIMMW = 0xB8, OMOVMIMMW = 0xC7, OMOVMIMMB = 0xC6, OJZW = 0x840F, OJZB = 0x74, OJNZW = 0x850F, OPUSHR = 0x50, OPOPR = 0x58, OGRP1MIMMWB = 0x83, OGRP1MIMMBB = 0x80, OGRP1MIMMWW = 0x81, OGRP1ADD = 0, OGRP1AND = 4, OGRP1OR = 1, OGRP1XOR = 6, OGRP1SUB = 5, OGRP1CMP = 7, OGRP5 = 0xFF, OGRP5CALL = 2, OLEAVE = 0xC9, ORET = 0xC3, OMOVZXW = 0xB70F, OMOVZXB = 0xB60F, OLEA = 0x8D, OSIZEOVERRIDE = 0x66, OGRP3W = 0xF7, OGRP3MUL = 4, OGRP3IMUL = 5, OSETZ = 0x940F, OSETNZ = 0x950F, OANDEAXIMMW = 0x25, OOREAXIMMW = 0x0D, OXOREAXIMMW = 0x35, OCMPEAXIMMW = 0x3D, OADDEAXIMMW = 0x05, OSUBEAXIMMW = 0x2D, ONOP = 0x90, OCMPMRW = 0x39, OSETA = 0x970F, OSETG = 0x9F0F, OSETAE = 0x930F, OSETGE = 0x9D0F, OSETB = 0x920F, OSETL = 0x9C0F, OSETBE = 0x960F, OSETLE = 0x9E0F, OADDMRB = 0x00, OADDRMB = 0x02, OADDRMW = 0x03, OADDMRW = 0x01, OCLD = 0xFC, OSTD = 0xFD, OREP = 0xF3, OMOVSB = 0xA4, ODECR = 0x48, OCMPSB = 0xA6, OSTOSB = 0xAA;
+const OTESTW = 0x85, OJMPW = 0xE9, OCALL = 0xE8, OMOVMRB = 0x88, OMOVMRW = 0x89, OMOVRMB = 0x8A, OMOVRMW = 0x8B, OMOVRIMMW = 0xB8, OMOVMIMMW = 0xC7, OMOVMIMMB = 0xC6, OJZW = 0x840F, OJZB = 0x74, OJNZW = 0x850F, OPUSHR = 0x50, OPOPR = 0x58, OGRP1MIMMWB = 0x83, OGRP1MIMMBB = 0x80, OGRP1MIMMWW = 0x81, OGRP1ADD = 0, OGRP1AND = 4, OGRP1OR = 1, OGRP1XOR = 6, OGRP1SUB = 5, OGRP1CMP = 7, OGRP5 = 0xFF, OGRP5CALL = 2, OLEAVE = 0xC9, ORET = 0xC3, OMOVZXW = 0xB70F, OMOVZXB = 0xB60F, OLEA = 0x8D, OSIZEOVERRIDE = 0x66, OGRP3W = 0xF7, OGRP3MUL = 4, OGRP3IMUL = 5, OSETZ = 0x940F, OSETNZ = 0x950F, OANDEAXIMMW = 0x25, OOREAXIMMW = 0x0D, OXOREAXIMMW = 0x35, OCMPEAXIMMW = 0x3D, OADDEAXIMMW = 0x05, OSUBEAXIMMW = 0x2D, ONOP = 0x90, OCMPMRW = 0x39, OSETA = 0x970F, OSETG = 0x9F0F, OSETAE = 0x930F, OSETGE = 0x9D0F, OSETB = 0x920F, OSETL = 0x9C0F, OSETBE = 0x960F, OSETLE = 0x9E0F, OADDMRB = 0x00, OADDRMB = 0x02, OADDRMW = 0x03, OADDMRW = 0x01, OCLD = 0xFC, OSTD = 0xFD, OREP = 0xF3, OMOVSB = 0xA4, ODECR = 0x48, OCMPSB = 0xA6, OSTOSB = 0xAA, OESOVERRiDE = 0x26, OFSOVERRiDE = 0x64, OXCHGEAX = 0x90, OSUBRMW = 0x2B;
 
 function modrm(mod, reg, rm) return (mod << 6) | (reg << 3) | rm;
 const sib = modrm;
@@ -41,14 +41,69 @@ function compiler_asm_addroverride(c, size)
 
 struct CASMEMDATA = {CASMEMADDRSIZE}, {CASMEMMODRM}, {CASMEMSIB}, [CASMEMDISP];
 function compiler_asm_mem(c, outsize, mem)
-(base, ident{COMPILER_IDENT})
+(base, ident{COMPILER_IDENT}, econst, isize, index, scale)
 {
-    *outsize = 0;
+    if (compiler_match(c, TBYTE)) *outsize = 8;
+    else if (compiler_match(c, TWORD)) *outsize = 16;
+    else if (compiler_match(c, TDWORD)) *outsize = 32;
+    else *outsize = 0;
+
+    mem{CASMEMADDRSIZE} = 32;
+    mem.[CASMEMDISP] = 0;
 
     if (!compiler_match(c, TLEFTBRACKET)) return FALSE;
 
-    base = TINVALID;
+    if (compiler_matches(c, TES, TDS))
+    {
+        compiler_emit8(c, OESOVERRiDE + (c{CCUR + TOKEN_TYPE} - TES) *! 8);
+        compiler_consume(c, TCOLON);
+    }
+    else if (compiler_matches(c, TFS, TGS))
+    {
+        compiler_emit8(c, OFSOVERRiDE + (c{CCUR + TOKEN_TYPE} == TGS));
+        compiler_consume(c, TCOLON);
+    }
 
+    base = TINVALID;
+    switch (compiler_peek(c))
+    {
+        case TESP:
+            mem{CASMEMSIB} = sib(SIBSCALE1, SIBNOINDEX, RESP);
+        case TEAX:
+        case TECX:
+        case TEDX:
+        case TEBX:
+        case TESI:
+        case TEDI:
+            mem{CASMEMMODRM} = compiler_peek(c) - TEAX;
+            break;
+        case TEBP:
+            mem{CASMEMMODRM} = modrm(MODDISPW, 0, REBP);
+            break;
+        case TSI:
+            mem{CASMEMMODRM} = modrm(MODDISPW, 0, 0x4);
+            mem{CASMEMADDRSIZE} = 16;
+            break;
+        case TDI:
+            mem{CASMEMMODRM} = modrm(MODDISPW, 0, 0x5);
+            mem{CASMEMADDRSIZE} = 16;
+            break;
+        case TBP:
+            mem{CASMEMMODRM} = modrm(MODDISPW, 0, 0x6);
+            mem{CASMEMADDRSIZE} = 16;
+            break;
+        case TBX:
+            mem{CASMEMMODRM} = modrm(MODDISPW, 0, 0x7);
+            mem{CASMEMADDRSIZE} = 16;
+            break;
+        default:
+            JMP .noadvance
+    }
+
+    compiler_asm_addroverride(c, mem{CASMEMADDRSIZE});
+    base = compiler_advance(c);
+
+.noadvance:
     if (base == TINVALID and compiler_match(c, TIDENT) and map_get(&c{CLOCALS}, &c{CCUR + TOKEN_VALUE}, ident))
     {
 
@@ -59,6 +114,42 @@ function compiler_asm_mem(c, outsize, mem)
         mem.[CASMEMDISP] = ident.[COMPILER_IDENT_ADDR];
     }
 
+    if (base == TINVALID or compiler_match(c, TPLUS))
+    {
+        if (base != TINVALID and (index = compiler_asm_reg(c, &isize)) != -1)
+        {
+            if (isize == 32 and mem{CASMEMADDRSIZE} == 32)
+            {
+                scale = SIBSCALE1;
+                if (compiler_match(c, TSTAR))
+                {
+                    compiler_consume(c, TNUM);
+                    switch (c.[CCUR + TOKEN_VALUE])
+                    {
+                        case 1: break;
+                        case 2: scale = SIBSCALE2; break;
+                        case 4: scale = SIBSCALE4; break;
+                        case 8: scale = SIBSCALE8; break;
+                        default: compiler_throw(c, $@, $*, print("Invalid scale"));
+                    }
+                }
+                mem{CASMEMSIB} = sib(scale, index, mem{CASMEMMODRM} & 0x7);
+                mem{CASMEMMODRM} = (mem{CASMEMMODRM} & 0xF8) | 0x4;
+                if (!compiler_match(c, TPLUS)) JMP .end;
+            }
+            else
+            {
+                compiler_throw(c, $@, $*, print("Invalid index register"));
+            }
+        }
+        mem.[CASMEMDISP] += compiler_expression(c, &econst);
+        if (!econst) compiler_throw(c, $@, $*, print("Expression not constant"));
+        if (base == TINVALID and !c{CUSE32}) mem{CASMEMADDRSIZE} = 16;
+        if (base == TINVALID) mem.[CASMEMMODRM] = modrm(0, 0, mem{CASMEMADDRSIZE} == 16 ? 0x6 : 0x5);
+        else mem.[CASMEMMODRM] = modrm(MODDISPW, 0, mem.[CASMEMMODRM]);
+    }
+
+.end:
     compiler_consume(c, TRIGHTBRACKET);
 }
 

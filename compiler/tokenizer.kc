@@ -107,6 +107,7 @@ function tokenizer_ident_token(t, out)
             return TRUE;
         case 'R':
             if (strcmp(s, "REP")) out.[TOKEN_TYPE] = TREP;
+            else if (strcmp(s, "RET")) out.[TOKEN_TYPE] = TRET;
             else break;
             return TRUE;
         case 'S':

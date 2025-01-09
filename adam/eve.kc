@@ -1,38 +1,138 @@
 #extern first_free;
 
 function eve(compiler, f)
-(vec{VEC}, x)
+#(vec{VEC}, x)
 {
-    first_free = f;
-    vec_init(vec, 64, 1);
-    while (TRUE)
+    print("Lets give this a shot.\n");
+    format(print, "A Number: %u\n", 123);
+#    first_free = f;
+#    vec_init(vec, 64, 1);
+#    while (TRUE)
+#    {
+#        input(vec);
+#        x = compile(compiler, "stdin", vec);
+#        if (x) x();
+#    }
+}
+
+#function reverse(s)
+#(i, c)
+#{
+#    i = 0;
+#    while (i <! s.[STRINGLEN] /! 2)
+#    {
+#        c = s.[STRINGPTR]{i};
+#        s.[STRINGPTR]{i} = s.[STRINGPTR]{s.[STRINGLEN] - 1 - i};
+#        s.[STRINGPTR]{s.[STRINGLEN] - 1 - i} = c;
+#        i += 1;
+#    }
+#    return s;
+#}
+
+function format(fn, fmt)
+(s{STRING}, i, start, v, c, e)
+{
+    e = 0xffffffff;
+    i = 0;
+    start = 0;
+    v = 2;
+
+    while (i <! fmt.[STRINGLEN])
     {
-        input(vec);
-        x = compile(compiler, "stdin", vec);
-        if (x) x();
+        c = fmt.[STRINGPTR]{i};
+        if (c == '%')
+        {
+            s.[STRINGPTR] = fmt.[STRINGPTR] + start;
+            s.[STRINGLEN] = i + 2 + start *$ e;
+            fn(s);
+
+            i += 1;
+            c = fmt.[STRINGPTR]{i};
+            #if (c == 's') fn(vararg(v));
+            #else if (c == 'x') format_hex(fn, s, vararg(v));
+            #else if (c == 'u') format_udec(fn, s, vararg(v));
+            #else if (c == 'c') format_char(fn, s, vararg(v));
+
+            start = i + 1;
+            v += 1;
+        }
+        i += 1;
     }
+
+    s.[STRINGPTR] = fmt.[STRINGPTR] + start;
+    s.[STRINGLEN] = i + start *$ e;
+    fn(s);
 }
 
-function input(v)
-(eax, unused)
-{
-    v.[VEC_LEN] = 0;
+#function format_hex(fn, s, n)
+#(buf{8}, i, c)
+#{
+#    s.[STRINGPTR] = buf;
+#    fn(int2str(s, n, 16, FALSE));
+#}
+#
+#function format_udec(fn, s, n)
+#(buf{10}, i)
+#{
+#    s.[STRINGPTR] = buf;
+#    fn(int2str(s, n, 10, FALSE));
+#}
+#
+#function format_char(fn, s, c)
+#{
+#    s.[STRINGPTR] = &c;
+#    s.[STRINGLEN] = 1;
+#    fn(s);
+#}
+#
+#function int2str(s, n, radix, signed)
+#(p, i)
+#{
+#    s.[STRINGLEN] = 0;
+#    p = s.[STRINGPTR];
+#    if (signed and n <$ 0)
+#    {
+#        p{0} = '-';
+#        s.[STRINGLEN] += 1;
+#    }
+#
+#    while (n or s.[STRINGLEN] == 0)
+#    {
+#        i = n %! radix;
+#        n /!= radix;
+#        if (i <! 10) p{s.[STRINGLEN]} = i + '0';
+#        else p{s.[STRINGLEN]} = i + 'A' - 10;
+#        s.[STRINGLEN] += 1;
+#    }
+#
+#    return reverse(s);
+#}
+#
+#vararg:
+#    MOV EAX, [ESP + 4]
+#    MOV EAX, [EBP + EAX * 4 + 8]
+#    RET
 
-    do {
-        eax = 0;
-        interrupt(0x16, &eax, &unused, &unused, &unused, &unused, &unused);
-        format(print, "%c", eax & 0xff);
-        vec_push1(v, eax);
-    } while ((eax & 0xff) != '\r');
-
-    print("\n");
-    return v;
-}
-
+#function input(v)
+#(eax, unused)
+#{
+#    v.[VEC_LEN] = 0;
+#
+#    do {
+#        eax = 0;
+#        interrupt(0x16, &eax, &unused, &unused, &unused, &unused, &unused);
+#        format(print, "%c", eax & 0xff);
+#        vec_push1(v, eax);
+#    } while ((eax & 0xff) != '\r');
+#
+#    print("\n");
+#    return v;
+#}
+#
 include "lib/def.kc"
-include "lib/util.kc"
-include "lib/fs.kc"
-include "lib/malloc.kc"
-include "lib/map.kc"
-include "lib/vec.kc"
-include "compiler/compiler.kc"
+#include "lib/util.kc"
+#include "lib/fs.kc"
+#include "lib/malloc.kc"
+#include "lib/map.kc"
+#include "lib/vec.kc"
+#include "compiler/compiler.kc"
