@@ -691,8 +691,8 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 if (last == TRIGHTBRACE)
                 {
                     HANDLE(compiler_emit8(c, 0x0F));
-                    HANDLE(compiler_emit8(c, 0xB7));
-                    HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOVZX EAX, WORD [EDX]
+                    HANDLE(compiler_emit8(c, 0xB6));
+                    HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOVZX EAX, BYTE [EDX]
                 }
                 else
                 {
@@ -714,16 +714,34 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV EAX, [EDX]
                 break;
             case TBITWISEOREQUALS:
-                HANDLE(compiler_emit8(c, 0x09));
-                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // OR [EDX], EAX
-                HANDLE(compiler_emit8(c, 0x8B));
-                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV EAX, [EDX]
+                HANDLE(compiler_emit8(c, last == TRIGHTBRACE ? 0x08 : 0x09));
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // OR BYTE/DWORD [EDX], EAX
+                if (last == TRIGHTBRACE)
+                {
+                    HANDLE(compiler_emit8(c, 0x0F));
+                    HANDLE(compiler_emit8(c, 0xB6));
+                    HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOVZX EAX, BYTE [EDX]
+                }
+                else
+                {
+                    HANDLE(compiler_emit8(c, 0x8B));
+                    HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV EAX, [EDX]
+                }
                 break;
             case TBITWISEANDEQUALS:
-                HANDLE(compiler_emit8(c, 0x21));
-                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // AND [EDX], EAX
-                HANDLE(compiler_emit8(c, 0x8B));
-                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV EAX, [EDX]
+                HANDLE(compiler_emit8(c, last == TRIGHTBRACE ? 0x20 : 0x21));
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // AND BYTE/DWORD [EDX], EAX
+                if (last == TRIGHTBRACE)
+                {
+                    HANDLE(compiler_emit8(c, 0x0F));
+                    HANDLE(compiler_emit8(c, 0xB6));
+                    HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOVZX EAX, BYTE [EDX]
+                }
+                else
+                {
+                    HANDLE(compiler_emit8(c, 0x8B));
+                    HANDLE(compiler_emit8(c, MODRM(0, 0, 2))); // MOV EAX, [EDX]
+                }
                 break;
             case TBITWISEXOREQUALS:
                 HANDLE(compiler_emit8(c, 0x31));
@@ -1959,16 +1977,6 @@ bool compiler_global(Compiler *c)
     return compiler_consume(c, TSEMICOLON);
 }
 
-bool compiler_extern(Compiler *c)
-{
-    do
-    {
-        HANDLE(compiler_consume(c, TIDENT));
-        map_set2(&c->idents, c->cur.value, 0, false);
-    } while (compiler_match(c, TCOMMA));
-    return compiler_consume(c, TSEMICOLON);
-}
-
 bool compiler_continue(Compiler *c)
 {
     HANDLE(compiler_emit8(c, 0xE9));
@@ -2192,7 +2200,6 @@ bool compiler_statement(Compiler *c)
         case TSTRUCT: HANDLE(compiler_struct(c)); break;
         case TENUM: HANDLE(compiler_enum(c)); break;
         case TGLOBAL: HANDLE(compiler_global(c)); break;
-        case TEXTERN: HANDLE(compiler_extern(c)); break;
         case TCONTINUE: HANDLE(compiler_continue(c)); break;
         case TSWITCH: HANDLE(compiler_switch(c)); break;
         case TCASE: HANDLE(compiler_case(c)); break;

@@ -112,8 +112,7 @@ FileReadContinue:
     MOV ES, AX
     MOV DS, AX
     MOV SS, AX
-    XOR SP, SP
-    MOV BH, 5
+    MOV SP, 0x1000
     PUSH 0
     PUSH 0x1000
     RETF

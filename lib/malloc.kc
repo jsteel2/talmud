@@ -2,7 +2,6 @@ const HI_MEM_START = 0x00100000, EXT_MEM_START = 0x01000000;
 struct MEM_HEADER = {MEM_HEADER_FLAGS}, [MEM_HEADER_SIZE], [MEM_HEADER_NEXT], [MEM_HEADER_PREV];
 const MEM_HEADER_FUSED = 1 << 0;
 const MEM_HEADER_FNO_MERGE_NEXT = 1 << 1;
-global first_free;
 
 function malloc_init(lowmem_start)
 (lowmem, himem, extmem, eax, ecx, edx, unused)

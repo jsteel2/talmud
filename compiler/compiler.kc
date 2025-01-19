@@ -623,21 +623,18 @@ function compiler_binary(c, prec, econst)
                 }
                 else if (lconst)
                 {
-                    # what the hell? FIXME.
                     compiler_emit8(c, OXCHGEAX + REDX);
-                    #compiler_emit8(c, OMOVRIMMW + REAX);
-                    #compiler_emit32(c, l);
-                    #compiler_emit8(c, OSUBRMW);
-                    #compiler_emit8(c, modrm(MODREG, REAX, REDX));
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, l);
+                    compiler_emit8(c, OSUBRMW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REDX));
                 }
                 else
                 {
-                    # I just dont know what went wrong!
-                    #compiler_emit8(c, OPOPR + REDX);
-                    #compiler_emit8(c, OXCHGEAX + REDX);
-                    #compiler_emit8(c, OSUBRMW);
-                    #compiler_emit8(c, modrm(MODREG, REAX, REDX));
-                    print("todo\n");
+                    compiler_emit8(c, OPOPR + REDX);
+                    compiler_emit8(c, OXCHGEAX + REDX);
+                    compiler_emit8(c, OSUBRMW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REDX));
                 }
                 break;
             case TSTARU:

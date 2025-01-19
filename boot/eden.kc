@@ -6,6 +6,8 @@ const DISK_BUF = $!;
 const STACK = DISK_BUF + 512 *! 128 + 64 *! 1024;
 const HEAP_START = STACK;
 
+global first_free;
+
 IN AL, 0x92
 OR AL, 2
 OUT 0x92, AL
@@ -64,7 +66,6 @@ function eden()
         JMP .hlt
     }
 
-    extern first_free;
     eve(compiler, first_free);
 .hlt:
     HLT

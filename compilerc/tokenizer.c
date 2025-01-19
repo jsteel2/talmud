@@ -204,7 +204,6 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("do") == len && strncmp(start, SLEN("do")) == 0) return TDO;
             break;
         case 'e':
-            if (LEN("extern") == len && strncmp(start, SLEN("extern")) == 0) return TEXTERN;
             if (LEN("else") == len && strncmp(start, SLEN("else")) == 0) return TELSE;
             if (LEN("enum") == len && strncmp(start, SLEN("enum")) == 0) return TENUM;
             break;

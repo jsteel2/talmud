@@ -1,5 +1,3 @@
-#extern first_free;
-
 function eve(compiler, f)
 #(vec{VEC}, x)
 {
