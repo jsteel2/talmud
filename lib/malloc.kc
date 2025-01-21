@@ -44,7 +44,7 @@ function malloc(n)
     while (left and (left{MEM_HEADER_FLAGS} & MEM_HEADER_FUSED or left.[MEM_HEADER_SIZE] <! n)) left = left.[MEM_HEADER_NEXT];
     if (!left) return NULL;
     
-    if (left.[MEM_HEADER_SIZE] <=! n + MEM_HEADER) 
+    if (left.[MEM_HEADER_SIZE] <=! n + MEM_HEADER + 1)
     {
         left{MEM_HEADER_FLAGS} |= MEM_HEADER_FUSED;
         return left + MEM_HEADER;

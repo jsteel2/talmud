@@ -271,15 +271,14 @@ function compiler_label(c, local)
     }
     if (local)
     {
-        # FIXME
-        #p = malloc(c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1 + c.[CCUR_FUNC + STRINGLEN]);
-        #memcpy(p, c.[CCUR + TOKEN_VALUE + STRINGPTR], c.[CCUR + TOKEN_VALUE + STRINGLEN]);
-        #p{c.[CCUR + TOKEN_VALUE + STRINGLEN]} = '.';
-        #memcpy(p + c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1, c.[CCUR_FUNC + STRINGPTR], c.[CCUR_FUNC + STRINGLEN]);
-        #b.[TOKEN_VALUE + STRINGLEN] += 1 + c.[CCUR_FUNC + STRINGLEN];
-        #b.[TOKEN_VALUE + STRINGPTR] = p;
-        #compiler_label_set(c, &c{CLOCAL_LABELS}, &b{TOKEN_VALUE});
-        #free(p);
+        p = malloc(c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1 + c.[CCUR_FUNC + STRINGLEN]);
+        memcpy(p, c.[CCUR + TOKEN_VALUE + STRINGPTR], c.[CCUR + TOKEN_VALUE + STRINGLEN]);
+        p{c.[CCUR + TOKEN_VALUE + STRINGLEN]} = '.';
+        memcpy(p + c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1, c.[CCUR_FUNC + STRINGPTR], c.[CCUR_FUNC + STRINGLEN]);
+        b.[TOKEN_VALUE + STRINGLEN] += 1 + c.[CCUR_FUNC + STRINGLEN];
+        b.[TOKEN_VALUE + STRINGPTR] = p;
+        compiler_label_set(c, &c{CLOCAL_LABELS}, &b{TOKEN_VALUE});
+        free(p);
     }
     else
     {
@@ -1223,26 +1222,25 @@ function compiler_ident_get(c, name, out)
 function compiler_local_label_get(c, name, out)
 (ident{COMPILER_IDENT}, p, b)
 {
-    # FIXME
-    #p = malloc(name.[STRINGLEN] + 1 c.[CCUR_FUNC + STRINGLEN]);
-    #memcpy(p, name.[STRINGPTR], name.[STRINGLEN]);
-    #p{name.[STRINGLEN]} = '.';
-    #memcpy(p + name.[STRINGLEN] + 1, c.[CCUR_FUNC + STRINGPTR], c.[CCUR_FUNC + STRINGLEN]);
-    #name.[STRINGLEN] += 1 + c.[CCUR_FUNC + STRINGLEN];
-    #b = name.[STRINGPTR];
-    #name.[STRINGPTR] = p;
-    #if (map_get(&c{CLOCAL_LABELS}, name, ident))
-    #{
-    #    free(p);
-    #    name.[STRINGPTR] = b;
-    #    name.[STRINGLEN] -= 1 + c.[CCUR_FUNC + STRINGLEN];
-    #    *out = ident.[COMPILER_IDENT_ADDR];
-    #    return ident{COMPILER_IDENT_FLAGS};
-    #}
-    #free(p);
-    #name.[STRINGPTR] = b;
-    #name.[STRINGLEN] -= 1 + c.[CCUR_FUNC + STRINGLEN];
-    #return FALSE;
+    p = malloc(name.[STRINGLEN] + 1 + c.[CCUR_FUNC + STRINGLEN]);
+    memcpy(p, name.[STRINGPTR], name.[STRINGLEN]);
+    p{name.[STRINGLEN]} = '.';
+    memcpy(p + name.[STRINGLEN] + 1, c.[CCUR_FUNC + STRINGPTR], c.[CCUR_FUNC + STRINGLEN]);
+    name.[STRINGLEN] += 1 + c.[CCUR_FUNC + STRINGLEN];
+    b = name.[STRINGPTR];
+    name.[STRINGPTR] = p;
+    if (map_get(&c{CLOCAL_LABELS}, name, ident))
+    {
+        free(p);
+        name.[STRINGPTR] = b;
+        name.[STRINGLEN] -= 1 + c.[CCUR_FUNC + STRINGLEN];
+        *out = ident.[COMPILER_IDENT_ADDR];
+        return ident{COMPILER_IDENT_FLAGS};
+    }
+    free(p);
+    name.[STRINGPTR] = b;
+    name.[STRINGLEN] -= 1 + c.[CCUR_FUNC + STRINGLEN];
+    return FALSE;
 }
 
 function compiler_string_get(c, s)
