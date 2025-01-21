@@ -1,7 +1,7 @@
 include "compiler/tokenizer.kc"
 include "compiler/asm.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END], {CUSE32};
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], STRING{CCUR_FUNC}, [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END], {CUSE32};
 const IDENT_FLAG_VALID = 1;
 const IDENT_FLAG_LOCAL = 1 << 1;
 const IDENT_FLAG_ADDRESS = 1 << 2;
@@ -16,7 +16,7 @@ function compiler_init(c)
     if (!map_init(&c{CIDENTS}, 1024, STRING, COMPILER_IDENT, strcmp, hash_string, free_string)) return FALSE;
     if (!map_init(&c{CSTRINGS}, 64, STRING, COMPILER_STRING, strcmp, hash_string, free_string)) return FALSE;
     if (!map_init(&c{CLOCALS}, 32, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
-    if (!map_init(&c{CLOCAL_LABELS}, 8, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
+    if (!map_init(&c{CLOCAL_LABELS}, 16, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
     if (!vec_init(&c{CLATER}, 1024, 4)) return FALSE;
     return TRUE;
 }
@@ -211,6 +211,7 @@ function compile(c, filename, src)
 
     compiler_try_end(c);
     map_free2(&c{CSTRINGS});
+    map_free2(&c{CLOCAL_LABELS});
     return c.[CBIN];
 
 .catch:
@@ -218,6 +219,7 @@ function compile(c, filename, src)
     if ((c.[CNEXT + TOKEN_TYPE] == TSTRING or c.[CNEXT + TOKEN_TYPE] == TCHARS) and c.[CNEXT + TOKEN_VALUE + STRINGPTR]) free(c.[CNEXT + TOKEN_VALUE + STRINGPTR]);
     free(c.[CBIN]);
     map_free2(&c{CSTRINGS});
+    map_free2(&c{CLOCAL_LABELS});
     return NULL;
 }
 
@@ -255,7 +257,7 @@ function compiler_statement(c)
 }
 
 function compiler_label(c, local)
-(t{TOKENIZER}, b{TOKEN})
+(t{TOKENIZER}, b{TOKEN}, p)
 {
     memcpy(t, &c{CTOK}, TOKENIZER);
     memcpy(b, &c{CCUR}, TOKEN);
@@ -267,7 +269,22 @@ function compiler_label(c, local)
         memcpy(&c{CCUR}, b, TOKEN);
         return FALSE;
     }
-    compiler_label_set(c, local ? &c{CLOCAL_LABELS} : &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
+    if (local)
+    {
+        # FIXME
+        #p = malloc(c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1 + c.[CCUR_FUNC + STRINGLEN]);
+        #memcpy(p, c.[CCUR + TOKEN_VALUE + STRINGPTR], c.[CCUR + TOKEN_VALUE + STRINGLEN]);
+        #p{c.[CCUR + TOKEN_VALUE + STRINGLEN]} = '.';
+        #memcpy(p + c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1, c.[CCUR_FUNC + STRINGPTR], c.[CCUR_FUNC + STRINGLEN]);
+        #b.[TOKEN_VALUE + STRINGLEN] += 1 + c.[CCUR_FUNC + STRINGLEN];
+        #b.[TOKEN_VALUE + STRINGPTR] = p;
+        #compiler_label_set(c, &c{CLOCAL_LABELS}, &b{TOKEN_VALUE});
+        #free(p);
+    }
+    else
+    {
+        compiler_label_set(c, &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
+    }
     compiler_consume(c, TCOLON);
     return TRUE;
 }
@@ -308,6 +325,7 @@ function compiler_function(c)
     compiler_consume(c, TFUNCTION);
     compiler_consume(c, TIDENT);
     compiler_label_set(c, &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
+    memcpy(&c{CCUR_FUNC}, map_ref(&c{CIDENTS}, &c{CCUR + TOKEN_VALUE}, NULL), STRING);
     compiler_consume(c, TLEFTPAREN);
 
     i = 4;
@@ -517,20 +535,20 @@ function compiler_do(c)
 }
 
 function compiler_if(c)
-(econst, ifend, r)
+(econst, ifelse, ifend, r)
 {
     compiler_consume(c, TIF);
     compiler_consume(c, TLEFTPAREN);
     r = compiler_expression(c, &econst);
     compiler_consume(c, TRIGHTPAREN);
     
-    ifend = compiler_getlater(c);
+    ifelse = compiler_getlater(c);
     if (econst)
     {
         if (!r)
         {
             compiler_emit8(c, OJMPW);
-            compiler_emit32(c, compiler_relative(c, ifend + c.[CORG], 4));
+            compiler_emit32(c, compiler_relative(c, ifelse + c.[CORG], 4));
         }
         else
         {
@@ -544,18 +562,24 @@ function compiler_if(c)
         compiler_emit8(c, modrm(MODREG, REAX, REAX));
 
         compiler_emit16(c, OJZW);
-        compiler_emit32(c, compiler_relative(c, ifend + c.[CORG], 4));
+        compiler_emit32(c, compiler_relative(c, ifelse + c.[CORG], 4));
     }
 
     compiler_statement(c);
 
     if (compiler_match(c, TELSE))
     {
-        print("todo else");
+        ifend = compiler_getlater(c);
+        compiler_emit8(c, OJMPW);
+        compiler_emit32(c, compiler_relative(c, ifend + c.[CORG], 4));
+        compiler_setlater(c, ifelse, c.[CIP]);
         compiler_statement(c);
+        compiler_setlater(c, ifend, c.[CIP]);
     }
-    
-    compiler_setlater(c, ifend, c.[CIP]);
+    else
+    {
+        compiler_setlater(c, ifelse, c.[CIP]);
+    }
 }
 
 function compiler_const_expression(c)
@@ -586,9 +610,8 @@ function compiler_binary(c, prec, econst)
     {
         rconst = TRUE;
         i = compiler_emit8(c, OPUSHR + REAX);
-        if (prec{PREC_ASSOC} == ASSOC_LEFT) r = compiler_binary(c, prec + PREC, &rconst);
-        else if (prec{PREC_ASSOC} == ASSOC_MIDDLE) r = compiler_binary(c, precs, &rconst);
-        else r = compiler_binary(c, prec, &rconst);
+        if (prec{PREC_ASSOC} == ASSOC_LEFT and t != TLOGICALOR and t != TLOGICALAND) r = compiler_binary(c, prec + PREC, &rconst);
+        else if (prec{PREC_ASSOC} == ASSOC_RIGHT) r = compiler_binary(c, prec, &rconst);
         if (!rconst) *econst = FALSE;
         if (lconst or rconst) compiler_shift(c, i);
 
@@ -660,11 +683,61 @@ function compiler_binary(c, prec, econst)
                 break;
             case TSLASHU:
             case TSLASHS:
-                print("todo di\n");
-                break;
             case TMODULOU:
             case TMODULOS:
-                print("todo mod\n");
+            case TSLASHUEQUALS:
+            case TSLASHSEQUALS:
+            case TMODULOUEQUALS:
+            case TMODULOSEQUALS:
+                if (*econst)
+                {
+                    print("todo div\n");
+                    break;
+                }
+                else if (rconst)
+                {
+                    compiler_emit8(c, OMOVRIMMW + RECX);
+                    compiler_emit32(c, r);
+                }
+                else if (lconst)
+                {
+                    print("todo div\n");
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + RECX);
+                    compiler_emit8(c, OXCHGEAX + RECX);
+                }
+                if (t >=! TSLASHUEQUALS and t <=! TMODULOSEQUALS)
+                {
+                    compiler_emit8(c, OXCHGEAX + REBX);
+                    compiler_emit8(c, OMOVRMW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, REBX));
+                }
+                if (t == TSLASHS or t == TMODULOS or t == TSLASHSEQUALS or t == TMODULOSEQUALS)
+                {
+                    compiler_emit8(c, OCDQ);
+                    compiler_emit8(c, OGRP3W);
+                    compiler_emit8(c, modrm(MODREG, OGRP3IDIV, RECX));
+                }
+                else
+                {
+                    compiler_emit8(c, OXORMRW);
+                    compiler_emit8(c, modrm(MODREG, REDX, REDX));
+                    compiler_emit8(c, OGRP3W);
+                    compiler_emit8(c, modrm(MODREG, OGRP3DIV, RECX));
+                }
+                if (t == TMODULOU or t == TMODULOS or t == TMODULOUEQUALS or t == TMODULOSEQUALS)
+                {
+                    compiler_emit8(c, OXCHGEAX + REDX);
+                }
+                if (t >=! TSLASHUEQUALS and t <=! TMODULOSEQUALS)
+                {
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    else if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMRB);
+                    else compiler_emit8(c, OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, REBX));
+                }
                 break;
             case TEQUALS:
             case TPLUSEQUALS:
@@ -677,7 +750,7 @@ function compiler_binary(c, prec, econst)
                 else if (rconst)
                 {
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
-                    if (last == TRIGHTBRACE) compiler_emit8(c, t != TEQUALS ? OGRP1MIMMBB : OMOVMIMMB);
+                    else if (last == TRIGHTBRACE) compiler_emit8(c, t != TEQUALS ? OGRP1MIMMBB : OMOVMIMMB);
                     else compiler_emit8(c, t != TEQUALS ? OGRP1MIMMWW : OMOVMIMMW);
                     compiler_emit8(c, modrm(MODMEM, 0, REAX));
                     if (last == TRIGHTBRACE) compiler_emit8(c, r);
@@ -692,7 +765,7 @@ function compiler_binary(c, prec, econst)
                 {
                     compiler_emit8(c, OPOPR + RECX);
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
-                    if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : OMOVMRB);
+                    else if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : OMOVMRB);
                     else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : OMOVMRW);
                     compiler_emit8(c, modrm(MODMEM, REAX, RECX));
                 }
@@ -700,10 +773,6 @@ function compiler_binary(c, prec, econst)
             case TSTARUEQUALS:
             case TSTARSEQUALS:
                 print("todo se\n");
-                break;
-            case TSLASHUEQUALS:
-            case TSLASHSEQUALS:
-                print("todo de\n");
                 break;
             case TGREATERTHANU:
             case TGREATERTHANS:
@@ -716,13 +785,16 @@ function compiler_binary(c, prec, econst)
                 if (*econst)
                 {
                     print("todo cmp");
+                    break;
                 }
                 else if (rconst)
                 {
-                    print("todo cmp");
+                    compiler_emit8(c, OCMPEAXIMMW);
+                    compiler_emit32(c, r);
                 }
                 else if (lconst)
                 {
+                    # dont have to swap order, just ex. turn >! into <=!? unsure
                     print("todo cmp");
                 }
                 else
@@ -731,23 +803,22 @@ function compiler_binary(c, prec, econst)
 
                     compiler_emit8(c, OCMPMRW);
                     compiler_emit8(c, modrm(MODREG, REAX, REDX));
-
-                    compiler_emit8(c, OMOVRIMMW + REAX);
-                    compiler_emit32(c, 0);
-                    
-                    switch (t)
-                    {
-                        case TGREATERTHANU: compiler_emit16(c, OSETA); break;
-                        case TGREATERTHANS: compiler_emit16(c, OSETG); break;
-                        case TGREATEREQUALSU: compiler_emit16(c, OSETAE); break;
-                        case TGREATEREQUALSS: compiler_emit16(c, OSETGE); break;
-                        case TLESSTHANU: compiler_emit16(c, OSETB); break;
-                        case TLESSTHANS: compiler_emit16(c, OSETL); break;
-                        case TLESSEQUALSU: compiler_emit16(c, OSETBE); break;
-                        case TLESSEQUALSS: compiler_emit16(c, OSETLE); break;
-                    }
-                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
                 }
+                compiler_emit8(c, OMOVRIMMW + REAX);
+                compiler_emit32(c, 0);
+                
+                switch (t)
+                {
+                    case TGREATERTHANU: compiler_emit16(c, OSETA); break;
+                    case TGREATERTHANS: compiler_emit16(c, OSETG); break;
+                    case TGREATEREQUALSU: compiler_emit16(c, OSETAE); break;
+                    case TGREATEREQUALSS: compiler_emit16(c, OSETGE); break;
+                    case TLESSTHANU: compiler_emit16(c, OSETB); break;
+                    case TLESSTHANS: compiler_emit16(c, OSETL); break;
+                    case TLESSEQUALSU: compiler_emit16(c, OSETBE); break;
+                    case TLESSEQUALSS: compiler_emit16(c, OSETLE); break;
+                }
+                compiler_emit8(c, modrm(MODREG, REAX, REAX));
                 break;
             case TEQUALSEQUALS:
             case TNOTEQUALS:
@@ -790,15 +861,63 @@ function compiler_binary(c, prec, econst)
                 break;
             case TQMARK:
                 print("todo tern\n");
+                r = compiler_expression(c, &rconst);
+                if (!rconst) *econst = FALSE;
                 compiler_consume(c, TCOLON);
-                compiler_expression(c, &rconst);
+                r = compiler_expression(c, &rconst);
                 if (!rconst) *econst = FALSE;
                 break;
             case TLOGICALAND:
-                print("todo and\n");
+                if (lconst)
+                {
+                    print("todo and\n");
+                }
+                else
+                {
+                    compiler_emit8(c, OTESTMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                    l = compiler_getlater(c);
+                    compiler_emit16(c, OJZW);
+                    compiler_emit32(c, compiler_relative(c, l + c.[CORG], 4));
+                    r = compiler_binary(c, prec + PREC, &rconst);
+                    if (rconst)
+                    {
+                        print("todo and\n");
+                    }
+                    else
+                    {
+                        i = compiler_getlater(c);
+                        compiler_emit8(c, OJMPW);
+                        compiler_emit32(c, compiler_relative(c, i + c.[CORG], 4));
+                        compiler_setlater(c, l, c.[CIP]);
+                        compiler_emit8(c, OXORMRW);
+                        compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                        compiler_setlater(c, i, c.[CIP]);
+                    }
+                }
                 break;
             case TLOGICALOR:
-                print("todo or\n");
+                if (lconst)
+                {
+                    print("todo or\n");
+                    r = compiler_binary(c, prec + PREC, &rconst);
+                    if (!rconst) *econst = FALSE;
+                }
+                else
+                {
+                    compiler_emit8(c, OTESTMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                    l = compiler_getlater(c);
+                    compiler_emit16(c, OJNZW);
+                    compiler_emit32(c, compiler_relative(c, l + c.[CORG], 4));
+                    r = compiler_binary(c, prec + PREC, &rconst);
+                    if (rconst)
+                    {
+                        compiler_emit8(c, OMOVRIMMW + REAX);
+                        compiler_emit32(c, r);
+                    }
+                    compiler_setlater(c, l, c.[CIP]);
+                }
                 break;
             default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
@@ -1102,14 +1221,28 @@ function compiler_ident_get(c, name, out)
 }
 
 function compiler_local_label_get(c, name, out)
-(ident{COMPILER_IDENT})
+(ident{COMPILER_IDENT}, p, b)
 {
-    if (map_get(&c{CLOCAL_LABELS}, name, ident))
-    {
-        *out = ident.[COMPILER_IDENT_ADDR];
-        return ident{COMPILER_IDENT_FLAGS};
-    }
-    return FALSE;
+    # FIXME
+    #p = malloc(name.[STRINGLEN] + 1 c.[CCUR_FUNC + STRINGLEN]);
+    #memcpy(p, name.[STRINGPTR], name.[STRINGLEN]);
+    #p{name.[STRINGLEN]} = '.';
+    #memcpy(p + name.[STRINGLEN] + 1, c.[CCUR_FUNC + STRINGPTR], c.[CCUR_FUNC + STRINGLEN]);
+    #name.[STRINGLEN] += 1 + c.[CCUR_FUNC + STRINGLEN];
+    #b = name.[STRINGPTR];
+    #name.[STRINGPTR] = p;
+    #if (map_get(&c{CLOCAL_LABELS}, name, ident))
+    #{
+    #    free(p);
+    #    name.[STRINGPTR] = b;
+    #    name.[STRINGLEN] -= 1 + c.[CCUR_FUNC + STRINGLEN];
+    #    *out = ident.[COMPILER_IDENT_ADDR];
+    #    return ident{COMPILER_IDENT_FLAGS};
+    #}
+    #free(p);
+    #name.[STRINGPTR] = b;
+    #name.[STRINGLEN] -= 1 + c.[CCUR_FUNC + STRINGLEN];
+    #return FALSE;
 }
 
 function compiler_string_get(c, s)
