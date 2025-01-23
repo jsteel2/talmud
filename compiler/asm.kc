@@ -6,7 +6,7 @@ const RSIB = RESP;
 const RDISP = REBP;
 const SIBNOINDEX = RESP;
 
-const OTESTW = 0x85, OJMPW = 0xE9, OCALL = 0xE8, OMOVMRB = 0x88, OMOVMRW = 0x89, OMOVRMB = 0x8A, OMOVRMW = 0x8B, OMOVRIMMW = 0xB8, OMOVMIMMW = 0xC7, OMOVMIMMB = 0xC6, OJZW = 0x840F, OJZB = 0x74, OJNZW = 0x850F, OPUSHR = 0x50, OPOPR = 0x58, OGRP1MIMMWB = 0x83, OGRP1MIMMBB = 0x80, OGRP1MIMMWW = 0x81, OGRP1ADD = 0, OGRP1AND = 4, OGRP1OR = 1, OGRP1XOR = 6, OGRP1SUB = 5, OGRP1CMP = 7, OGRP5 = 0xFF, OGRP5CALL = 2, OLEAVE = 0xC9, ORET = 0xC3, OMOVZXW = 0xB70F, OMOVZXB = 0xB60F, OLEA = 0x8D, OSIZEOVERRIDE = 0x66, OGRP3W = 0xF7, OGRP3MUL = 4, OGRP3IMUL = 5, OGRP3DIV = 6, OGRP3IDIV = 7, OSETZ = 0x940F, OSETNZ = 0x950F, OANDEAXIMMW = 0x25, OOREAXIMMW = 0x0D, OXOREAXIMMW = 0x35, OCMPEAXIMMW = 0x3D, OADDEAXIMMW = 0x05, OSUBEAXIMMW = 0x2D, ONOP = 0x90, OCMPMRW = 0x39, OSETA = 0x970F, OSETG = 0x9F0F, OSETAE = 0x930F, OSETGE = 0x9D0F, OSETB = 0x920F, OSETL = 0x9C0F, OSETBE = 0x960F, OSETLE = 0x9E0F, OADDMRB = 0x00, OADDRMB = 0x02, OADDRMW = 0x03, OADDMRW = 0x01, OCLD = 0xFC, OSTD = 0xFD, OREP = 0xF3, OMOVSB = 0xA4, ODECR = 0x48, OCMPSB = 0xA6, OSTOSB = 0xAA, OESOVERRiDE = 0x26, OFSOVERRiDE = 0x64, OXCHGEAX = 0x90, OSUBRMW = 0x2B, OTESTMRW = 0x85, OXORMRW = 0x31, OCDQ = 0x99;
+const OTESTW = 0x85, OJMPW = 0xE9, OCALL = 0xE8, OMOVMRB = 0x88, OMOVMRW = 0x89, OMOVRMB = 0x8A, OMOVRMW = 0x8B, OMOVRIMMW = 0xB8, OMOVMIMMW = 0xC7, OMOVMIMMB = 0xC6, OJZW = 0x840F, OJZB = 0x74, OJNZW = 0x850F, OPUSHR = 0x50, OPOPR = 0x58, OGRP1MIMMWB = 0x83, OGRP1MIMMBB = 0x80, OGRP1MIMMWW = 0x81, OGRP1ADD = 0, OGRP1AND = 4, OGRP1OR = 1, OGRP1XOR = 6, OGRP1SUB = 5, OGRP1CMP = 7, OGRP5 = 0xFF, OGRP5CALL = 2, OGRP5JMP = 4, OGRP5JMPFAR = 5, OLEAVE = 0xC9, ORET = 0xC3, OMOVZXW = 0xB70F, OMOVZXB = 0xB60F, OLEA = 0x8D, OSIZEOVERRIDE = 0x66, OGRP3W = 0xF7, OGRP3MUL = 4, OGRP3IMUL = 5, OGRP3DIV = 6, OGRP3IDIV = 7, OSETZ = 0x940F, OSETNZ = 0x950F, OANDEAXIMMW = 0x25, OOREAXIMMW = 0x0D, OXOREAXIMMW = 0x35, OCMPEAXIMMW = 0x3D, OADDEAXIMMW = 0x05, OSUBEAXIMMW = 0x2D, ONOP = 0x90, OCMPMRW = 0x39, OSETA = 0x970F, OSETG = 0x9F0F, OSETAE = 0x930F, OSETGE = 0x9D0F, OSETB = 0x920F, OSETL = 0x9C0F, OSETBE = 0x960F, OSETLE = 0x9E0F, OADDMRB = 0x00, OADDRMB = 0x02, OADDRMW = 0x03, OADDMRW = 0x01, OCLD = 0xFC, OSTD = 0xFD, OREP = 0xF3, OMOVSB = 0xA4, ODECR = 0x48, OCMPSB = 0xA6, OSTOSB = 0xAA, OESOVERRiDE = 0x26, OFSOVERRiDE = 0x64, OXCHGEAX = 0x90, OSUBRMW = 0x2B, OTESTMRW = 0x85, OXORMRW = 0x31, OCDQ = 0x99, OJMPB = 0xEB, OJMPW = 0xE9, OJMPFAR = 0xEA;
 
 function modrm(mod, reg, rm) return (mod << 6) | (reg << 3) | rm;
 const sib = modrm;
@@ -41,7 +41,7 @@ function compiler_asm_addroverride(c, size)
 
 struct CASMEMDATA = {CASMEMADDRSIZE}, {CASMEMMODRM}, {CASMEMSIB}, [CASMEMDISP];
 function compiler_asm_mem(c, outsize, mem)
-(base, ident{COMPILER_IDENT}, econst, isize, index, scale)
+(base, ident{COMPILER_IDENT}, isize, index, scale)
 {
     if (compiler_match(c, TBYTE)) *outsize = 8;
     else if (compiler_match(c, TWORD)) *outsize = 16;
@@ -142,8 +142,7 @@ function compiler_asm_mem(c, outsize, mem)
                 compiler_throw(c, $@, $*, print("Invalid index register"));
             }
         }
-        mem.[CASMEMDISP] += compiler_expression(c, &econst);
-        if (!econst) compiler_throw(c, $@, $*, print("Expression not constant"));
+        mem.[CASMEMDISP] += compiler_const_expression(c);
         if (base == TINVALID and !c{CUSE32}) mem{CASMEMADDRSIZE} = 16;
         if (base == TINVALID) mem.[CASMEMMODRM] = modrm(0, 0, mem{CASMEMADDRSIZE} == 16 ? 0x6 : 0x5);
         else mem.[CASMEMMODRM] = modrm(MODDISPW, 0, mem.[CASMEMMODRM]);
@@ -244,22 +243,29 @@ function compiler_asm_incdec(c, op)
 }
 
 function compiler_asm_jcc(c, opb, opw)
-(econst, r)
+(r)
 {
     compiler_advance(c);
     if (compiler_match(c, TSHORT))
     {
-        r = compiler_expression(c, &econst);
-        if (!econst or r >! 0xFF) compiler_throw(c, $@, $*, print("invalid asm expression"));
+        r = compiler_const_expression(c);
+        if (r >! 0xFF) compiler_throw(c, $@, $*, print("invalid asm expression"));
         compiler_emit8(c, opb);
         compiler_emit8(c, r);
     }
     else
     {
-        r = compiler_expression(c, &econst);
-        if (!econst or (!c{CUSE32} and r >! 0xFFFF)) compiler_throw(c, $@, $*, print("invalid asm expression"));
+        r = compiler_const_expression(c);
+        if (!c{CUSE32} and r >! 0xFFFF) compiler_throw(c, $@, $*, print("invalid asm expression"));
         compiler_emit16(c, opw);
         if (c{CUSE32}) compiler_emit32(c, r);
         else compiler_emit16(c, r);
     }
+}
+
+function compiler_asm_jmp(c, opb, opw, opfar, regnear, regfar)
+{
+    compiler_advance(c);
+    compiler_const_expression(c);
+    print("todo jmp\n");
 }

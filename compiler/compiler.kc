@@ -249,6 +249,7 @@ function compiler_statement(c)
         case TMOV: return compiler_asm_mov(c);
         case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
         case TDEC: return compiler_asm_incdec(c, ODECR);
+        case TJMP: return compiler_asm_jmp(c, OJMPB, OJMPW, OJMPFAR, OGRP5JMP, OGRP5JMPFAR);
         case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
         case TDOT: local = TRUE; compiler_advance(c);
         case TIDENT: if (compiler_label(c, local)) break;
@@ -275,7 +276,7 @@ function compiler_label(c, local)
         memcpy(p, c.[CCUR + TOKEN_VALUE + STRINGPTR], c.[CCUR + TOKEN_VALUE + STRINGLEN]);
         p{c.[CCUR + TOKEN_VALUE + STRINGLEN]} = '.';
         memcpy(p + c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1, c.[CCUR_FUNC + STRINGPTR], c.[CCUR_FUNC + STRINGLEN]);
-        b.[TOKEN_VALUE + STRINGLEN] += 1 + c.[CCUR_FUNC + STRINGLEN];
+        b.[TOKEN_VALUE + STRINGLEN] = c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1 + c.[CCUR_FUNC + STRINGLEN];
         b.[TOKEN_VALUE + STRINGPTR] = p;
         compiler_label_set(c, &c{CLOCAL_LABELS}, &b{TOKEN_VALUE});
         free(p);
@@ -372,7 +373,7 @@ function compiler_function(c)
 }
 
 function compiler_struct(c)
-(s{STRING}, i, t, a)
+(s{STRING}, i, t, a, mul, mconst)
 {
     compiler_consume(c, TSTRUCT);
     compiler_consume(c, TIDENT);
@@ -381,14 +382,20 @@ function compiler_struct(c)
     i = 0;
     do
     {
+.x:
+        mul = 1;
         if (t = compiler_match(c, TLEFTBRACKET)) a = 4;
         else if (t = compiler_match(c, TLEFTCHEVRON)) a = 2;
         else if (t = compiler_match(c, TLEFTBRACE)) a = 1;
-        else compiler_throw_token(c, $@, $*, CNEXT, TLEFTBRACKET);
+        else
+        {
+            mul = compiler_const_expression(c);
+            JMP .x
+        }
         compiler_consume(c, TIDENT);
         compiler_const_set(c, &c{CCUR + TOKEN_VALUE}, i);
         compiler_consume(c, t + 1);
-        i += 4;
+        i += a *! mul;
     } while (compiler_match(c, TCOMMA));
     compiler_const_set(c, s, i);
     compiler_consume(c, TSEMICOLON);
@@ -584,7 +591,8 @@ function compiler_if(c)
 function compiler_const_expression(c)
 (r, econst)
 {
-    r = compiler_expression(c, &econst);
+    econst = TRUE;
+    r = compiler_binary(c, precs, &econst, TRUE);
     if (!econst) compiler_throw(c, $@, $*, print("Expression not constant"));
     return r;
 }
@@ -592,16 +600,16 @@ function compiler_const_expression(c)
 function compiler_expression(c, econst)
 {
     *econst = TRUE;
-    return compiler_binary(c, precs, econst);
+    return compiler_binary(c, precs, econst, FALSE);
 }
 
-function compiler_binary(c, prec, econst)
+function compiler_binary(c, prec, econst, iconst)
 (t, last, l, r, lconst, rconst, i)
 {
-    if (!prec{PREC_START}) return compiler_unary(c, econst);
+    if (!prec{PREC_START}) return compiler_unary(c, econst, iconst);
 
     lconst = TRUE;
-    l = compiler_binary(c, prec + PREC, &lconst);
+    l = compiler_binary(c, prec + PREC, &lconst, iconst);
     if (!lconst) *econst = FALSE;
 
     last = c{CCUR + TOKEN_TYPE};
@@ -609,8 +617,8 @@ function compiler_binary(c, prec, econst)
     {
         rconst = TRUE;
         i = compiler_emit8(c, OPUSHR + REAX);
-        if (prec{PREC_ASSOC} == ASSOC_LEFT and t != TLOGICALOR and t != TLOGICALAND) r = compiler_binary(c, prec + PREC, &rconst);
-        else if (prec{PREC_ASSOC} == ASSOC_RIGHT) r = compiler_binary(c, prec, &rconst);
+        if (prec{PREC_ASSOC} == ASSOC_LEFT and t != TLOGICALOR and t != TLOGICALAND) r = compiler_binary(c, prec + PREC, &rconst, iconst);
+        else if (prec{PREC_ASSOC} == ASSOC_RIGHT) r = compiler_binary(c, prec, &rconst, iconst);
         if (!rconst) *econst = FALSE;
         if (lconst or rconst) compiler_shift(c, i);
 
@@ -878,7 +886,7 @@ function compiler_binary(c, prec, econst)
                     l = compiler_getlater(c);
                     compiler_emit16(c, OJZW);
                     compiler_emit32(c, compiler_relative(c, l + c.[CORG], 4));
-                    r = compiler_binary(c, prec + PREC, &rconst);
+                    r = compiler_binary(c, prec + PREC, &rconst, iconst);
                     if (rconst)
                     {
                         print("todo and\n");
@@ -899,7 +907,7 @@ function compiler_binary(c, prec, econst)
                 if (lconst)
                 {
                     print("todo or\n");
-                    r = compiler_binary(c, prec + PREC, &rconst);
+                    r = compiler_binary(c, prec + PREC, &rconst, iconst);
                     if (!rconst) *econst = FALSE;
                 }
                 else
@@ -909,7 +917,7 @@ function compiler_binary(c, prec, econst)
                     l = compiler_getlater(c);
                     compiler_emit16(c, OJNZW);
                     compiler_emit32(c, compiler_relative(c, l + c.[CORG], 4));
-                    r = compiler_binary(c, prec + PREC, &rconst);
+                    r = compiler_binary(c, prec + PREC, &rconst, iconst);
                     if (rconst)
                     {
                         compiler_emit8(c, OMOVRIMMW + REAX);
@@ -917,6 +925,15 @@ function compiler_binary(c, prec, econst)
                     }
                     compiler_setlater(c, l, c.[CIP]);
                 }
+                break;
+            case TBITWISEOR:
+                print("todo bor\n");
+                break;
+            case TSHIFTRIGHT:
+                print("todo shr\n");
+                break;
+            case TSHIFTLEFT:
+                print("todo shl\n");
                 break;
             default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
@@ -927,7 +944,7 @@ function compiler_binary(c, prec, econst)
     return l;
 }
 
-function compiler_unary(c, econst)
+function compiler_unary(c, econst, iconst)
 (t, ident)
 {
     switch (compiler_peek(c))
@@ -936,11 +953,11 @@ function compiler_unary(c, econst)
             print("todo\n");
             compiler_advance(c);
             *econst = FALSE;
-            compiler_unary(c, econst);
+            compiler_unary(c, econst, iconst);
             return;
         case TBANG:
             compiler_advance(c);
-            t = compiler_unary(c, econst);
+            t = compiler_unary(c, econst, iconst);
             if (*econst) return !t;
 
             compiler_emit8(c, OTESTW);
@@ -954,13 +971,13 @@ function compiler_unary(c, econst)
             return;
         case TBITWISEAND:
             compiler_advance(c);
-            return compiler_primary(c, econst, TRUE);
+            return compiler_primary(c, econst, TRUE, iconst);
         default:
-            return compiler_primary(c, econst, FALSE);
+            return compiler_primary(c, econst, FALSE, iconst);
     }
 }
 
-function compiler_primary(c, econst, ref)
+function compiler_primary(c, econst, ref, iconst)
 (ident, f, r, ig)
 {
     ig = compiler_ident_get;
@@ -1024,7 +1041,7 @@ function compiler_primary(c, econst, ref)
             break;
     }
 
-    while (compiler_post(c, econst, &r));
+    if (!iconst) while (compiler_post(c, econst, &r));
     return r;
 }
 

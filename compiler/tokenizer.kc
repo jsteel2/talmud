@@ -12,7 +12,7 @@ enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
     TLOGICALAND,
     TEQUALSEQUALS, TNOTEQUALS,
     TGREATERTHANU, TGREATERTHANS, TGREATEREQUALSU, TGREATEREQUALSS, TLESSTHANU, TLESSTHANS, TLESSEQUALSU, TLESSEQUALSS,
-    TSHIFTRIGHT, TBITWISEOR, TBITWISEXOR, TBITWISEAND,
+    TSHIFTRIGHT, TSHIFTLEFT, TBITWISEOR, TBITWISEXOR, TBITWISEAND,
     TPLUS, TMINUS,
     TMODULOU, TMODULOS, TSLASHU, TSLASHS, TSTARU, TSTARS,
     TSTAR, TBANG,
@@ -97,7 +97,8 @@ function tokenizer_ident_token(t, out)
             else break;
             return TRUE;
         case 'J':
-            if (strcmp(s, "JZ")) out.[TOKEN_TYPE] = TJZ;
+            if (strcmp(s, "JMP")) out.[TOKEN_TYPE] = TJMP;
+            else if (strcmp(s, "JZ")) out.[TOKEN_TYPE] = TJZ;
             else break;
             return TRUE;
         case 'M':
@@ -176,6 +177,7 @@ function tokenizer_symbol_token(t, out)
             if (p{1} == '=') len = 2;
             if (p{len} == '!') out.[TOKEN_TYPE] = len == 1 ? TGREATERTHANU : TGREATEREQUALSU;
             else if (p{len} == '$') out.[TOKEN_TYPE] = len == 1 ? TGREATERTHANS : TGREATEREQUALSS;
+            else if (p{len} == '>') out.[TOKEN_TYPE] = TSHIFTRIGHT;
             else { len = 0; out.[TOKEN_TYPE] = TRIGHTCHEVRON; }
             len += 1;
             break;
@@ -183,6 +185,7 @@ function tokenizer_symbol_token(t, out)
             if (p{1} == '=') len = 2;
             if (p{len} == '!') out.[TOKEN_TYPE] = len == 1 ? TLESSTHANU : TLESSEQUALSU;
             else if (p{len} == '$') out.[TOKEN_TYPE] = len == 1 ? TLESSTHANS : TLESSEQUALSS;
+            else if (p{len} == '<') out.[TOKEN_TYPE] = TSHIFTLEFT;
             else { len = 0; out.[TOKEN_TYPE] = TLEFTCHEVRON; }
             len += 1;
             break;
@@ -235,6 +238,7 @@ function tokenizer_symbol_token(t, out)
         case ',': out.[TOKEN_TYPE] = TCOMMA; break;
         case '.': out.[TOKEN_TYPE] = TDOT; break;
         case '?': out.[TOKEN_TYPE] = TQMARK; break;
+        case '|': out.[TOKEN_TYPE] = TBITWISEOR; break;
         default: format(print, "Unknown symbol '%c'", p{0}); return FALSE;
     }
 
