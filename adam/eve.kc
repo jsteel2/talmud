@@ -21,7 +21,7 @@ function malloc(n)
 
 include "lib/def.kc"
 include "lib/util.kc"
-#include "lib/fs.kc"
+include "lib/fs.kc"
 #include "lib/malloc.kc"
 #include "lib/map.kc"
 #include "lib/vec.kc"

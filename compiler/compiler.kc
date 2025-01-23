@@ -926,16 +926,13 @@ function compiler_binary(c, prec, econst, iconst)
                     compiler_setlater(c, l, c.[CIP]);
                 }
                 break;
-            case TBITWISEOR:
-                print("todo bor\n");
-                break;
-            case TSHIFTRIGHT:
-                print("todo shr\n");
-                break;
-            case TSHIFTLEFT:
-                print("todo shl\n");
-                break;
-            default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
+        case TSHIFTLEFT:
+            print("todo shl\n");
+            break;
+        case TSHIFTRIGHT:
+            print("todo shr\n");
+            break;
+        default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
         if (lconst) lconst = rconst;
         last = c{CCUR + TOKEN_TYPE};
