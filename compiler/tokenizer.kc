@@ -2,11 +2,11 @@ struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
 enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
 
-    TWHILE, TDO, TIF, TELSE, TINCLUDE, TCONST, TSTRUCT, TFUNCTION, TRETURN,
+    TWHILE, TDO, TIF, TELSE, TINCLUDE, TCONST, TSTRUCT, TFUNCTION, TRETURN, TCONTINUE,
               
     TDOT, TLEFTPAREN, TRIGHTPAREN, TLEFTBRACE, TRIGHTBRACE, TLEFTBRACKET, TRIGHTBRACKET, TLEFTCHEVRON, TRIGHTCHEVRON, TSEMICOLON, TCOMMA,
 
-    TEQUALS, TSTARUEQUALS, TSTARSEQUALS, TSLASHUEQUALS, TSLASHSEQUALS, TMODULOUEQUALS, TMODULOSEQUALS, TMINUSEQUALS, TPLUSEQUALS,
+    TEQUALS, TSTARUEQUALS, TSTARSEQUALS, TSLASHUEQUALS, TSLASHSEQUALS, TMODULOUEQUALS, TMODULOSEQUALS, TBITWISEOREQUALS, TBITWISEANDEQUALS, TBITWISEXOREQUALS, TMINUSEQUALS, TPLUSEQUALS,
     TQMARK, TCOLON,
     TLOGICALOR,
     TLOGICALAND,
@@ -15,7 +15,7 @@ enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
     TSHIFTRIGHT, TSHIFTLEFT, TBITWISEOR, TBITWISEXOR, TBITWISEAND,
     TPLUS, TMINUS,
     TMODULOU, TMODULOS, TSLASHU, TSLASHS, TSTARU, TSTARS,
-    TSTAR, TBANG,
+    TSTAR, TBANG, TBITWISENOT,
 
     TAAA, TAAD, TAAM, TAAS, TADC, TADD, TAND, TCALL, TCBW, TCLC, TCLD, TCLI, TCMC, TCMP, TCMPSB, TCMPSW, TCWDE, TCWD, TCDQ, TDAA, TDAS, TDEC, TDIV, TESC, THLT, TIDIV, TIMUL, TIN, TINC, TINT, TINTO, TIRET, TJO, TJNO, TJB, TJNB, TJZ, TJNZ, TJBE, TJA, TJS, TJNS, TJPE, TJPO, TJL, TJGE, TJLE, TJG, TJCXZ, TJMP, TLAHF, TLDS, TLEA, TLES, TLGDT, TLOCK, TLODSB, TLODSW, TLOOP, TLOOPZ, LOOPNZ, TMOV, TMOVSB, TMOVSW, TMOVZX, TMUL, TNEG, TNOP, TNOT, TOR, TOUT, TPOPAD, TPOP, TPOPF, TPUSHAD, TPUSH, TPUSHF, TRCL, TRCR, TREP, TREPNZ, TRET, TRETF, TRETN, TROL, TROR, TSAHF, TSAL, TSAR, TSBB, TSCASB, TSCASW, TSETB, TSHL, TSHR, TSTC, TSTD, TSTI, TSTOSB, TSTOSW, TSUB, TTEST, TWAIT, TXCHG, TXLAT, TXOR,
 
@@ -121,7 +121,8 @@ function tokenizer_ident_token(t, out)
             else break;
             return TRUE;
         case 'c':
-            if (strcmp(s, "const")) out.[TOKEN_TYPE] = TCONST;
+            if (strcmp(s, "continue")) out.[TOKEN_TYPE] = TCONTINUE;
+            else if (strcmp(s, "const")) out.[TOKEN_TYPE] = TCONST;
             else break;
             return TRUE;
         case 'd':
@@ -226,7 +227,18 @@ function tokenizer_symbol_token(t, out)
             if (p{1} == '=') { out.[TOKEN_TYPE] = TEQUALSEQUALS; len = 2; }
             else out.[TOKEN_TYPE] = TEQUALS;
             break;
-        case '&': out.[TOKEN_TYPE] = TBITWISEAND; break;
+        case '|':
+            if (p{1} == '=') { out.[TOKEN_TYPE] = TBITWISEOREQUALS; len = 2; }
+            else out.[TOKEN_TYPE] = TBITWISEOR;
+            break;
+        case '&':
+            if (p{1} == '=') { out.[TOKEN_TYPE] = TBITWISEANDEQUALS; len = 2; }
+            else out.[TOKEN_TYPE] = TBITWISEAND;
+            break;
+        case '^':
+            if (p{1} == '=') { out.[TOKEN_TYPE] = TBITWISEXOREQUALS; len = 2; }
+            else out.[TOKEN_TYPE] = TBITWISEXOR;
+            break;
         case '(': out.[TOKEN_TYPE] = TLEFTPAREN; break;
         case ')': out.[TOKEN_TYPE] = TRIGHTPAREN; break;
         case '{': out.[TOKEN_TYPE] = TLEFTBRACE; break;
@@ -238,7 +250,7 @@ function tokenizer_symbol_token(t, out)
         case ',': out.[TOKEN_TYPE] = TCOMMA; break;
         case '.': out.[TOKEN_TYPE] = TDOT; break;
         case '?': out.[TOKEN_TYPE] = TQMARK; break;
-        case '|': out.[TOKEN_TYPE] = TBITWISEOR; break;
+        case '~': out.[TOKEN_TYPE] = TBITWISENOT; break;
         default: format(print, "Unknown symbol '%c'", p{0}); return FALSE;
     }
 

@@ -231,6 +231,7 @@ function compiler_statement(c)
     {
         case TWHILE: return compiler_while(c);
         case TDO: return compiler_do(c);
+        case TCONTINUE: return compiler_continue(c);
         case TIF: return compiler_if(c);
         case TLEFTBRACE: return compiler_statements(c);
         case TINCLUDE: return compiler_include(c);
@@ -540,6 +541,13 @@ function compiler_do(c)
     }
 }
 
+function compiler_continue(c)
+{
+    print("todo continue\n");
+    compiler_advance(c);
+    compiler_consume(c, TSEMICOLON);
+}
+
 function compiler_if(c)
 (econst, ifelse, ifend, r)
 {
@@ -749,7 +757,12 @@ function compiler_binary(c, prec, econst, iconst)
             case TEQUALS:
             case TPLUSEQUALS:
             case TMINUSEQUALS:
+            case TBITWISEOREQUALS:
+            case TBITWISEANDEQUALS:
+            case TBITWISEXOREQUALS:
                 if (t == TMINUSEQUALS) print("todo me");
+                else if (t == TBITWISEOREQUALS) print("todo oe");
+                else if (t == TBITWISEXOREQUALS) print("todo xe");
                 if (*econst)
                 {
                     print("todo\n");
@@ -965,6 +978,20 @@ function compiler_unary(c, econst, iconst)
 
             compiler_emitvar(c, OSETZ);
             compiler_emit8(c, modrm(MODREG, REAX, REAX));
+            return;
+        case TBITWISENOT:
+            compiler_advance(c);
+            t = compiler_unary(c, econst, iconst);
+            if (*econst) return ~t;
+            compiler_emit8(c, OGRP3W);
+            compiler_emit8(c, modrm(MODREG, OGRP3NOT, REAX));
+            return;
+        case TMINUS:
+            compiler_advance(c);
+            t = compiler_unary(c, econst, iconst);
+            if (*econst) return -t;
+            compiler_emit8(c, OGRP3W);
+            compiler_emit8(c, modrm(MODREG, OGRP3NEG, REAX));
             return;
         case TBITWISEAND:
             compiler_advance(c);
@@ -1187,6 +1214,17 @@ function compiler_const_set(c, name, address)
     else x = strdup(name, s);
     ident.[COMPILER_IDENT_ADDR] = address;
     ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_ADDRESS;
+    if (!map_set(&c{CIDENTS}, x, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), x == name ? 0 : free(s.[STRINGPTR]));
+    return TRUE;
+}
+
+function compiler_global_set(c, name, address)
+(s{STRING}, x, ident{COMPILER_IDENT})
+{
+    if (map_get(&c{CIDENTS}, name, s)) x = name;
+    else x = strdup(name, s);
+    ident.[COMPILER_IDENT_ADDR] = address;
+    ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID;
     if (!map_set(&c{CIDENTS}, x, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), x == name ? 0 : free(s.[STRINGPTR]));
     return TRUE;
 }

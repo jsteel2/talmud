@@ -58,6 +58,7 @@ function eden()
     if (!compiler_const_set(compiler, "interrupt", interrupt)) JMP .hlt
     if (!compiler_const_set(compiler, "lba_read", lba_read)) JMP .hlt
     if (!compiler_const_set(compiler, "lba_write", lba_write)) JMP .hlt
+    if (!compiler_global_set(compiler, "first_free", &first_free)) JMP .hlt
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)
@@ -66,7 +67,8 @@ function eden()
         JMP .hlt
     }
 
-    eve(compiler, first_free);
+    format(print, "first_free: &x: %x: %x\n", &first_free, first_free);
+    eve(compiler);
 .hlt:
     HLT
     JMP .hlt

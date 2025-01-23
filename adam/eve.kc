@@ -1,9 +1,8 @@
-function eve(compiler, f)
+function eve(compiler)
 #(vec{VEC}, x)
 {
-    print("Lets give this a shot.\n");
-    format(print, "A Number: %u, hex: %x\n", 123, 0xbeefbabe);
-#    first_free = f;
+    print("Compiled Eve\n");
+    format(print, "first_free: &x: %x: %x\n", &first_free, first_free);
 #    vec_init(vec, 64, 1);
 #    while (TRUE)
 #    {
@@ -14,15 +13,10 @@ function eve(compiler, f)
 #    }
 }
 
-function malloc(n)
-{
-    print("Placeholder.\n");
-}
-
 include "lib/def.kc"
 include "lib/util.kc"
 include "lib/fs.kc"
-#include "lib/malloc.kc"
-#include "lib/map.kc"
-#include "lib/vec.kc"
+include "lib/malloc.kc"
+include "lib/map.kc"
+include "lib/vec.kc"
 #include "compiler/compiler.kc"

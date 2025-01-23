@@ -453,7 +453,26 @@ bool compiler_unary(Compiler *c, size_t *res, Token t)
             if (!t.type) HANDLE(compiler_advance(c));
             HANDLE(compiler_consume(c, TIDENT));
             size_t x;
-            HANDLE(map_get(&c->locals, c->cur.value, &x));
+            if (!map_get(&c->locals, c->cur.value, &x))
+            {
+                HANDLE(map_get(&c->idents, c->cur.value, &x));
+                free(c->cur.value);
+                c->cur.value = NULL;
+                if (c->next.type == TLEFTBRACE || c->next.type == TLEFTBRACKET || c->next.type == TLEFTCHEVRON || c->next.type == TDOT)
+                {
+                    HANDLE(compiler_emit8(c, 0x8B));
+                    HANDLE(compiler_emit8(c, MODRM(0b00, 0, 0b101)));
+                    HANDLE(compiler_emit32(c, x)); // MOV EAX, [x]
+                    while (compiler_post(c, true));
+                }
+                else
+                {
+                    HANDLE(compiler_emit8(c, 0x8D));
+                    HANDLE(compiler_emit8(c, MODRM(0b00, 0, 0b101)));
+                    HANDLE(compiler_emit32(c, x)); // LEA EAX, [x]
+                }
+                break;
+            }
             free(c->cur.value);
             c->cur.value = NULL;
             if (c->next.type == TLEFTBRACE || c->next.type == TLEFTBRACKET || c->next.type == TLEFTCHEVRON || c->next.type == TDOT)
