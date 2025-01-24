@@ -1,7 +1,7 @@
 include "compiler/tokenize.kc"
 include "compiler/asm.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], STRING{CCUR_FUNC}, [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END], {CUSE32};
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], STRING{CCUR_FUNC}, [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CGLOBAL_OFFSET], [CPROG_END], {CUSE32};
 const IDENT_FLAG_VALID = 1;
 const IDENT_FLAG_LOCAL = 1 << 1;
 const IDENT_FLAG_ADDRESS = 1 << 2;
@@ -193,6 +193,12 @@ function compiler_pass(c, src, is_first_pass)
             i += 1;
         }
     }
+    i = 0;
+    while (i <! c.[CGLOBAL_OFFSET])
+    {
+        compiler_emit8(c, 0);
+        i += 1;
+    }
 }
 
 function compile(c, filename, src)
@@ -243,6 +249,7 @@ function compiler_statement(c)
         case TLEFTBRACE: return compiler_statements(c);
         case TINCLUDE: return compiler_include(c);
         case TCONST: return compiler_const(c);
+        case TGLOBAL: return compiler_global(c);
         case TSTRUCT: return compiler_struct(c);
         case TENUM: return compiler_enum(c);
         case TFUNCTION: return compiler_function(c);
@@ -447,6 +454,31 @@ function compiler_const(c)
         memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
         compiler_consume(c, TEQUALS);
         compiler_const_set(c, s, compiler_const_expression(c));
+    } while (compiler_match(c, TCOMMA));
+    compiler_consume(c, TSEMICOLON);
+}
+
+function compiler_global(c)
+(s{STRING}, x, ident{COMPILER_IDENT})
+{
+    compiler_advance(c);
+    do
+    {
+        compiler_consume(c, TIDENT);
+        if (map_get(&c{CIDENTS}, &c{CCUR + TOKEN_VALUE}, ident)) x = &c{CCUR + TOKEN_VALUE};
+        else x = strdup(&c{CCUR + TOKEN_VALUE}, s);
+        if (c.[CIS_FIRST_PASS])
+        {
+            ident.[COMPILER_IDENT_ADDR] = c.[CGLOBAL_OFFSET];
+            c.[CGLOBAL_OFFSET] += 4;
+            ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_RELOCATE;
+        }
+        else
+        {
+            ident.[COMPILER_IDENT_ADDR] += c.[CPROG_END] - c.[CGLOBAL_OFFSET];
+            ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID;
+        }
+        if (!map_set(&c{CIDENTS}, x, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", &c{CCUR + TOKEN_VALUE}, ident.[COMPILER_IDENT_ADDR]), x == &c{CCUR + TOKEN_VALUE} ? 0 : free(s.[STRINGPTR]));
     } while (compiler_match(c, TCOMMA));
     compiler_consume(c, TSEMICOLON);
 }
@@ -1345,7 +1377,7 @@ function compiler_ident_get(c, name, out)
 
     if (map_get(&c{CIDENTS}, name, ident))
     {
-        *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] : 0);
+        *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_ADDRESS ? 0 : c.[CPROG_END] - c.[CGLOBAL_OFFSET]) : 0);
         return ident{COMPILER_IDENT_FLAGS};
     }
     return FALSE;
@@ -1385,7 +1417,7 @@ function compiler_string_get(c, s, should_free)
             free(s.[STRINGPTR]);
             s.[STRINGPTR] = NULL;
         }
-        return x + c.[CPROG_END] - c.[CSTRING_OFFSET];
+        return x + c.[CPROG_END] - c.[CSTRING_OFFSET] - c.[CGLOBAL_OFFSET];
     }
 
     x = c.[CSTRING_OFFSET];

@@ -67,7 +67,6 @@ function eden()
         JMP .hlt
     }
 
-    format(print, "first_free: &x: %x: %x\n", &first_free, first_free);
     eve(compiler);
 .hlt:
     HLT

@@ -138,6 +138,7 @@ function format(fn, fmt)
             c = fmt.[STRINGPTR]{i};
             if (c == 's') fn(vararg(v));
             else if (c == 'x') format_hex(fn, s, vararg(v));
+            else if (c == 'd') format_dec(fn, s, vararg(v));
             else if (c == 'u') format_udec(fn, s, vararg(v));
             else if (c == 'c') format_char(fn, s, vararg(v));
 
@@ -159,6 +160,13 @@ function format_hex(fn, s, n)
     fn(int2str(s, n, 16, FALSE));
 }
 
+function format_dec(fn, s, n)
+(buf{11}, i)
+{
+    s.[STRINGPTR] = buf;
+    fn(int2str(s, n, 10, TRUE));
+}
+
 function format_udec(fn, s, n)
 (buf{10}, i)
 {
@@ -174,14 +182,18 @@ function format_char(fn, s, c)
 }
 
 function int2str(s, n, radix, signed)
-(p, i)
+(p, i, neg)
 {
     s.[STRINGLEN] = 0;
     p = s.[STRINGPTR];
     if (signed and n <$ 0)
     {
-        p{0} = '-';
-        s.[STRINGLEN] += 1;
+        n = -n;
+        neg = TRUE;
+    }
+    else
+    {
+        neg = FALSE;
     }
 
     while (n or s.[STRINGLEN] == 0)
@@ -190,6 +202,12 @@ function int2str(s, n, radix, signed)
         n /!= radix;
         if (i <! 10) p{s.[STRINGLEN]} = i + '0';
         else p{s.[STRINGLEN]} = i + 'A' - 10;
+        s.[STRINGLEN] += 1;
+    }
+
+    if (neg)
+    {
+        p{s.[STRINGLEN]} = '-';
         s.[STRINGLEN] += 1;
     }
 

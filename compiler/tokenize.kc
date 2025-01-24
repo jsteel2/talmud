@@ -2,7 +2,7 @@ struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
 enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
 
-    TWHILE, TDO, TIF, TELSE, TSWITCH, TCASE, TDEFAULT, TINCLUDE, TCONST, TSTRUCT, TENUM, TFUNCTION, TRETURN, TCONTINUE, TBREAK,
+    TWHILE, TDO, TIF, TELSE, TSWITCH, TCASE, TDEFAULT, TINCLUDE, TGLOBAL, TCONST, TSTRUCT, TENUM, TFUNCTION, TRETURN, TCONTINUE, TBREAK,
               
     TDOT, TLEFTPAREN, TRIGHTPAREN, TLEFTBRACE, TRIGHTBRACE, TLEFTBRACKET, TRIGHTBRACKET, TLEFTCHEVRON, TRIGHTCHEVRON, TSEMICOLON, TCOMMA,
 
@@ -155,6 +155,10 @@ function tokenizer_ident_token(t, out)
             return TRUE;
         case 'f':
             if (strcmp(s, "function")) out.[TOKEN_TYPE] = TFUNCTION;
+            else break;
+            return TRUE;
+        case 'g':
+            if (strcmp(s, "global")) out.[TOKEN_TYPE] = TGLOBAL;
             else break;
             return TRUE;
         case 'i':
