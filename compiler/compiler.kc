@@ -166,7 +166,7 @@ function compiler_shift(c, i)
 }
 
 function compiler_pass(c, src, is_first_pass)
-(state, s, i)
+(state, i)
 {
     c.[CIS_FIRST_PASS] = is_first_pass;
     c.[CLATER_I] = 0;
@@ -182,14 +182,14 @@ function compiler_pass(c, src, is_first_pass)
     compiler_emit8(c, ORET);
 
     state = 0;
-    while (s = map_iter(&c{CSTRINGS}, &state))
+    while (map_iter(&c{CSTRINGS}, &state))
     {
-        compiler_emit32(c, s.[STRINGLEN]);
+        compiler_emit32(c, state.[STRINGLEN]);
         compiler_emit32(c, c.[CIP] + 4);
         i = 0;
-        while (i <! s.[STRINGLEN])
+        while (i <! state.[STRINGLEN])
         {
-            compiler_emit8(c, s.[STRINGPTR]{i});
+            compiler_emit8(c, state.[STRINGPTR]{i});
             i += 1;
         }
     }
@@ -1113,10 +1113,10 @@ function compiler_primary(c, econst, ref, iconst)
             }
             break;
         case TSTRING:
-            r = compiler_string_get(c, &c{CCUR + TOKEN_VALUE});
+            r = compiler_string_get(c, &c{CCUR + TOKEN_VALUE}, TRUE);
             break;
         case TFUNC:
-            r = compiler_string_get(c, &c{CCUR_FUNC});
+            r = compiler_string_get(c, &c{CCUR_FUNC}, FALSE);
             break;
         case TPLINE:
             r = c.[CTOK + TLINE];
@@ -1322,7 +1322,7 @@ function compiler_label_set(c, m, name)
     {
         ident.[COMPILER_IDENT_ADDR] = c.[CIP];
         ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_ADDRESS;
-        if (!map_set(m, name, ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR]));
+        if (!map_set(m, name, ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]));
     }
 }
 
@@ -1375,19 +1375,22 @@ function compiler_local_label_get(c, name, out)
     return FALSE;
 }
 
-function compiler_string_get(c, s)
-(x)
+function compiler_string_get(c, s, should_free)
+(x, y{STRING})
 {
     if (map_get(&c{CSTRINGS}, s, &x))
     {
-        free(s.[STRINGPTR]);
-        s.[STRINGPTR] = NULL;
+        if (should_free)
+        {
+            free(s.[STRINGPTR]);
+            s.[STRINGPTR] = NULL;
+        }
         return x + c.[CPROG_END] - c.[CSTRING_OFFSET];
     }
 
     x = c.[CSTRING_OFFSET];
     c.[CSTRING_OFFSET] += 8 + s.[STRINGLEN];
-    if (!map_set(&c{CSTRINGS}, s, &x)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, x));
+    if (!map_set(&c{CSTRINGS}, should_free ? s : strdup(s, y), &x)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, x));
 
     return 0;
 }

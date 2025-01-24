@@ -25,7 +25,7 @@ function map_free2(m)
     state = 0;
     while (s = map_iter(m, &state))
     {
-        s{MAP_ENTRY_USED - MAP_ENTRY} = 0;
+        s{MAP_ENTRY_USED - MAP_ENTRY} = FALSE;
         if (m.[MAP_FREE]) m.[MAP_FREE](s);
     }
     m.[MAP_FIRST] = NULL;
@@ -68,7 +68,7 @@ function map_ref(m, key, index)
 (hash, i, e)
 {
     hash = m.[MAP_HASH](key);
-    i = hash & (m.[MAP_SIZE] - 1);
+    i = hash %! m.[MAP_SIZE];
 
     while (m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY_USED})
     {
@@ -92,12 +92,12 @@ function map_get(m, key, value)
 }
 
 function map_expand(m)
-(old_entries, old_size, state)
+(old_entries, state)
 {
     old_entries = m.[MAP_ENTRIES];
-    old_size = m.[MAP_SIZE];
     state = m.[MAP_FIRST];
     m.[MAP_SIZE] *!= 2;
+    m.[MAP_LEN] = 0;
     m.[MAP_FIRST] = NULL;
     m.[MAP_ENTRIES] = malloc(m.[MAP_SIZE] *! m.[MAP_ENTRY_SIZE]);
     if (!m.[MAP_ENTRIES]) return FALSE;
@@ -106,7 +106,6 @@ function map_expand(m)
     do 
     {
         map_set(m, state, state + m.[MAP_KEY_SIZE]);
-        format(print, "exset %s\n", state);
     } while (state = state.[MAP_ENTRY_NEXT - MAP_ENTRY]);
 
     free(old_entries);
@@ -119,15 +118,13 @@ function map_set(m, key, value)
     if (m.[MAP_LEN] >=! m.[MAP_SIZE] /! 2)
     {
         if (!map_expand(m)) return FALSE;
-        print("expanded\n");
     }
-    format(print, "set %s\n", key);
 
     entry = map_ref(m, key, &i);
     if (!entry)
     {
         entry = &m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY};
-        entry{MAP_ENTRY_USED - MAP_ENTRY} = 1;
+        entry{MAP_ENTRY_USED - MAP_ENTRY} = TRUE;
         entry.[MAP_ENTRY_NEXT - MAP_ENTRY] = NULL;
         m.[MAP_LEN] += 1;
         memcpy(entry, key, m.[MAP_KEY_SIZE]);
