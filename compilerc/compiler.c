@@ -635,6 +635,15 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x97));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETA AL
                 break;
+            case TGREATERTHANS:
+                HANDLE(compiler_emit8(c, 0x3B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
+                HANDLE(compiler_emit8(c, 0xB8));
+                HANDLE(compiler_emit32(c, 0)); // MOV EAX, 0
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x9F));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETG AL
+                break;
             case TLESSEQUALSU:
                 HANDLE(compiler_emit8(c, 0x3B));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX

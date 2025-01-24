@@ -1,4 +1,4 @@
-include "compiler/tokenizer.kc"
+include "compiler/tokenize.kc"
 include "compiler/asm.kc"
 
 struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], STRING{CCUR_FUNC}, [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CPROG_END], {CUSE32};
@@ -201,6 +201,7 @@ function compile(c, filename, src)
     c.[CCUR_FILE] = filename;
     c.[CSTRING_OFFSET] = 0;
     c.[CBIN] = NULL;
+    c.[CCUR_FUNC + STRINGPTR] = NULL;
 
     c.[CORG] = 0;
     compiler_pass(c, src, TRUE);
@@ -212,6 +213,7 @@ function compile(c, filename, src)
     compiler_try_end(c);
     map_free2(&c{CSTRINGS});
     map_free2(&c{CLOCAL_LABELS});
+    free(c.[CCUR_FUNC + STRINGPTR]);
     return c.[CBIN];
 
 .catch:
@@ -220,6 +222,7 @@ function compile(c, filename, src)
     free(c.[CBIN]);
     map_free2(&c{CSTRINGS});
     map_free2(&c{CLOCAL_LABELS});
+    free(c.[CCUR_FUNC + STRINGPTR]);
     return NULL;
 }
 
@@ -232,14 +235,20 @@ function compiler_statement(c)
         case TWHILE: return compiler_while(c);
         case TDO: return compiler_do(c);
         case TCONTINUE: return compiler_continue(c);
+        case TBREAK: return compiler_break(c);
         case TIF: return compiler_if(c);
+        case TSWITCH: return compiler_switch(c);
+        case TCASE: return compiler_case(c);
+        case TDEFAULT: return compiler_default(c);
         case TLEFTBRACE: return compiler_statements(c);
         case TINCLUDE: return compiler_include(c);
         case TCONST: return compiler_const(c);
         case TSTRUCT: return compiler_struct(c);
+        case TENUM: return compiler_enum(c);
         case TFUNCTION: return compiler_function(c);
         case TRETURN: return compiler_return(c);
         case TSEMICOLON: return compiler_advance(c);
+        case TDB: return compiler_asm_dx(c, compiler_emit8, compiler_asm_immb);
         case TCLD: return compiler_aemit8(c, OCLD);
         case TSTD: return compiler_aemit8(c, OSTD);
         case TREP: return compiler_aemit8(c, OREP);
@@ -249,12 +258,22 @@ function compiler_statement(c)
         case TSTOSB: return compiler_aemit8(c, OSTOSB);
         case TMOV: return compiler_asm_mov(c);
         case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
+        case TSUB: return compiler_asm_grp1(c, OSUBMRB, OGRP1SUB);
         case TDEC: return compiler_asm_incdec(c, ODECR);
+        case TPUSH: return compiler_asm_pushpop(c, TRUE);
+        case TPOP: return compiler_asm_pushpop(c, FALSE);
         case TJMP: return compiler_asm_jmp(c, OJMPB, OJMPW, OJMPFAR, OGRP5JMP, OGRP5JMPFAR);
         case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
         case TDOT: local = TRUE; compiler_advance(c);
         case TIDENT: if (compiler_label(c, local)) break;
-        default: compiler_expression(c, &econst); return compiler_consume(c, TSEMICOLON);
+        default:
+            local = compiler_expression(c, &econst);
+            if (econst)
+            {
+                compiler_emit8(c, OMOVRIMMW + REAX);
+                compiler_emit32(c, local);
+            }
+            return compiler_consume(c, TSEMICOLON);
     }
 }
 
@@ -284,6 +303,8 @@ function compiler_label(c, local)
     }
     else
     {
+        free(c.[CCUR_FUNC + STRINGPTR]);
+        strdup(&c{CCUR + TOKEN_VALUE}, &c{CCUR_FUNC});
         compiler_label_set(c, &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
     }
     compiler_consume(c, TCOLON);
@@ -325,8 +346,9 @@ function compiler_function(c)
 {
     compiler_consume(c, TFUNCTION);
     compiler_consume(c, TIDENT);
+    free(c.[CCUR_FUNC + STRINGPTR]);
+    strdup(&c{CCUR + TOKEN_VALUE}, &c{CCUR_FUNC});
     compiler_label_set(c, &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
-    memcpy(&c{CCUR_FUNC}, map_ref(&c{CIDENTS}, &c{CCUR + TOKEN_VALUE}, NULL), STRING);
     compiler_consume(c, TLEFTPAREN);
 
     i = 4;
@@ -399,6 +421,19 @@ function compiler_struct(c)
         i += a *! mul;
     } while (compiler_match(c, TCOMMA));
     compiler_const_set(c, s, i);
+    compiler_consume(c, TSEMICOLON);
+}
+
+function compiler_enum(c)
+(i)
+{
+    compiler_advance(c);
+    i = -1;
+    do
+    {
+        compiler_consume(c, TIDENT);
+        compiler_const_set(c, &c{CCUR + TOKEN_VALUE}, i += 1);
+    } while (compiler_match(c, TCOMMA));
     compiler_consume(c, TSEMICOLON);
 }
 
@@ -548,6 +583,13 @@ function compiler_continue(c)
     compiler_consume(c, TSEMICOLON);
 }
 
+function compiler_break(c)
+{
+    print("todo break\n");
+    compiler_advance(c);
+    compiler_consume(c, TSEMICOLON);
+}
+
 function compiler_if(c)
 (econst, ifelse, ifend, r)
 {
@@ -594,6 +636,32 @@ function compiler_if(c)
     {
         compiler_setlater(c, ifelse, c.[CIP]);
     }
+}
+
+function compiler_switch(c)
+(econst)
+{
+    compiler_advance(c);
+    compiler_consume(c, TLEFTPAREN);
+    compiler_expression(c, &econst);
+    compiler_consume(c, TRIGHTPAREN);
+    compiler_statement(c);
+    print("todo switch\n");
+}
+
+function compiler_case(c)
+{
+    compiler_advance(c);
+    compiler_const_expression(c);
+    compiler_consume(c, TCOLON);
+    print("todo case\n");
+}
+
+function compiler_default(c)
+{
+    compiler_advance(c);
+    compiler_consume(c, TCOLON);
+    print("todo default\n");
 }
 
 function compiler_const_expression(c)
@@ -945,6 +1013,12 @@ function compiler_binary(c, prec, econst, iconst)
         case TSHIFTRIGHT:
             print("todo shr\n");
             break;
+        case TSHIFTLEFTEQUALS:
+            print("todo shle\n");
+            break;
+        case TSHIFTRIGHTEQUALS:
+            print("todo shre\n");
+            break;
         default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
         if (lconst) lconst = rconst;
@@ -1040,6 +1114,12 @@ function compiler_primary(c, econst, ref, iconst)
             break;
         case TSTRING:
             r = compiler_string_get(c, &c{CCUR + TOKEN_VALUE});
+            break;
+        case TFUNC:
+            r = compiler_string_get(c, &c{CCUR_FUNC});
+            break;
+        case TPLINE:
+            r = c.[CTOK + TLINE];
             break;
         case TNUM:
             r = c.[CCUR + TOKEN_VALUE];
