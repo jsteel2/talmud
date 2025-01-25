@@ -330,6 +330,11 @@ function tokenizer_string_token(t, out, type)
         }
         else
         {
+            if (p{t.[TPOS]} == '\n')
+            {
+                t.[TLINE] += 1;
+                t.[TCOL] = 0;
+            }
             vec_push1(v, p{t.[TPOS]});
         }
         t.[TPOS] += 1;
@@ -386,7 +391,7 @@ function tokenizer_token(t, out)
 
     c = p{t.[TPOS]};
     if (isnum(c)) return tokenizer_number_token(t, out);
-    if (isalpha(c)) return tokenizer_ident_token(t, out);
+    if (isalpha(c) or c == '_') return tokenizer_ident_token(t, out);
     if (c == '\'') return tokenizer_string_token(t, out, TCHARS);
     if (c == '"') return tokenizer_string_token(t, out, TSTRING);
 

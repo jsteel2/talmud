@@ -777,9 +777,16 @@ function compiler_binary(c, prec, econst, iconst)
                 break;
             case TSTARU:
             case TSTARS:
+            case TSTARUEQUALS:
+            case TSTARSEQUALS:
                 if (*econst)
                 {
                     l = t == TSTARS ? l *$ r : l *! r;
+                    if (t == TSTARUEQUALS or t == TSTARSEQUALS)
+                    {
+                        print("todo se\n");
+                    }
+                    break;
                 }
                 else if (lconst)
                 {
@@ -791,9 +798,16 @@ function compiler_binary(c, prec, econst, iconst)
                 }
                 else
                 {
-                    compiler_emit8(c, OPOPR + REDX);
+                    compiler_emit8(c, OPOPR + REBX);
                     compiler_emit8(c, OGRP3W);
-                    compiler_emit8(c, modrm(MODREG, t == TSTARS ? OGRP3IMUL : OGRP3MUL, REDX));
+                    compiler_emit8(c, modrm(t == TSTARUEQUALS or t == TSTARSEQUALS ? MODMEM : MODREG, t == TSTARS ? OGRP3IMUL : OGRP3MUL, REBX));
+                }
+                if (t == TSTARUEQUALS or t == TSTARSEQUALS)
+                {
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    else if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMRB);
+                    else compiler_emit8(c, OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, REBX));
                 }
                 break;
             case TSLASHU:
@@ -889,10 +903,6 @@ function compiler_binary(c, prec, econst, iconst)
                     else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : OMOVMRW);
                     compiler_emit8(c, modrm(MODMEM, REAX, RECX));
                 }
-                break;
-            case TSTARUEQUALS:
-            case TSTARSEQUALS:
-                print("todo se\n");
                 break;
             case TGREATERTHANU:
             case TGREATERTHANS:
@@ -1119,7 +1129,8 @@ function compiler_primary(c, econst, ref, iconst)
         case TIDENT:
             if (f = ig(c, &c{CCUR + TOKEN_VALUE}, &ident))
             {
-                if (ref or f & IDENT_FLAG_ADDRESS or (compiler_peek(c) >=! TEQUALS and compiler_peek(c) <=! TPLUSEQUALS))
+                r = compiler_peek(c);
+                if ((ref and r != TDOT and r != TLEFTBRACKET and r != TLEFTCHEVRON and r != TLEFTBRACE) or f & IDENT_FLAG_ADDRESS or (r >=! TEQUALS and r <=! TPLUSEQUALS))
                 {
                     r = ident;
                     if (f & IDENT_FLAG_LOCAL)
@@ -1277,7 +1288,8 @@ function compiler_index(c, align, lconst, r, ref)
     i = compiler_emit8(c, OPUSHR + REAX);
     e = compiler_expression(c, &econst);
     compiler_consume(c, t + 1);
-    if (compiler_peek(c) >=! TEQUALS and compiler_peek(c) <=! TPLUSEQUALS or ref) op = OLEA;
+    t = compiler_peek(c);
+    if ((ref and t != TDOT and t != TLEFTBRACKET and t != TLEFTCHEVRON and t != TLEFTBRACE) or (t >=! TEQUALS and t <=! TPLUSEQUALS)) op = OLEA;
 
     if (*lconst or econst) compiler_shift(c, i);
 
