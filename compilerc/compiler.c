@@ -1506,7 +1506,8 @@ bool compiler_pushpop(Compiler *c, bool is_push)
     }
     else if (compiler_mem(c, &size, &addrsize, &modrm, &sib, &disp))
     {
-        if (size != 16 && size != 0) return die(&c->t, "compiler_pushpop: Operand size unsupported");
+        if (size == 0) return die(&c->t, "compiler_pushpop: Operand size unsupported");
+        HANDLE(compiler_sizeoverride(c, size));
         HANDLE(compiler_emit8(c, is_push ? 0xFF : 0x8F));
         HANDLE(compiler_emitmem(c, disp, modrm, sib, is_push ? 6 : 0, addrsize));
         return true;

@@ -39,7 +39,7 @@ function compiler_throw(c, file, line)
     MOV EDI, [c]
     MOV ESP, [EDI + CEXCEPT]
     POP EAX
-    POP [EDI + CEXCEPT]
+    POP DWORD [EDI + CEXCEPT]
     POP EBP
     JMP EAX
 }
@@ -49,7 +49,7 @@ compiler_try:
     POP EDI # compiler
     POP EBX # label
     PUSH EBP
-    PUSH [EDI + CEXCEPT]
+    PUSH DWORD [EDI + CEXCEPT]
     PUSH EBX
     MOV [EDI + CEXCEPT], ESP
     SUB ESP, 8
@@ -60,7 +60,7 @@ compiler_try_end:
     POP EDI # compiler
     MOV ESP, [EDI + CEXCEPT]
     POP EBX
-    POP [EDI + CEXCEPT]
+    POP DWORD [EDI + CEXCEPT]
     JMP EAX
 
 function compiler_throw_token(c, file, line, token, expected)
@@ -412,8 +412,8 @@ function compiler_struct(c)
     i = 0;
     do
     {
-.x:
         mul = 1;
+.x:
         if (t = compiler_match(c, TLEFTBRACKET)) a = 4;
         else if (t = compiler_match(c, TLEFTCHEVRON)) a = 2;
         else if (t = compiler_match(c, TLEFTBRACE)) a = 1;
@@ -1177,11 +1177,11 @@ function compiler_primary(c, econst, ref, iconst)
             break;
     }
 
-    if (!iconst) while (compiler_post(c, econst, &r));
+    if (!iconst) while (compiler_post(c, econst, &r, ref));
     return r;
 }
 
-function compiler_post(c, econst, r)
+function compiler_post(c, econst, r, ref)
 (align)
 {
     align = TRUE;
@@ -1192,7 +1192,7 @@ function compiler_post(c, econst, r)
         case TDOT: compiler_advance(c); align = FALSE; JMP .l
         case TLEFTBRACKET:
         case TLEFTCHEVRON:
-        case TLEFTBRACE: *r = compiler_index(c, align, econst, *r); break;
+        case TLEFTBRACE: *r = compiler_index(c, align, econst, *r, ref); break;
         default: return FALSE;
     }
 
@@ -1266,7 +1266,7 @@ function compiler_call(c, lconst, r)
     *lconst = FALSE;
 }
 
-function compiler_index(c, align, lconst, r)
+function compiler_index(c, align, lconst, r, ref)
 (scale, t, e, econst, op, i)
 {
     if (t = compiler_match(c, TLEFTBRACKET)) { scale = SIBSCALE4; op = OMOVRMW; }
@@ -1277,7 +1277,7 @@ function compiler_index(c, align, lconst, r)
     i = compiler_emit8(c, OPUSHR + REAX);
     e = compiler_expression(c, &econst);
     compiler_consume(c, t + 1);
-    if (compiler_peek(c) >=! TEQUALS and compiler_peek(c) <=! TPLUSEQUALS) op = OLEA;
+    if (compiler_peek(c) >=! TEQUALS and compiler_peek(c) <=! TPLUSEQUALS or ref) op = OLEA;
 
     if (*lconst or econst) compiler_shift(c, i);
 

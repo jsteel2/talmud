@@ -86,7 +86,8 @@ function tokenizer_ident_token(t, out)
             else break;
             return TRUE;
         case 'D':
-            if (strcmp(s, "DEC")) out.[TOKEN_TYPE] = TDEC;
+            if (strcmp(s, "DWORD")) out.[TOKEN_TYPE] = TDWORD;
+            else if (strcmp(s, "DEC")) out.[TOKEN_TYPE] = TDEC;
             else if (strcmp(s, "DB")) out.[TOKEN_TYPE] = TDB;
             else if (strcmp(s, "DW")) out.[TOKEN_TYPE] = TDW;
             else if (strcmp(s, "DD")) out.[TOKEN_TYPE] = TDD;
