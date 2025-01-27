@@ -244,3 +244,36 @@ vararg:
     MOV EAX, [ESP + 4]
     MOV EAX, [EBP + EAX * 4 + 8]
     RET
+
+function qsort(p, n, size, cmp, tmp)
+(pi, x, h, i)
+{
+    if (n >! 1)
+    {
+        i = p;
+        x = h = p + (n - 1) *! size;
+        memcpy(&tmp{size}, p, size);
+        while (i <! x)
+        {
+            while (cmp(i, &tmp{size}) <=$ 0 and i <! h) i += size;
+            while (cmp(x, &tmp{size}) >=$ 1 and x >! p) x -= size;
+            if (i <! x)
+            {
+                memcpy(tmp, i, size);
+                memcpy(i, x, size);
+                memcpy(x, tmp, size);
+            }
+        }
+        memcpy(tmp, p, size);
+        memcpy(p, x, size);
+        memcpy(x, tmp, size);
+
+        i = (x - p) /! size;
+        qsort(p, i, size, cmp, tmp);
+        qsort(x + size, n - i - size, size, cmp, tmp);
+    }
+}
+
+function sortbcmp(x, y) return x{0} - y{0};
+function sortwcmp(x, y) return x<0> - y<0>;
+function sortdwcmp(x, y) return x[0] - y[0];

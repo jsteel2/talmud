@@ -805,7 +805,7 @@ function compiler_binary(c, prec, econst, iconst)
                 if (t == TSTARUEQUALS or t == TSTARSEQUALS)
                 {
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
-                    else if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMRB);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMRB);
                     else compiler_emit8(c, OMOVMRW);
                     compiler_emit8(c, modrm(MODMEM, REAX, REBX));
                 }
@@ -863,7 +863,7 @@ function compiler_binary(c, prec, econst, iconst)
                 if (t >=! TSLASHUEQUALS and t <=! TMODULOSEQUALS)
                 {
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
-                    else if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMRB);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMRB);
                     else compiler_emit8(c, OMOVMRW);
                     compiler_emit8(c, modrm(MODMEM, REAX, REBX));
                 }
@@ -874,8 +874,7 @@ function compiler_binary(c, prec, econst, iconst)
             case TBITWISEOREQUALS:
             case TBITWISEANDEQUALS:
             case TBITWISEXOREQUALS:
-                if (t == TMINUSEQUALS) print("todo me");
-                else if (t == TBITWISEOREQUALS) print("todo oe");
+                if (t == TBITWISEOREQUALS) print("todo oe");
                 else if (t == TBITWISEXOREQUALS) print("todo xe");
                 if (*econst)
                 {
@@ -884,9 +883,9 @@ function compiler_binary(c, prec, econst, iconst)
                 else if (rconst)
                 {
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
-                    else if (last == TRIGHTBRACE) compiler_emit8(c, t != TEQUALS ? OGRP1MIMMBB : OMOVMIMMB);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t != TEQUALS ? OGRP1MIMMBB : OMOVMIMMB);
                     else compiler_emit8(c, t != TEQUALS ? OGRP1MIMMWW : OMOVMIMMW);
-                    compiler_emit8(c, modrm(MODMEM, 0, REAX));
+                    compiler_emit8(c, modrm(MODMEM, t == TPLUSEQUALS ? OGRP1ADD : t == TMINUSEQUALS ? OGRP1SUB : 0, REAX));
                     if (last == TRIGHTBRACE) compiler_emit8(c, r);
                     else if (last == TRIGHTCHEVRON) compiler_emit16(c, r);
                     else compiler_emit32(c, r);
@@ -899,10 +898,14 @@ function compiler_binary(c, prec, econst, iconst)
                 {
                     compiler_emit8(c, OPOPR + RECX);
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
-                    else if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : OMOVMRB);
-                    else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : OMOVMRW);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : OMOVMRB);
+                    else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : t == TMINUSEQUALS ? OSUBMRW : OMOVMRW);
                     compiler_emit8(c, modrm(MODMEM, REAX, RECX));
                 }
+                if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
+                else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
+                else compiler_emitvar(c, OMOVRMW);
+                compiler_emit8(c, modrm(MODMEM, REAX, rconst ? REAX : RECX));
                 break;
             case TGREATERTHANU:
             case TGREATERTHANS:
@@ -969,7 +972,16 @@ function compiler_binary(c, prec, econst, iconst)
                 }
                 else
                 {
-                    print("todo\n");
+                    compiler_emit8(c, OPOPR + REDX);
+                    
+                    compiler_emit8(c, OCMPMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REDX));
+
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, 0);
+                    
+                    compiler_emit16(c, t == TEQUALSEQUALS ? OSETZ : OSETNZ);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
                 }
                 break;
             case TBITWISEAND:

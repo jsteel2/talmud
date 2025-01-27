@@ -16,6 +16,26 @@ Welcome to TalmudOS (Formerly ChucksOS)
 ");
 
     vec_init(vec, 64, 1);
+    # NEXT, we have to implement Switch!
+    while (TRUE)
+    {
+        print("> ");
+        switch (str2int(input(vec, 10, NULL)))
+        {
+            case 0: print("Zero!\n"); break;
+            case 2: print("Two!\n"); break;
+            case 1: print("One!\n"); break;
+            case 6: print("Six!\n"); break;
+            case 4: print("Four!\n"); break;
+            case 3: print("Three!\n"); break;
+            case 5: print("Five!\n"); break;
+            case 7: print("Seven!\n"); break;
+            case 8: print("Eight!\n"); break;
+            case 9: print("Nine!\n"); break;
+            default: print("Uhhh, i dunno..\n");
+        }
+    }
+    return;
     while (TRUE)
     {
         print("> ");

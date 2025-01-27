@@ -653,6 +653,15 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x96));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETBE AL
                 break;
+            case TLESSEQUALSS:
+                HANDLE(compiler_emit8(c, 0x3B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
+                HANDLE(compiler_emit8(c, 0xB8));
+                HANDLE(compiler_emit32(c, 0)); // MOV EAX, 0
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x9E));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETLE AL
+                break;
             case TGREATEREQUALSU:
                 HANDLE(compiler_emit8(c, 0x3B));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
@@ -661,6 +670,15 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x0F));
                 HANDLE(compiler_emit8(c, 0x93));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETAE AL
+                break;
+            case TGREATEREQUALSS:
+                HANDLE(compiler_emit8(c, 0x3B));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 0))); // CMP EDX, EAX
+                HANDLE(compiler_emit8(c, 0xB8));
+                HANDLE(compiler_emit32(c, 0)); // MOV EAX, 0
+                HANDLE(compiler_emit8(c, 0x0F));
+                HANDLE(compiler_emit8(c, 0x9D));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 0))); // SETGE AL
                 break;
             case TBITWISEOR:
                 HANDLE(compiler_emit8(c, 0x0B));
