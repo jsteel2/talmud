@@ -39,9 +39,8 @@ function memcmp(x, y, n)
     MOV EDI, [y]
     MOV ECX, [n]
     REP CMPSB
-    JZ .e
-    return FALSE;
-.e: return TRUE;
+    MOV EAX, 0
+    SETZ AL
 }
 
 function memicmp(x, y, n)
@@ -270,7 +269,7 @@ function qsort(p, n, size, cmp, tmp)
 
         i = (x - p) /! size;
         qsort(p, i, size, cmp, tmp);
-        qsort(x + size, n - i - size, size, cmp, tmp);
+        qsort(x + size, n - i - 1, size, cmp, tmp);
     }
 }
 

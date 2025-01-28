@@ -2009,6 +2009,13 @@ bool compiler_setcc(Compiler *c, uint8_t op)
         HANDLE(compiler_emitmem(c, disp, modrm, sib, 0, addrsize));
         return true;
     }
+    else if (compiler_reg8(c, &disp))
+    {
+        HANDLE(compiler_emit8(c, 0x0F));
+        HANDLE(compiler_emit8(c, op));
+        HANDLE(compiler_emit8(c, MODRM(0b11, 0, disp)));
+        return true;
+    }
 
     return die(&c->t, "Unimplemented");
 }
@@ -2225,6 +2232,7 @@ bool compiler_statement(Compiler *c)
         case TREP: HANDLE(compiler_emit8(c, 0xF3)); break;
         case TSTOSB: HANDLE(compiler_emit8(c, 0xAA)); break;
         case TSETB: HANDLE(compiler_setcc(c, 0x92)); break;
+        case TSETZ: HANDLE(compiler_setcc(c, 0x94)); break;
         case TSHL: HANDLE(compiler_grp2(c, 4)); break;
         case TSHR: HANDLE(compiler_grp2(c, 5)); break;
         case TSTI: HANDLE(compiler_emit8(c, 0xFB)); break;

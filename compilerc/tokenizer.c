@@ -165,6 +165,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
         case 'S':
             if (LEN("STOSB") == len && strncmp(start, SLEN("STOSB")) == 0) return TSTOSB;
             if (LEN("SETB") == len && strncmp(start, SLEN("SETB")) == 0) return TSETB;
+            if (LEN("SETZ") == len && strncmp(start, SLEN("SETZ")) == 0) return TSETZ;
             if (LEN("STI") == len && strncmp(start, SLEN("STI")) == 0) return TSTI;
             if (LEN("STD") == len && strncmp(start, SLEN("STD")) == 0) return TSTD;
             if (LEN("SUB") == len && strncmp(start, SLEN("SUB")) == 0) return TSUB;

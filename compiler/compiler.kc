@@ -1,13 +1,14 @@
 include "compiler/tokenize.kc"
 include "compiler/asm.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], STRING{CCUR_FUNC}, [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CGLOBAL_OFFSET], [CPROG_END], {CUSE32};
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, VEC{CCASES}, [CDEFAULT], [CBREAK], [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], STRING{CCUR_FUNC}, [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CGLOBAL_OFFSET], [CPROG_END], {CUSE32};
 const IDENT_FLAG_VALID = 1;
 const IDENT_FLAG_LOCAL = 1 << 1;
 const IDENT_FLAG_ADDRESS = 1 << 2;
 const IDENT_FLAG_RELOCATE = 1 << 3;
 struct COMPILER_IDENT = [COMPILER_IDENT_ADDR], {COMPILER_IDENT_FLAGS};
 struct COMPILER_STRING = [COMPILER_STRING_ADDR];
+struct COMPILER_CASE = [COMPILER_CASE_I], [COMPILER_CASE_JMP];
 
 function compiler_init(c)
 {
@@ -271,6 +272,7 @@ function compiler_statement(c)
         case TPOP: return compiler_asm_pushpop(c, FALSE);
         case TJMP: return compiler_asm_jmp(c, OJMPB, OJMPW, OJMPFAR, OGRP5JMP, OGRP5JMPFAR);
         case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
+        case TSETZ: return compiler_asm_setcc(c, OSETZ);
         case TDOT: local = TRUE; compiler_advance(c);
         case TIDENT: if (compiler_label(c, local)) break;
         default:
@@ -617,9 +619,11 @@ function compiler_continue(c)
 
 function compiler_break(c)
 {
-    print("todo break\n");
     compiler_advance(c);
     compiler_consume(c, TSEMICOLON);
+
+    compiler_emit8(c, OJMPW);
+    compiler_emit32(c, compiler_relative(c, c.[CBREAK] + c.[CORG], 4));
 }
 
 function compiler_if(c)
@@ -671,29 +675,100 @@ function compiler_if(c)
 }
 
 function compiler_switch(c)
-(econst)
+(econst, r, oldcases{VEC}, tmp{COMPILER_CASE *! 2}, ob, od, default_case, lowest, highest, table, cas, i)
 {
+    # could add a compiler_try to free incase of throw (leaks otherwise)
+    # Maybe do this someday!
+
     compiler_advance(c);
     compiler_consume(c, TLEFTPAREN);
-    compiler_expression(c, &econst);
+    r = compiler_expression(c, &econst);
+    if (econst)
+    {
+        compiler_emit8(c, OMOVRIMMW + REAX);
+        compiler_emit32(c, r);
+    }
     compiler_consume(c, TRIGHTPAREN);
+
+    memcpy(oldcases, &c{CCASES}, VEC);
+    vec_init(&c{CCASES}, 32, COMPILER_CASE);
+
+    ob = c.[CBREAK];
+    c.[CBREAK] = compiler_getlater(c);
+    default_case = compiler_getlater(c);
+    od = c.[CDEFAULT];
+    c.[CDEFAULT] = NULL;
+    lowest = compiler_getlater(c);
+    highest = compiler_getlater(c);
+    table = compiler_getlater(c);
+
+    compiler_emit8(c, OCMPEAXIMMW);
+    compiler_emit32(c, lowest);
+
+    compiler_emit16(c, OJBW);
+    compiler_emit32(c, compiler_relative(c, default_case + c.[CORG], 4));
+
+    compiler_emit8(c, OCMPEAXIMMW);
+    compiler_emit32(c, highest);
+
+    compiler_emit16(c, OJAW);
+    compiler_emit32(c, compiler_relative(c, default_case + c.[CORG], 4));
+
+    compiler_emit8(c, OGRP5);
+    compiler_emit8(c, modrm(MODMEM, OGRP5JMP, RSIB));
+    compiler_emit8(c, sib(SIBSCALE4, REAX, RDISP));
+    compiler_emit32(c, table + c.[CORG] - lowest *! 4);
+
     compiler_statement(c);
-    print("todo switch\n");
+
+    compiler_emit8(c, OJMPW);
+    compiler_emit32(c, compiler_relative(c, c.[CBREAK] + c.[CORG], 4));
+
+    qsort(c.[CCASES + VEC_PTR], c.[CCASES + VEC_LEN], COMPILER_CASE, sortdwcmp, tmp);
+
+    compiler_setlater(c, lowest, c.[CCASES + VEC_PTR].[COMPILER_CASE_I]);
+    compiler_setlater(c, highest, c.[CCASES + VEC_PTR].[c.[CCASES + VEC_LEN] *! COMPILER_CASE - COMPILER_CASE + COMPILER_CASE_I]);
+    compiler_setlater(c, table, c.[CIP]);
+
+    cas = 0;
+    i = 0;
+    while (i <! c.[CCASES + VEC_LEN])
+    {
+        r = c.[CCASES + VEC_PTR].[i *! COMPILER_CASE + COMPILER_CASE_I] - c.[CCASES + VEC_PTR].[COMPILER_CASE_I];
+        while (cas <! r)
+        {
+            compiler_emit32(c, default_case + c.[CORG]);
+            cas += 1;
+        }
+        compiler_emit32(c, c.[CCASES + VEC_PTR].[i *! COMPILER_CASE + COMPILER_CASE_JMP]);
+        i += 1;
+        cas += 1;
+    }
+
+    compiler_setlater(c, c.[CBREAK], c.[CIP]);
+    compiler_setlater(c, default_case, c.[CDEFAULT] ? c.[CDEFAULT] : c.[CIP]);
+
+    vec_free(&c{CCASES});
+    memcpy(&c{CCASES}, oldcases, VEC);
+    c.[CBREAK] = ob;
+    c.[CDEFAULT] = od;
 }
 
 function compiler_case(c)
+(x{COMPILER_CASE})
 {
     compiler_advance(c);
-    compiler_const_expression(c);
+    x.[COMPILER_CASE_I] = compiler_const_expression(c);
+    x.[COMPILER_CASE_JMP] = c.[CIP];
     compiler_consume(c, TCOLON);
-    print("todo case\n");
+    vec_push(&c{CCASES}, x);
 }
 
 function compiler_default(c)
 {
     compiler_advance(c);
     compiler_consume(c, TCOLON);
-    print("todo default\n");
+    c.[CDEFAULT] = c.[CIP];
 }
 
 function compiler_const_expression(c)
@@ -1422,7 +1497,7 @@ function compiler_local_label_get(c, name, out)
         free(p);
         name.[STRINGPTR] = b;
         name.[STRINGLEN] -= 1 + c.[CCUR_FUNC + STRINGLEN];
-        *out = ident.[COMPILER_IDENT_ADDR];
+        *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] : 0);
         return ident{COMPILER_IDENT_FLAGS};
     }
     free(p);
