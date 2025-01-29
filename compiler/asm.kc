@@ -6,7 +6,7 @@ const RSIB = RESP;
 const RDISP = REBP;
 const SIBNOINDEX = RESP;
 
-const OTESTW = 0x85, OJMPW = 0xE9, OCALL = 0xE8, OMOVMRB = 0x88, OMOVMRW = 0x89, OMOVRMB = 0x8A, OMOVRMW = 0x8B, OMOVRIMMB = 0xB0, OMOVRIMMW = 0xB8, OMOVMIMMW = 0xC7, OMOVMIMMB = 0xC6, OJZW = 0x840F, OJBW = 0x820F, OJAW = 0x870F, OJZB = 0x74, OJNZW = 0x850F, OPUSHR = 0x50, OPOPR = 0x58, OGRP1MIMMWB = 0x83, OGRP1MIMMBB = 0x80, OGRP1MIMMWW = 0x81, OGRP1ADD = 0, OGRP1AND = 4, OGRP1OR = 1, OGRP1XOR = 6, OGRP1SUB = 5, OGRP1CMP = 7, OGRP5 = 0xFF, OGRP5CALL = 2, OGRP5JMP = 4, OGRP5JMPFAR = 5, OGRP5PUSH = 6, OLEAVE = 0xC9, ORET = 0xC3, OMOVZXW = 0xB70F, OMOVZXB = 0xB60F, OLEA = 0x8D, OSIZEOVERRIDE = 0x66, OGRP3W = 0xF7, OGRP3NOT = 2, OGRP3NEG = 3, OGRP3MUL = 4, OGRP3IMUL = 5, OGRP3DIV = 6, OGRP3IDIV = 7, OSETZ = 0x940F, OSETNZ = 0x950F, OANDEAXIMMW = 0x25, OOREAXIMMW = 0x0D, OXOREAXIMMW = 0x35, OCMPEAXIMMW = 0x3D, OADDEAXIMMW = 0x05, OSUBEAXIMMW = 0x2D, ONOP = 0x90, OCMPMRW = 0x39, OSETA = 0x970F, OSETG = 0x9F0F, OSETAE = 0x930F, OSETGE = 0x9D0F, OSETB = 0x920F, OSETL = 0x9C0F, OSETBE = 0x960F, OSETLE = 0x9E0F, OADDMRB = 0x00, OADDRMB = 0x02, OADDRMW = 0x03, OADDMRW = 0x01, OCLD = 0xFC, OSTD = 0xFD, OREP = 0xF3, OMOVSB = 0xA4, ODECR = 0x48, OCMPSB = 0xA6, OSTOSB = 0xAA, OESOVERRiDE = 0x26, OFSOVERRiDE = 0x64, OXCHGEAX = 0x90, OSUBRMW = 0x2B, OTESTMRW = 0x85, OXORMRW = 0x31, OCDQ = 0x99, OJMPB = 0xEB, OJMPW = 0xE9, OJMPFAR = 0xEA, OSUBMRB = 0x28, OSUBMRW = 0x29, OPOPM = 0x8F, OGRP2MWIMMB = 0xC1, OGRP2MWCL = 0xD3, OGRP2SHR = 5;
+const OTESTW = 0x85, OJMPW = 0xE9, OCALL = 0xE8, OMOVMRB = 0x88, OMOVMRW = 0x89, OMOVRMB = 0x8A, OMOVRMW = 0x8B, OMOVRIMMB = 0xB0, OMOVRIMMW = 0xB8, OMOVMIMMW = 0xC7, OMOVMIMMB = 0xC6, OJZW = 0x840F, OJBW = 0x820F, OJAW = 0x870F, OJZB = 0x74, OJNZW = 0x850F, OPUSHR = 0x50, OPOPR = 0x58, OGRP1MIMMWB = 0x83, OGRP1MIMMBB = 0x80, OGRP1MIMMWW = 0x81, OGRP1ADD = 0, OGRP1AND = 4, OGRP1OR = 1, OGRP1XOR = 6, OGRP1SUB = 5, OGRP1CMP = 7, OGRP5 = 0xFF, OGRP5CALL = 2, OGRP5JMP = 4, OGRP5JMPFAR = 5, OGRP5PUSH = 6, OLEAVE = 0xC9, ORET = 0xC3, OMOVZXW = 0xB70F, OMOVZXB = 0xB60F, OLEA = 0x8D, OSIZEOVERRIDE = 0x66, OGRP3W = 0xF7, OGRP3NOT = 2, OGRP3NEG = 3, OGRP3MUL = 4, OGRP3IMUL = 5, OGRP3DIV = 6, OGRP3IDIV = 7, OSETZ = 0x940F, OSETNZ = 0x950F, OANDEAXIMMW = 0x25, OOREAXIMMW = 0x0D, OXOREAXIMMW = 0x35, OCMPEAXIMMW = 0x3D, OADDEAXIMMW = 0x05, OSUBEAXIMMW = 0x2D, ONOP = 0x90, OCMPMRW = 0x39, OSETA = 0x970F, OSETG = 0x9F0F, OSETAE = 0x930F, OSETGE = 0x9D0F, OSETB = 0x920F, OSETL = 0x9C0F, OSETBE = 0x960F, OSETLE = 0x9E0F, OADDMRB = 0x00, OADDRMB = 0x02, OADDRMW = 0x03, OADDMRW = 0x01, OCLD = 0xFC, OSTD = 0xFD, OREP = 0xF3, OMOVSB = 0xA4, ODECR = 0x48, OCMPSB = 0xA6, OSTOSB = 0xAA, OESOVERRiDE = 0x26, OFSOVERRiDE = 0x64, OXCHGEAX = 0x90, OSUBRMW = 0x2B, OTESTMRW = 0x85, OXORMRB = 0x30, OXORMRW = 0x31, OANDMRB = 0x20, OANDMRW = 0x21, OORMRB = 0x08, OORMRW = 0x09, OCDQ = 0x99, OJMPB = 0xEB, OJMPW = 0xE9, OJMPFAR = 0xEA, OSUBMRB = 0x28, OSUBMRW = 0x29, OPOPM = 0x8F, OGRP2MWIMMB = 0xC1, OGRP2MWCL = 0xD3, OGRP2SHL = 4, OGRP2SHR = 5;
 
 function modrm(mod, reg, rm) return (mod << 6) | (reg << 3) | rm;
 const sib = modrm;
@@ -338,14 +338,14 @@ function compiler_asm_jcc(c, opb, opw)
     {
         r = compiler_asm_immb(c);
         compiler_emit8(c, opb);
-        compiler_emit8(c, r);
+        compiler_emit8(c, compiler_relative(c, r, 2));
     }
     else
     {
         r = compiler_asm_immw(c);
         compiler_emit16(c, opw);
-        if (c{CUSE32}) compiler_emit32(c, r);
-        else compiler_emit16(c, r);
+        if (c{CUSE32}) compiler_emit32(c, compiler_relative(c, r, 4));
+        else compiler_emit16(c, compiler_relative(c, r, 2));
     }
 }
 
@@ -375,8 +375,19 @@ function compiler_asm_jmp(c, opb, opw, opfar, regnear, regfar)
     }
     else
     {
-        compiler_const_expression(c);
-        print("todo jmp\n");
+        if (compiler_match(c, TSHORT))
+        {
+            dest = compiler_asm_immb(c);
+            compiler_emit8(c, opb);
+            compiler_emit8(c, compiler_relative(c, dest, 2));
+        }
+        else
+        {
+            dest = compiler_asm_immw(c);
+            compiler_emit8(c, opw);
+            if (c{CUSE32}) compiler_emit32(c, compiler_relative(c, dest, 4));
+            else compiler_emit16(c, compiler_relative(c, dest, 2));
+        }
     }
 }
 

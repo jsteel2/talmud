@@ -864,11 +864,11 @@ function compiler_binary(c, prec, econst, iconst)
                 }
                 else if (lconst)
                 {
-                    print("todo\n");
+                    print("todo sel\n");
                 }
                 else if (rconst)
                 {
-                    print("todo\n");
+                    print("todo ser\n");
                 }
                 else
                 {
@@ -948,35 +948,50 @@ function compiler_binary(c, prec, econst, iconst)
             case TBITWISEOREQUALS:
             case TBITWISEANDEQUALS:
             case TBITWISEXOREQUALS:
-                if (t == TBITWISEOREQUALS) print("todo oe");
-                else if (t == TBITWISEXOREQUALS) print("todo xe");
-                else if (t == TBITWISEANDEQUALS) print("todo ae");
                 if (*econst)
                 {
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
                     if (last == TRIGHTBRACE) compiler_emit8(c, t != TEQUALS ? OGRP1MIMMBB : OMOVMIMMB);
                     else compiler_emit8(c, t != TEQUALS ? OGRP1MIMMWW : OMOVMIMMW);
-                    compiler_emit8(c, modrm(MODMEM, t == TPLUSEQUALS ? OGRP1ADD : t == TMINUSEQUALS ? OGRP1SUB : 0, RDISP));
+                    compiler_emit8(c, modrm(MODMEM, t == TPLUSEQUALS ? OGRP1ADD : t == TMINUSEQUALS ? OGRP1SUB : t == TBITWISEXOREQUALS ? OGRP1XOR : t == TBITWISEANDEQUALS ? OGRP1AND : t == TBITWISEOREQUALS ? OGRP1OR : 0, RDISP));
                     compiler_emit32(c, l);
                     if (last == TRIGHTBRACE) compiler_emit8(c, r);
                     else if (last == TRIGHTCHEVRON) compiler_emit16(c, r);
                     else compiler_emit32(c, r);
+                    *econst = FALSE;
+
+                    if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
+                    else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
+                    else compiler_emitvar(c, OMOVRMW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+                    compiler_emit32(c, l);
                 }
                 else if (rconst)
                 {
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
                     if (last == TRIGHTBRACE) compiler_emit8(c, t != TEQUALS ? OGRP1MIMMBB : OMOVMIMMB);
                     else compiler_emit8(c, t != TEQUALS ? OGRP1MIMMWW : OMOVMIMMW);
-                    compiler_emit8(c, modrm(MODMEM, t == TPLUSEQUALS ? OGRP1ADD : t == TMINUSEQUALS ? OGRP1SUB : 0, REAX));
+                    compiler_emit8(c, modrm(MODMEM, t == TPLUSEQUALS ? OGRP1ADD : t == TMINUSEQUALS ? OGRP1SUB : t == TBITWISEXOREQUALS ? OGRP1XOR : t == TBITWISEANDEQUALS ? OGRP1AND : t == TBITWISEOREQUALS ? OGRP1OR : 0, REAX));
                     if (last == TRIGHTBRACE) compiler_emit8(c, r);
                     else if (last == TRIGHTCHEVRON) compiler_emit16(c, r);
                     else compiler_emit32(c, r);
+
+                    if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
+                    else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
+                    else compiler_emitvar(c, OMOVRMW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, REAX));
                 }
                 else if (lconst)
                 {
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
-                    if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : OMOVMRB);
-                    else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : t == TMINUSEQUALS ? OSUBMRW : OMOVMRW);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : t == TMINUSEQUALS ? OSUBMRB : t == TBITWISEXOREQUALS ? OXORMRB : t == TBITWISEANDEQUALS ? OANDMRB : t == TBITWISEOREQUALS ? OORMRB : OMOVMRB);
+                    else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : t == TMINUSEQUALS ? OSUBMRW : t == TBITWISEXOREQUALS ? OXORMRW : t == TBITWISEANDEQUALS ? OANDMRW : t == TBITWISEOREQUALS ? OORMRW : OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+                    compiler_emit32(c, l);
+
+                    if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
+                    else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
+                    else compiler_emitvar(c, OMOVRMW);
                     compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
                     compiler_emit32(c, l);
                 }
@@ -984,14 +999,15 @@ function compiler_binary(c, prec, econst, iconst)
                 {
                     compiler_emit8(c, OPOPR + RECX);
                     if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
-                    if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : OMOVMRB);
-                    else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : t == TMINUSEQUALS ? OSUBMRW : OMOVMRW);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : t == TMINUSEQUALS ? OSUBMRB : t == TBITWISEXOREQUALS ? OXORMRB : t == TBITWISEANDEQUALS ? OANDMRB : t == TBITWISEOREQUALS ? OORMRB : OMOVMRB);
+                    else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : t == TMINUSEQUALS ? OSUBMRW : t == TBITWISEXOREQUALS ? OXORMRW : t == TBITWISEANDEQUALS ? OANDMRW : t == TBITWISEOREQUALS ? OORMRW : OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RECX));
+
+                    if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
+                    else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
+                    else compiler_emitvar(c, OMOVRMW);
                     compiler_emit8(c, modrm(MODMEM, REAX, RECX));
                 }
-                if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
-                else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
-                else compiler_emitvar(c, OMOVRMW);
-                compiler_emit8(c, modrm(MODMEM, REAX, rconst ? REAX : RECX));
                 break;
             case TGREATERTHANU:
             case TGREATERTHANS:
@@ -1043,7 +1059,8 @@ function compiler_binary(c, prec, econst, iconst)
             case TNOTEQUALS:
                 if (*econst)
                 {
-                    print("todo\n");
+                    print("todo eqe\n");
+                    format(print, "%s\n", &c.[CCUR_FUNC]);
                 }
                 else if (rconst)
                 {
@@ -1075,16 +1092,18 @@ function compiler_binary(c, prec, econst, iconst)
             case TBITWISEXOR:
                 if (*econst)
                 {
-                    print("todo\n");
+                    l = t == TBITWISEAND ? l & r : t == TBITWISEOR ? l | r : l ^ r;
                 }
-                else if (rconst)
+                else if (rconst or lconst)
                 {
                     compiler_emit8(c, t == TBITWISEAND ? OANDEAXIMMW : t == TBITWISEOR ? OOREAXIMMW : OXOREAXIMMW);
-                    compiler_emit32(c, r);
+                    compiler_emit32(c, rconst ? r : l);
                 }
                 else
                 {
-                    print("todo\n");
+                    compiler_emit8(c, OPOPR + REDX);
+                    compiler_emit8(c, t == TBITWISEAND ? OANDMRW : t == TBITWISEOR ? OORMRW : OXORMRW);
+                    compiler_emit8(c, modrm(MODREG, REDX, REAX));
                 }
                 break;
             case TQMARK:
@@ -1183,21 +1202,23 @@ function compiler_binary(c, prec, econst, iconst)
                 }
                 break;
         case TSHIFTLEFT:
-            print("todo shl\n");
-            break;
         case TSHIFTRIGHT:
             if (*econst)
             {
-                l = l >> r;
+                l = t == TSHIFTRIGHT ? l >> r : l << r;
             }
             else if (lconst)
             {
-                print("todo shr\n");
+                compiler_emit8(c, OXCHGEAX + RECX);
+                compiler_emit8(c, OMOVRIMMW + REAX);
+                compiler_emit32(c, l);
+                compiler_emit8(c, OGRP2MWCL);
+                compiler_emit8(c, modrm(MODREG, t == TSHIFTRIGHT ? OGRP2SHR : OGRP2SHL, REAX));
             }
             else if (rconst)
             {
                 compiler_emit8(c, OGRP2MWIMMB);
-                compiler_emit8(c, modrm(MODREG, OGRP2SHR, REAX));
+                compiler_emit8(c, modrm(MODREG, t == TSHIFTRIGHT ? OGRP2SHR : OGRP2SHL, REAX));
                 compiler_emit8(c, r);
             }
             else
@@ -1205,7 +1226,7 @@ function compiler_binary(c, prec, econst, iconst)
                 compiler_emit8(c, OPOPR + RECX);
                 compiler_emit8(c, OXCHGEAX + RECX);
                 compiler_emit8(c, OGRP2MWCL);
-                compiler_emit8(c, modrm(MODREG, OGRP2SHR, REAX));
+                compiler_emit8(c, modrm(MODREG, t == TSHIFTRIGHT ? OGRP2SHR : OGRP2SHL, REAX));
             }
             break;
         case TSHIFTLEFTEQUALS:
@@ -1468,7 +1489,7 @@ function compiler_index(c, align, lconst, r, ref)
     {
         *lconst = FALSE;
         compiler_emitvar(c, op);
-        if (sib == SIBSCALE1)
+        if (scale == SIBSCALE1)
         {
             compiler_emit8(c, modrm(MODDISPW, REAX, REAX));
         }

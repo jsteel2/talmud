@@ -684,6 +684,10 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x0B));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 2))); // OR EAX, EDX
                 break;
+            case TBITWISEXOR:
+                HANDLE(compiler_emit8(c, 0x33));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 0, 2))); // XOR EAX, EDX
+                break;
             case TBITWISEAND:
                 HANDLE(compiler_emit8(c, 0x23));
                 HANDLE(compiler_emit8(c, MODRM(0b11, 0, 2))); // AND EAX, EDX
