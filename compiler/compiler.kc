@@ -157,13 +157,10 @@ function compiler_relative(c, abs, opsize)
     return abs - c.[CIP] - opsize;
 }
 
-function compiler_shift(c, i)
+function compiler_set(c, i, b)
 (ip)
 {
-    ip = c.[CIP] - c.[CORG];
-    i -= c.[CORG];
-    if (!c.[CIS_FIRST_PASS]) memmove(c.[CBIN] + i, c.[CBIN] + ip, ip - i);
-    c.[CIP] -= ip - i;
+    if (!c.[CIS_FIRST_PASS]) i{0} = b;
 }
 
 function compiler_pass(c, src, is_first_pass)
@@ -208,6 +205,7 @@ function compile(c, filename, src)
     c.[CCUR_FILE] = filename;
     c.[CSTRING_OFFSET] = 0;
     c.[CBIN] = NULL;
+    c.[CGLOBAL_OFFSET] = 0;
     c.[CCUR_FUNC + STRINGPTR] = NULL;
 
     c.[CORG] = 0;
@@ -369,6 +367,7 @@ function compiler_function(c)
     compiler_consume(c, TRIGHTPAREN);
 
     i = 0;
+    x = FALSE;
     if (compiler_match(c, TLEFTPAREN))
     {
         do
@@ -803,7 +802,7 @@ function compiler_binary(c, prec, econst, iconst)
         if (prec{PREC_ASSOC} == ASSOC_LEFT and t != TLOGICALOR and t != TLOGICALAND) r = compiler_binary(c, prec + PREC, &rconst, iconst);
         else if (prec{PREC_ASSOC} == ASSOC_RIGHT) r = compiler_binary(c, prec, &rconst, iconst);
         if (!rconst) *econst = FALSE;
-        if (lconst or rconst) compiler_shift(c, i);
+        if (lconst or rconst) compiler_set(c, i, ONOP);
 
         switch (t)
         {
@@ -951,9 +950,17 @@ function compiler_binary(c, prec, econst, iconst)
             case TBITWISEXOREQUALS:
                 if (t == TBITWISEOREQUALS) print("todo oe");
                 else if (t == TBITWISEXOREQUALS) print("todo xe");
+                else if (t == TBITWISEANDEQUALS) print("todo ae");
                 if (*econst)
                 {
-                    print("todo\n");
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t != TEQUALS ? OGRP1MIMMBB : OMOVMIMMB);
+                    else compiler_emit8(c, t != TEQUALS ? OGRP1MIMMWW : OMOVMIMMW);
+                    compiler_emit8(c, modrm(MODMEM, t == TPLUSEQUALS ? OGRP1ADD : t == TMINUSEQUALS ? OGRP1SUB : 0, RDISP));
+                    compiler_emit32(c, l);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, r);
+                    else if (last == TRIGHTCHEVRON) compiler_emit16(c, r);
+                    else compiler_emit32(c, r);
                 }
                 else if (rconst)
                 {
@@ -967,7 +974,11 @@ function compiler_binary(c, prec, econst, iconst)
                 }
                 else if (lconst)
                 {
-                    print("todo\n");
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : OMOVMRB);
+                    else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : t == TMINUSEQUALS ? OSUBMRW : OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+                    compiler_emit32(c, l);
                 }
                 else
                 {
@@ -1077,12 +1088,47 @@ function compiler_binary(c, prec, econst, iconst)
                 }
                 break;
             case TQMARK:
-                print("todo tern\n");
+                t = compiler_getlater(c);
+                *econst = FALSE;
+                if (lconst)
+                {
+                    if (!l)
+                    {
+                        compiler_emit8(c, OJMPW);
+                        compiler_emit32(c, compiler_relative(c, t + c.[CORG], 4));
+                    }
+                    else
+                    {
+                        compiler_emit8(c, ONOP);
+                        compiler_emit32(c, 0x90909090);
+                    }
+                }
+                else
+                {
+                    compiler_emit8(c, OTESTMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+
+                    compiler_emit16(c, OJZW);
+                    compiler_emit32(c, compiler_relative(c, t + c.[CORG], 4));
+                }
                 r = compiler_expression(c, &rconst);
-                if (!rconst) *econst = FALSE;
+                if (rconst)
+                {
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, r);
+                }
+                l = compiler_getlater(c);
+                compiler_emit8(c, OJMPW);
+                compiler_emit32(c, compiler_relative(c, l + c.[CORG], 4));
+                compiler_setlater(c, t, c.[CIP]);
                 compiler_consume(c, TCOLON);
                 r = compiler_expression(c, &rconst);
-                if (!rconst) *econst = FALSE;
+                if (rconst)
+                {
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, r);
+                }
+                compiler_setlater(c, l, c.[CIP]);
                 break;
             case TLOGICALAND:
                 if (lconst)
@@ -1140,7 +1186,24 @@ function compiler_binary(c, prec, econst, iconst)
             print("todo shl\n");
             break;
         case TSHIFTRIGHT:
-            print("todo shr\n");
+            if (*econst)
+            {
+                l = l << r;
+            }
+            else if (lconst)
+            {
+                print("todo shr\n");
+            }
+            else if (rconst)
+            {
+                compiler_emit8(c, OGRP2MIMMB);
+                compiler_emit8(c, modrm(MODREG, OGRP2SHR, REAX));
+                compiler_emit8(c, r);
+            }
+            else
+            {
+                print("todo shr\n");
+            }
             break;
         case TSHIFTLEFTEQUALS:
             print("todo shle\n");
@@ -1163,10 +1226,20 @@ function compiler_unary(c, econst, iconst)
     switch (compiler_peek(c))
     {
         case TSTAR:
-            print("todo\n");
             compiler_advance(c);
+            t = compiler_unary(c, econst, iconst);
+            if (*econst)
+            {
+                compiler_emit8(c, OMOVRMW);
+                compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+                compiler_emit32(c, t);
+            }
+            else
+            {
+                compiler_emit8(c, OMOVRMW);
+                compiler_emit8(c, modrm(MODMEM, REAX, REAX));
+            }
             *econst = FALSE;
-            compiler_unary(c, econst, iconst);
             return;
         case TBANG:
             compiler_advance(c);
@@ -1378,7 +1451,7 @@ function compiler_index(c, align, lconst, r, ref)
     t = compiler_peek(c);
     if ((ref and t != TDOT and t != TLEFTBRACKET and t != TLEFTCHEVRON and t != TLEFTBRACE) or (t >=! TEQUALS and t <=! TPLUSEQUALS)) op = OLEA;
 
-    if (*lconst or econst) compiler_shift(c, i);
+    if (*lconst or econst) compiler_set(c, i, ONOP);
 
     if (*lconst and econst)
     {
