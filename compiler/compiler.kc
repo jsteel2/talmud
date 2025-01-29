@@ -1196,13 +1196,16 @@ function compiler_binary(c, prec, econst, iconst)
             }
             else if (rconst)
             {
-                compiler_emit8(c, OGRP2MIMMB);
+                compiler_emit8(c, OGRP2MWIMMB);
                 compiler_emit8(c, modrm(MODREG, OGRP2SHR, REAX));
                 compiler_emit8(c, r);
             }
             else
             {
-                print("todo shr\n");
+                compiler_emit8(c, OPOPR + RECX);
+                compiler_emit8(c, OXCHGEAX + RECX);
+                compiler_emit8(c, OGRP2MWCL);
+                compiler_emit8(c, modrm(MODREG, OGRP2SHR, REAX));
             }
             break;
         case TSHIFTLEFTEQUALS:
