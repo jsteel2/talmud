@@ -69,6 +69,16 @@ function compiler_throw_token(c, file, line, token, expected)
 {
     s.[STRINGPTR] = buf;
     if (c.[token + TOKEN_TYPE] == TNUM) sp = int2str(s, c.[token + TOKEN_VALUE], 10, FALSE);
+    else if (c.[token + TOKEN_TYPE] == TINVALID) sp = "INVALID";
+    else if (c.[token + TOKEN_TYPE] == TEND)
+    {
+        if (strcmp(c.[CCUR_FILE], "stdin")) 
+        {
+            c.[CCUR + TOKEN_TYPE] = TEND;
+            return compiler_throw(c, NULL, NULL);
+        }
+        else sp = "END";
+    }
     else sp = &c{token + TOKEN_VALUE};
     format(print, "Unexpected token %u(\"%s\")", c.[token + TOKEN_TYPE], sp);
     if (expected) sp = int2str(s, expected, 10, FALSE);
@@ -79,7 +89,11 @@ function compiler_throw_token(c, file, line, token, expected)
 function compiler_advance(c)
 {
     memcpy(&c{CCUR}, &c{CNEXT}, TOKEN);
-    if (c.[CCUR + TOKEN_TYPE] == TEND) return compiler_throw(c, $@, $*, print("Unexpected EOF"));
+    if (c.[CCUR + TOKEN_TYPE] == TEND)
+    {
+        if (strcmp(c.[CCUR_FILE], "stdin")) return compiler_throw(c, NULL, NULL);
+        return compiler_throw(c, $@, $*, print("Unexpected EOF"));
+    }
     if (!tokenizer_token(&c{CTOK}, &c{CNEXT})) return compiler_throw(c, $@, $*);
     return c.[CCUR + TOKEN_TYPE];
 }

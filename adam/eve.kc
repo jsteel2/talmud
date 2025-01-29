@@ -23,8 +23,13 @@ Welcome to TalmudOS (Formerly ChucksOS)
         x = compile(compiler, "stdin", vec);
         if (x)
         {
+            vec.[VEC_LEN] = 0;
             ans = x();
             format(print, "ans=%d (%x)\n", ans, ans);
+        }
+        else
+        {
+            if (compiler.[CCUR + TOKEN_TYPE] != TEND) vec.[VEC_LEN] = 0;
         }
     }
 }
@@ -32,8 +37,6 @@ Welcome to TalmudOS (Formerly ChucksOS)
 function input(v)
 (eax, unused)
 {
-    v.[VEC_LEN] = 0;
-
     do {
         eax = 0;
         interrupt(0x16, &eax, &unused, &unused, &unused, &unused, &unused);
