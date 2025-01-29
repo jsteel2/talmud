@@ -67,6 +67,7 @@ function eden()
         JMP .hlt
     }
 
+    compiler_ident_get(compiler, "eve", &eve);
     eve(compiler);
 .hlt:
     HLT

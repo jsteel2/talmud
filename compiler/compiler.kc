@@ -363,12 +363,17 @@ function compiler_return(c)
 }
 
 function compiler_function(c)
-(i, x, t, s{STRING})
+(i, x, t, s{STRING}, end)
 {
     compiler_consume(c, TFUNCTION);
     compiler_consume(c, TIDENT);
     free(c.[CCUR_FUNC + STRINGPTR]);
     strdup(&c{CCUR + TOKEN_VALUE}, &c{CCUR_FUNC});
+
+    end = compiler_getlater(c);
+    compiler_emit8(c, OJMPW);
+    compiler_emit32(c, compiler_relative(c, end + c.[CORG], 4));
+
     compiler_label_set(c, &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
     compiler_consume(c, TLEFTPAREN);
 
@@ -415,6 +420,7 @@ function compiler_function(c)
 
     compiler_emit8(c, OLEAVE);
     compiler_emit8(c, ORET);
+    compiler_setlater(c, end, c.[CIP]);
 }
 
 function compiler_struct(c)
@@ -869,10 +875,14 @@ function compiler_binary(c, prec, econst, iconst)
             case TSTARSEQUALS:
                 if (*econst)
                 {
-                    l = t == TSTARS ? l *$ r : l *! r;
                     if (t == TSTARUEQUALS or t == TSTARSEQUALS)
                     {
                         print("todo se\n");
+                        *econst = FALSE;
+                    }
+                    else
+                    {
+                        l = t == TSTARS ? l *$ r : l *! r;
                     }
                     break;
                 }
@@ -882,13 +892,31 @@ function compiler_binary(c, prec, econst, iconst)
                 }
                 else if (rconst)
                 {
-                    print("todo ser\n");
+                    if ((last == TRIGHTBRACE or last == TRIGHTCHEVRON) and (t == TSTARSEQUALS or t == TSTARUEQUALS)) print("todo ser\n");
+                    if (t == TSTARS or t == TSTARSEQUALS)
+                    {
+                        compiler_emit8(c, OIMULRMWIMMW);
+                        compiler_emit8(c, modrm(t == TSTARSEQUALS ? MODMEM : MODREG, REAX, REAX));
+                        compiler_emit32(c, r);
+                    }
+                    else
+                    {
+                        compiler_emit8(c, OMOVRIMMW + REBX);
+                        compiler_emit32(c, r);
+
+                        compiler_emit8(c, OXCHGEAX + REBX);
+
+                        compiler_emit8(c, OGRP3W);
+                        compiler_emit8(c, modrm(t == TSTARUEQUALS or t == TSTARSEQUALS ? MODMEM : MODREG, t == TSTARS or t == TSTARSEQUALS ? OGRP3IMUL : OGRP3MUL, REBX));
+                    }
                 }
                 else
                 {
                     compiler_emit8(c, OPOPR + REBX);
-                    compiler_emit8(c, OGRP3W);
-                    compiler_emit8(c, modrm(t == TSTARUEQUALS or t == TSTARSEQUALS ? MODMEM : MODREG, t == TSTARS ? OGRP3IMUL : OGRP3MUL, REBX));
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, OGRP3B);
+                    else compiler_emit8(c, OGRP3W);
+                    compiler_emit8(c, modrm(t == TSTARUEQUALS or t == TSTARSEQUALS ? MODMEM : MODREG, t == TSTARS or t == TSTARSEQUALS ? OGRP3IMUL : OGRP3MUL, REBX));
                 }
                 if (t == TSTARUEQUALS or t == TSTARSEQUALS)
                 {
@@ -1244,10 +1272,27 @@ function compiler_binary(c, prec, econst, iconst)
             }
             break;
         case TSHIFTLEFTEQUALS:
-            print("todo shle\n");
-            break;
         case TSHIFTRIGHTEQUALS:
-            print("todo shre\n");
+            if (*econst)
+            {
+                *econst = FALSE;
+                print("todo shrlee\n");
+            }
+            else if (lconst)
+            {
+                print("todo shrlel\n");
+            }
+            else if (rconst)
+            {
+                # FIXME: read back the value, and check last token for >]}
+                compiler_emit8(c, OGRP2MWIMMB);
+                compiler_emit8(c, modrm(MODMEM, t == TSHIFTRIGHT ? OGRP2SHR : OGRP2SHL, REAX));
+                compiler_emit8(c, r);
+            }
+            else
+            {
+                print("todo shrle\n");
+            }
             break;
         default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
