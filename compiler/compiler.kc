@@ -1188,7 +1188,7 @@ function compiler_binary(c, prec, econst, iconst)
         case TSHIFTRIGHT:
             if (*econst)
             {
-                l = l << r;
+                l = l >> r;
             }
             else if (lconst)
             {
