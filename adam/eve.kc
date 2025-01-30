@@ -40,8 +40,19 @@ function input(v)
     do {
         eax = 0;
         interrupt(0x16, &eax, &unused, &unused, &unused, &unused, &unused);
-        format(print, "%c", eax & 0xff);
-        vec_push1(v, (eax & 0xff) == '\r' ? '\n' : eax);
+        if ((eax & 0xff) == '\b')
+        {
+            if (v.[VEC_LEN] >! 0)
+            {
+                v.[VEC_LEN] -= 1;
+                print("\b \b");
+            }
+        }
+        else
+        {
+            format(print, "%c", eax & 0xff);
+            vec_push1(v, (eax & 0xff) == '\r' ? '\n' : eax);
+        }
     } while ((eax & 0xff) != '\r');
 
     print("\n");

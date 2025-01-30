@@ -323,6 +323,7 @@ function tokenizer_string_token(t, out, type)
                 case 'n': vec_push1(v, '\n'); break;
                 case 'r': vec_push1(v, '\r'); break;
                 case 't': vec_push1(v, '\t'); break;
+                case 'b': vec_push1(v, '\b'); break;
                 case '"': vec_push1(v, '"'); break;
                 case '\'': vec_push1(v, '\''); break;
                 case '\\': vec_push1(v, '\\'); break;
