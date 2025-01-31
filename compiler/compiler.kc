@@ -855,7 +855,7 @@ function compiler_binary(c, prec, econst, iconst)
         if (prec{PREC_ASSOC} == ASSOC_LEFT and t != TLOGICALOR and t != TLOGICALAND) r = compiler_binary(c, prec + PREC, &rconst, iconst);
         else if (prec{PREC_ASSOC} == ASSOC_RIGHT) r = compiler_binary(c, prec, &rconst, iconst);
         if (!rconst) *econst = FALSE;
-        if (iconst and (lconst or rconst)) compiler_set(c, i, ONOP);
+        if (!iconst and (lconst or rconst)) compiler_set(c, i, ONOP);
 
         switch (t)
         {

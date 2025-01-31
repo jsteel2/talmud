@@ -74,10 +74,12 @@ function bstrap()
         JMP .hlt
     }
 
-.hlt:
     MOV DX, 0x604
     MOV AX, 0x2000
     OUT DX, AX
+
+.hlt:
+    HLT
     JMP .hlt
 }
 
