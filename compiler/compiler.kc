@@ -174,7 +174,7 @@ function compiler_relative(c, abs, opsize)
 function compiler_set(c, i, b)
 (ip)
 {
-    if (!c.[CIS_FIRST_PASS]) i{0} = b;
+    if (!c.[CIS_FIRST_PASS]) c.[CBIN]{i - c.[CORG]} = b;
 }
 
 function compiler_pass(c, src, is_first_pass)
@@ -268,23 +268,40 @@ function compiler_statement(c)
         case TFUNCTION: return compiler_function(c);
         case TRETURN: return compiler_return(c);
         case TSEMICOLON: return compiler_advance(c);
+        case TORG: return compiler_org(c);
+        case TUSE16: compiler_advance(c); return c{CUSE32} = FALSE;
+        case TUSE32: compiler_advance(c); return c{CUSE32} = TRUE;
         case TDB: return compiler_asm_dx(c, compiler_emit8, compiler_asm_immb);
+        case TDW: return compiler_asm_dx(c, compiler_emit16, compiler_asm_imm16);
+        case TDD: return compiler_asm_dx(c, compiler_emit32, compiler_const_expression);
         case TCLD: return compiler_aemit8(c, OCLD);
+        case TCLI: return compiler_aemit8(c, OCLI);
         case TSTD: return compiler_aemit8(c, OSTD);
+        case TSTI: return compiler_aemit8(c, OSTI);
         case TREP: return compiler_aemit8(c, OREP);
         case TRET: return compiler_aemit8(c, ORET);
+        case THLT: return compiler_aemit8(c, OHLT);
         case TMOVSB: return compiler_aemit8(c, OMOVSB);
         case TCMPSB: return compiler_aemit8(c, OCMPSB);
         case TSTOSB: return compiler_aemit8(c, OSTOSB);
+        case TINT: compiler_aemit8(c, OINT); return compiler_emit8(c, compiler_asm_immb(c));
         case TMOV: return compiler_asm_mov(c);
         case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
         case TSUB: return compiler_asm_grp1(c, OSUBMRB, OGRP1SUB);
+        case TOR: return compiler_asm_grp1(c, OORMRB, OGRP1OR);
+        case TXOR: return compiler_asm_grp1(c, OXORMRB, OGRP1XOR);
+        case TAND: return compiler_asm_grp1(c, OANDMRB, OGRP1AND);
         case TDEC: return compiler_asm_incdec(c, ODECR);
         case TPUSH: return compiler_asm_pushpop(c, TRUE);
         case TPOP: return compiler_asm_pushpop(c, FALSE);
         case TJMP: return compiler_asm_jmp(c, OJMPB, OJMPW, OJMPFAR, OGRP5JMP, OGRP5JMPFAR);
         case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
         case TSETZ: return compiler_asm_setcc(c, OSETZ);
+        case TSETB: return compiler_asm_setcc(c, OSETB);
+        case TIN: return compiler_asm_in(c);
+        case TOUT: return compiler_asm_out(c);
+        case TLGDT: return compiler_asm_lxdt(c, OLXDTLGDT);
+        case TLIDT: return compiler_asm_lxdt(c, OLXDTLIDT);
         case TDOT: local = TRUE; compiler_advance(c);
         case TIDENT: if (compiler_label(c, local)) break;
         default:
@@ -295,6 +312,22 @@ function compiler_statement(c)
                 compiler_emit32(c, local);
             }
             return compiler_consume(c, TSEMICOLON);
+    }
+}
+
+function compiler_org(c)
+{
+    compiler_advance(c);
+    if (c.[CIS_FIRST_PASS])
+    {
+        compiler_const_expression(c); 
+    }
+    else
+    {
+        c.[CPROG_END] -= c.[CORG];
+        c.[CORG] = compiler_const_expression(c); 
+        c.[CPROG_END] += c.[CORG];
+        c.[CIP] = c.[CORG];
     }
 }
 
@@ -814,15 +847,15 @@ function compiler_binary(c, prec, econst, iconst)
     l = compiler_binary(c, prec + PREC, &lconst, iconst);
     if (!lconst) *econst = FALSE;
 
-    last = c{CCUR + TOKEN_TYPE};
+    last = c.[CCUR + TOKEN_TYPE];
     while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
     {
         rconst = TRUE;
-        i = compiler_emit8(c, OPUSHR + REAX);
+        if (!iconst) i = compiler_emit8(c, OPUSHR + REAX);
         if (prec{PREC_ASSOC} == ASSOC_LEFT and t != TLOGICALOR and t != TLOGICALAND) r = compiler_binary(c, prec + PREC, &rconst, iconst);
         else if (prec{PREC_ASSOC} == ASSOC_RIGHT) r = compiler_binary(c, prec, &rconst, iconst);
         if (!rconst) *econst = FALSE;
-        if (lconst or rconst) compiler_set(c, i, ONOP);
+        if (iconst and (lconst or rconst)) compiler_set(c, i, ONOP);
 
         switch (t)
         {
@@ -936,7 +969,14 @@ function compiler_binary(c, prec, econst, iconst)
             case TMODULOSEQUALS:
                 if (*econst)
                 {
-                    print("todo div\n");
+                    switch (t)
+                    {
+                        case TSLASHU: l = l /! r; break;
+                        case TSLASHS: l = l /$ r; break;
+                        case TMODULOU: l = l %! r; break;
+                        case TMODULOS:  l = l %$ r; break;
+                        default: print("todo div\n"); break;
+                    }
                     break;
                 }
                 else if (rconst)
@@ -1297,7 +1337,7 @@ function compiler_binary(c, prec, econst, iconst)
         default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
         }
         if (lconst) lconst = rconst;
-        last = c{CCUR + TOKEN_TYPE};
+        last = c.[CCUR + TOKEN_TYPE];
     }
 
     return l;
@@ -1406,6 +1446,12 @@ function compiler_primary(c, econst, ref, iconst)
             break;
         case TPLINE:
             r = c.[CTOK + TLINE];
+            break;
+        case TORIGIN:
+            r = c.[CORG];
+            break;
+        case TPROGEND:
+            r = c.[CPROG_END];
             break;
         case TNUM:
             r = c.[CCUR + TOKEN_VALUE];

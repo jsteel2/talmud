@@ -6,7 +6,7 @@ const RSIB = RESP;
 const RDISP = REBP;
 const SIBNOINDEX = RESP;
 
-const OTESTW = 0x85, OJMPW = 0xE9, OCALL = 0xE8, OMOVMRB = 0x88, OMOVMRW = 0x89, OMOVRMB = 0x8A, OMOVRMW = 0x8B, OMOVRIMMB = 0xB0, OMOVRIMMW = 0xB8, OMOVMIMMW = 0xC7, OMOVMIMMB = 0xC6, OJZW = 0x840F, OJBW = 0x820F, OJAW = 0x870F, OJZB = 0x74, OJNZW = 0x850F, OPUSHR = 0x50, OPOPR = 0x58, OGRP1MIMMWB = 0x83, OGRP1MIMMBB = 0x80, OGRP1MIMMWW = 0x81, OGRP1ADD = 0, OGRP1AND = 4, OGRP1OR = 1, OGRP1XOR = 6, OGRP1SUB = 5, OGRP1CMP = 7, OGRP5 = 0xFF, OGRP5CALL = 2, OGRP5JMP = 4, OGRP5JMPFAR = 5, OGRP5PUSH = 6, OLEAVE = 0xC9, ORET = 0xC3, OMOVZXW = 0xB70F, OMOVZXB = 0xB60F, OLEA = 0x8D, OSIZEOVERRIDE = 0x66, OGRP3B = 0xF6, OGRP3W = 0xF7, OGRP3NOT = 2, OGRP3NEG = 3, OGRP3MUL = 4, OGRP3IMUL = 5, OGRP3DIV = 6, OGRP3IDIV = 7, OSETZ = 0x940F, OSETNZ = 0x950F, OANDEAXIMMW = 0x25, OOREAXIMMW = 0x0D, OXOREAXIMMW = 0x35, OCMPEAXIMMW = 0x3D, OADDEAXIMMW = 0x05, OSUBEAXIMMW = 0x2D, ONOP = 0x90, OCMPMRW = 0x39, OSETA = 0x970F, OSETG = 0x9F0F, OSETAE = 0x930F, OSETGE = 0x9D0F, OSETB = 0x920F, OSETL = 0x9C0F, OSETBE = 0x960F, OSETLE = 0x9E0F, OADDMRB = 0x00, OADDRMB = 0x02, OADDRMW = 0x03, OADDMRW = 0x01, OCLD = 0xFC, OSTD = 0xFD, OREP = 0xF3, OMOVSB = 0xA4, ODECR = 0x48, OCMPSB = 0xA6, OSTOSB = 0xAA, OESOVERRiDE = 0x26, OFSOVERRiDE = 0x64, OXCHGEAX = 0x90, OSUBRMW = 0x2B, OTESTMRW = 0x85, OXORMRB = 0x30, OXORMRW = 0x31, OANDMRB = 0x20, OANDMRW = 0x21, OORMRB = 0x08, OORMRW = 0x09, OCDQ = 0x99, OJMPB = 0xEB, OJMPW = 0xE9, OJMPFAR = 0xEA, OSUBMRB = 0x28, OSUBMRW = 0x29, OPOPM = 0x8F, OGRP2MWIMMB = 0xC1, OGRP2MWCL = 0xD3, OGRP2SHL = 4, OGRP2SHR = 5, OIMULRMWIMMW = 0x69;
+const OTESTW = 0x85, OJMPW = 0xE9, OCALL = 0xE8, OMOVMRB = 0x88, OMOVMRW = 0x89, OMOVRMB = 0x8A, OMOVRMW = 0x8B, OMOVRIMMB = 0xB0, OMOVRIMMW = 0xB8, OMOVMIMMW = 0xC7, OMOVMIMMB = 0xC6, OJZW = 0x840F, OJBW = 0x820F, OJAW = 0x870F, OJZB = 0x74, OJNZW = 0x850F, OPUSHR = 0x50, OPOPR = 0x58, OGRP1MIMMWB = 0x83, OGRP1MIMMBB = 0x80, OGRP1MIMMWW = 0x81, OGRP1ADD = 0, OGRP1AND = 4, OGRP1OR = 1, OGRP1XOR = 6, OGRP1SUB = 5, OGRP1CMP = 7, OGRP5 = 0xFF, OGRP5CALL = 2, OGRP5JMP = 4, OGRP5JMPFAR = 5, OGRP5PUSH = 6, OLEAVE = 0xC9, ORET = 0xC3, OMOVZXW = 0xB70F, OMOVZXB = 0xB60F, OLEA = 0x8D, OSIZEOVERRIDE = 0x66, OGRP3B = 0xF6, OGRP3W = 0xF7, OGRP3NOT = 2, OGRP3NEG = 3, OGRP3MUL = 4, OGRP3IMUL = 5, OGRP3DIV = 6, OGRP3IDIV = 7, OSETZ = 0x940F, OSETNZ = 0x950F, OANDEAXIMMW = 0x25, OOREAXIMMW = 0x0D, OXOREAXIMMW = 0x35, OCMPEAXIMMW = 0x3D, OADDEAXIMMW = 0x05, OSUBEAXIMMW = 0x2D, ONOP = 0x90, OCMPMRW = 0x39, OSETA = 0x970F, OSETG = 0x9F0F, OSETAE = 0x930F, OSETGE = 0x9D0F, OSETB = 0x920F, OSETL = 0x9C0F, OSETBE = 0x960F, OSETLE = 0x9E0F, OADDMRB = 0x00, OADDRMB = 0x02, OADDRMW = 0x03, OADDMRW = 0x01, OCLD = 0xFC, OSTD = 0xFD, OREP = 0xF3, OMOVSB = 0xA4, ODECR = 0x48, OCMPSB = 0xA6, OSTOSB = 0xAA, OESOVERRIDE = 0x26, OFSOVERRiDE = 0x64, OXCHGEAX = 0x90, OSUBRMW = 0x2B, OTESTMRW = 0x85, OXORMRB = 0x30, OXORMRW = 0x31, OANDMRB = 0x20, OANDMRW = 0x21, OORMRB = 0x08, OORMRW = 0x09, OCDQ = 0x99, OJMPB = 0xEB, OJMPW = 0xE9, OJMPFAR = 0xEA, OSUBMRB = 0x28, OSUBMRW = 0x29, OPOPM = 0x8F, OGRP2MWIMMB = 0xC1, OGRP2MWCL = 0xD3, OGRP2SHL = 4, OGRP2SHR = 5, OIMULRMWIMMW = 0x69, OINBW = 0xEC, OINWW = 0xED, OINBIMMB = 0xE4, OINWIMMB = 0xE5, OOUTIMMBB = 0xE6, OOUTIMMBW = 0xE7, OOUTWB = 0xEE, OOUTWW = 0xEF, OHLT = 0xF4, OCLI = 0xFA, OMOVSM = 0x8E, OMOVRC = 0x200F, OMOVCR = 0x220F, OLXDT = 0x010F, OLXDTLGDT = 2, OLXDTLIDT = 3, OSTI = 0xFB, OINT = 0xCD;
 
 function modrm(mod, reg, rm) return (mod << 6) | (reg << 3) | rm;
 const sib = modrm;
@@ -29,6 +29,20 @@ function compiler_asm_reg(c, outsize)
     return t - TEAX;
 }
 
+function compiler_asm_seg(c)
+(t)
+{
+    if (!(t = compiler_matches(c, TES, TGS))) return -1;
+    return t - TES;
+}
+
+function compiler_asm_ctrl(c)
+(t)
+{
+    if (!(t = compiler_matches(c, TCR0, TCR7))) return -1;
+    return t - TCR0;
+}
+
 function compiler_asm_sizeoverride(c, size)
 {
     if ((size == 32 and !c{CUSE32}) or (size == 16 and c{CUSE32})) compiler_emit8(c, 0x66);
@@ -47,18 +61,36 @@ function compiler_asm_immb(c)
     return r;
 }
 
-function compiler_asm_immw(c)
+function compiler_asm_imm16(c)
 (r)
 {
     r = compiler_const_expression(c);
-    if (!c.[CIS_FIRST_PASS] and !c{CUSE32} and (r >$ 0xffff or r <$ -0x8000)) compiler_throw(c, $@, $*, print("immediate too large"));
+    if (!c.[CIS_FIRST_PASS] and (r >$ 0xffff or r <$ -0x8000)) compiler_throw(c, $@, $*, print("immediate too large"));
     return r;
+}
+
+function compiler_asm_immw(c)
+(r)
+{
+    return c{CUSE32} ? compiler_const_expression(c) : compiler_asm_imm16(c);
 }
 
 function compiler_asm_emitw(c, x)
 {
     if (c{CUSE32}) compiler_emit32(c, x);
     else compiler_emit16(c, x);
+}
+
+function compiler_asm_immx(c, s)
+{
+    return s == 16 ? compiler_asm_imm16(c) : s == 32 ? compiler_const_expression(c) : compiler_asm_immb(c);
+}
+
+function compiler_asm_emitx(c, s, x)
+{
+    if (s == 32) compiler_emit32(c, x);
+    else if (s == 16) compiler_emit16(c, x);
+    else compiler_emit8(c, x);
 }
 
 struct CASMEMDATA = {CASMEMADDRSIZE}, {CASMEMMODRM}, {CASMEMSIB}, [CASMEMDISP];
@@ -78,12 +110,12 @@ function compiler_asm_mem(c, outsize, mem)
 
     if (compiler_matches(c, TES, TDS))
     {
-        compiler_emit8(c, OESOVERRiDE + (c{CCUR + TOKEN_TYPE} - TES) *! 8);
+        compiler_emit8(c, OESOVERRIDE + (c.[CCUR + TOKEN_TYPE] - TES) *! 8);
         compiler_consume(c, TCOLON);
     }
     else if (compiler_matches(c, TFS, TGS))
     {
-        compiler_emit8(c, OFSOVERRiDE + (c{CCUR + TOKEN_TYPE} == TGS));
+        compiler_emit8(c, OFSOVERRiDE + (c.[CCUR + TOKEN_TYPE] == TGS));
         compiler_consume(c, TCOLON);
     }
 
@@ -127,9 +159,9 @@ function compiler_asm_mem(c, outsize, mem)
     base = compiler_advance(c);
 
 .noadvance:
-    if (base == TINVALID and compiler_match(c, TIDENT) and map_get(&c{CLOCALS}, &c{CCUR + TOKEN_VALUE}, ident))
+    if (base == TINVALID and compiler_peek(c) == TIDENT and map_get(&c{CLOCALS}, &c{CNEXT + TOKEN_VALUE}, ident))
     {
-
+        compiler_advance(c);
         base = TEBP;
         mem{CASMEMMODRM} = modrm(MODDISPW, 0, REBP);
         mem{CASMEMADDRSIZE} = 32;
@@ -231,6 +263,12 @@ function compiler_asm_mov(c)
             compiler_emit8(c, destsize == 8 ? OMOVRMB : OMOVRMW);
             compiler_asm_emitmem(c, mem, dest);
         }
+        else if ((src = compiler_asm_ctrl(c)) != -1)
+        {
+            if (destsize != 32) compiler_throw(c, $@, $*, print("Invalid operand size"));
+            compiler_emit16(c, OMOVRC);
+            compiler_emit8(c, modrm(MODREG, src, dest));
+        }
         else
         {
             if (destsize == 8)
@@ -242,9 +280,9 @@ function compiler_asm_mov(c)
             else
             {
                 compiler_asm_sizeoverride(c, destsize);
-                src = compiler_asm_immw(c);
-                compiler_emit8(c, OMOVRIMMW) + dest;
-                compiler_asm_emitw(c, src);
+                src = compiler_asm_immx(c, destsize);
+                compiler_emit8(c, OMOVRIMMW + dest);
+                compiler_asm_emitx(c, destsize, src);
             }
         }
     }
@@ -257,6 +295,48 @@ function compiler_asm_mov(c)
             compiler_asm_sizeoverride(c, srcsize);
             compiler_emit8(c, srcsize == 8 ? OMOVMRB : OMOVMRW);
             compiler_asm_emitmem(c, mem, src);
+        }
+        else
+        {
+            if (destsize == 8)
+            {
+                src = compiler_asm_immb(c);
+                compiler_emit8(c, OMOVMIMMB);
+                compiler_asm_emitmem(c, mem, 0);
+                compiler_emit8(c, src);
+            }
+            else
+            {
+                compiler_asm_sizeoverride(c, destsize);
+                src = compiler_asm_immx(c, destsize);
+                compiler_emit8(c, OMOVMIMMW);
+                compiler_asm_emitmem(c, mem, 0);
+                compiler_asm_emitx(c, destsize, src);
+            }
+        }
+    }
+    else if ((dest = compiler_asm_seg(c)) != -1)
+    {
+        compiler_consume(c, TCOMMA);
+        if ((src = compiler_asm_reg(c, &srcsize)) != -1)
+        {
+            if (srcsize != 16) compiler_throw(c, $@, $*, print("Invalid operand size"));
+            compiler_emit8(c, OMOVSM);
+            compiler_emit8(c, modrm(MODREG, dest, src));
+        }
+        else
+        {
+            compiler_throw(c, $@, $*, print("Invalid form"));
+        }
+    }
+    else if ((dest = compiler_asm_ctrl(c)) != -1)
+    {
+        compiler_consume(c, TCOMMA);
+        if ((src = compiler_asm_reg(c, &srcsize)) != -1)
+        {
+            if (srcsize != 32) compiler_throw(c, $@, $*, print("Invalid operand size"));
+            compiler_emit16(c, OMOVCR);
+            compiler_emit8(c, modrm(MODREG, dest, src));
         }
         else
         {
@@ -276,7 +356,14 @@ function compiler_asm_grp1(c, base, reg)
     if ((dest = compiler_asm_reg(c, &destsize)) != -1)
     {
         compiler_consume(c, TCOMMA);
-        if (compiler_asm_mem(c, &srcsize, mem))
+        if ((src = compiler_asm_reg(c, &srcsize)) != -1)
+        {
+            if (destsize != srcsize) compiler_throw(c, $@, $*, format(print, "operand size mismatch: dest %u != src %u", destsize, srcsize));
+            compiler_asm_sizeoverride(c, destsize);
+            compiler_emit8(c, base + (destsize == 8 ? OADDRMB : OADDRMW));
+            compiler_emit8(c, modrm(MODREG, dest, src));
+        }
+        else if (compiler_asm_mem(c, &srcsize, mem))
         {
             if (srcsize != 0 and srcsize != destsize) compiler_throw(c, $@, $*, format(print, "operand size mismatch: dest %u != src %u", destsize, srcsize));
             compiler_asm_sizeoverride(c, destsize);
@@ -295,10 +382,10 @@ function compiler_asm_grp1(c, base, reg)
             else
             {
                 compiler_asm_sizeoverride(c, destsize);
-                src = compiler_asm_immw(c);
+                src = compiler_asm_immx(c, destsize);
                 compiler_emit8(c, OGRP1MIMMWW);
                 compiler_emit8(c, modrm(MODREG, reg, dest));
-                compiler_asm_emitw(c, src);
+                compiler_asm_emitx(c, destsize, src);
             }
         }       
     }
@@ -336,13 +423,13 @@ function compiler_asm_jcc(c, opb, opw)
     compiler_advance(c);
     if (compiler_match(c, TSHORT))
     {
-        r = compiler_asm_immb(c);
+        r = compiler_const_expression(c);
         compiler_emit8(c, opb);
         compiler_emit8(c, compiler_relative(c, r, 2));
     }
     else
     {
-        r = compiler_asm_immw(c);
+        r = compiler_const_expression(c);
         compiler_emit16(c, opw);
         if (c{CUSE32}) compiler_emit32(c, compiler_relative(c, r, 4));
         else compiler_emit16(c, compiler_relative(c, r, 2));
@@ -350,7 +437,7 @@ function compiler_asm_jcc(c, opb, opw)
 }
 
 function compiler_asm_setcc(c, op)
-(dest, destsize)
+(dest, destsize, mem{CASMEMDATA})
 {
     compiler_advance(c);
 
@@ -359,6 +446,16 @@ function compiler_asm_setcc(c, op)
         if (destsize != 8) compiler_throw(c, $@, $*, print("Invalid operand size"));
         compiler_emit16(c, op);
         compiler_emit8(c, modrm(MODREG, 0, dest));
+    }
+    else if (compiler_asm_mem(c, &destsize, mem))
+    {
+        if (destsize != 8 and destsize != 0) compiler_throw(c, $@, $*, print("Invalid operand size"));
+        compiler_emit16(c, op);
+        compiler_asm_emitmem(c, mem, 0);
+    }
+    else
+    {
+        compiler_throw(c, $@, $*, print("Invalid form"));
     }
 }
 
@@ -377,16 +474,26 @@ function compiler_asm_jmp(c, opb, opw, opfar, regnear, regfar)
     {
         if (compiler_match(c, TSHORT))
         {
-            dest = compiler_asm_immb(c);
+            dest = compiler_const_expression(c);
             compiler_emit8(c, opb);
             compiler_emit8(c, compiler_relative(c, dest, 2));
         }
         else
         {
-            dest = compiler_asm_immw(c);
-            compiler_emit8(c, opw);
-            if (c{CUSE32}) compiler_emit32(c, compiler_relative(c, dest, 4));
-            else compiler_emit16(c, compiler_relative(c, dest, 2));
+            dest = compiler_const_expression(c);
+            if (compiler_match(c, TCOLON))
+            {
+                compiler_emit8(c, opfar);
+                destsize = compiler_asm_immw(c);
+                compiler_asm_emitw(c, destsize);
+                compiler_emit16(c, dest);
+            }
+            else
+            {
+                compiler_emit8(c, opw);
+                if (c{CUSE32}) compiler_emit32(c, compiler_relative(c, dest, 4));
+                else compiler_emit16(c, compiler_relative(c, dest, 2));
+            }
         }
     }
 }
@@ -409,4 +516,61 @@ function compiler_asm_pushpop(c, is_push)
         compiler_emit8(c, is_push ? OGRP5 : OPOPM);
         compiler_asm_emitmem(c, mem, is_push ? OGRP5PUSH : 0);
     }
+}
+
+function compiler_asm_in(c)
+(destsize, srcsize)
+{
+    compiler_advance(c);
+
+    if (compiler_asm_reg(c, &destsize) == REAX)
+    {
+        compiler_consume(c, TCOMMA);
+        compiler_asm_sizeoverride(c, destsize);
+        if (compiler_asm_reg(c, &srcsize) == REDX and srcsize == 16)
+        {
+            compiler_emit8(c, destsize == 8 ? OINBW : OINWW);
+        }
+        else
+        {
+            compiler_emit8(c, destsize == 8 ? OINBIMMB : OINWIMMB);
+            compiler_emit8(c, compiler_asm_immb(c));
+        }
+    }
+    else
+    {
+        compiler_throw(c, $@, $*, print("Invalid form"));
+    }
+}
+
+function compiler_asm_out(c)
+(destsize, srcsize)
+{
+    compiler_advance(c);
+
+    if (compiler_asm_reg(c, &destsize) == REDX)
+    {
+        compiler_consume(c, TCOMMA);
+        if (compiler_asm_reg(c, &srcsize) != REAX) compiler_throw(c, $@, $*, print("Invalid form"));
+        compiler_asm_sizeoverride(c, srcsize);
+        compiler_emit8(c, srcsize == 8 ? OOUTWB : OOUTWW);
+    }
+    else
+    {
+        destsize = compiler_asm_immb(c);
+        compiler_consume(c, TCOMMA);
+        if (compiler_asm_reg(c, &srcsize) != REAX) compiler_throw(c, $@, $*, print("Invalid form"));
+        compiler_asm_sizeoverride(c, srcsize);
+        compiler_emit8(c, srcsize == 8 ? OOUTIMMBB : OOUTIMMBW);
+        compiler_emit8(c, destsize);
+    }
+}
+
+function compiler_asm_lxdt(c, reg)
+(size, mem{CASMEMDATA})
+{
+    compiler_advance(c);
+    if (!compiler_asm_mem(c, &size, mem)) compiler_throw(c, $@, $*, print("Invalid form"));
+    compiler_emit16(c, OLXDT);
+    compiler_asm_emitmem(c, mem, reg);
 }

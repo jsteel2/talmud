@@ -18,10 +18,9 @@ JMP switch_protected
 USE32
 pmode:
     MOV ESP, STACK
-    JMP eden
 
-function eden()
-(file{FILE}, r, eve, s{STRING}, compiler{COMPILER})
+function bstrap()
+(file{FILE}, r, eden, s{STRING}, compiler{COMPILER})
 {
     MOV [r], DX
     file{FILE_DRIVE} = r;
@@ -29,9 +28,9 @@ function eden()
 
     print("Hello, World!\n");
 
-    if (!openat(NULL, "/adam/eve.kc", file, FALSE))
+    if (!openat(NULL, "/boot/eden.kc", file, FALSE))
     {
-        print("Could not open /adam/eve.kc\n");
+        print("Could not open /boot/eden.kc\n");
         JMP .hlt
     }
     malloc_init(HEAP_START);
@@ -43,7 +42,7 @@ function eden()
     }
     if (!read(file, file.[FILE_SIZE], r))
     {
-        print("Could not read /adam/eve.kc\n");
+        print("Could not read /boot/eden.kc\n");
         JMP .hlt
     }
 
@@ -55,23 +54,30 @@ function eden()
         JMP .hlt
     }
 
-    if (!compiler_const_set(compiler, "print", print)) JMP .hlt
-    if (!compiler_const_set(compiler, "interrupt", interrupt)) JMP .hlt
-    if (!compiler_const_set(compiler, "lba_read", lba_read)) JMP .hlt
-    if (!compiler_const_set(compiler, "lba_write", lba_write)) JMP .hlt
-    if (!compiler_global_set(compiler, "first_free", &first_free)) JMP .hlt
-    eve = compile(compiler, "/adam/eve.kc", s);
+    eden = compile(compiler, "/boot/eden.kc", s);
     free(r);
-    if (!eve)
+    if (!eden)
     {
-        print("Could not compile /adam/eve.kc\n");
+        print("Could not compile /boot/eden.kc\n");
         JMP .hlt
     }
 
-    compiler_ident_get(compiler, "eve", &eve);
-    eve(compiler);
+    if (!openat(NULL, "/eden.exe", file, FALSE))
+    {
+        print("Could not open /eden.exe\n");
+        JMP .hlt
+    }
+
+    if (!write(file, compiler.[CIP] - compiler.[CORG], eden))
+    {
+        print("Could not write to /eden.exe\n");
+        JMP .hlt
+    }
+
 .hlt:
-    HLT
+    MOV DX, 0x604
+    MOV AX, 0x2000
+    OUT DX, AX
     JMP .hlt
 }
 

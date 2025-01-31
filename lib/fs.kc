@@ -148,4 +148,42 @@ function read(file, n, buf)
     return TRUE;
 }
 
+# This is just a stub for the bootstrapping for now
+function write(file, n, buf)
+(sectors_read, x)
+{
+    while (n)
+    {
+        if (file.[FILE_SEEK] & 511 == 0)
+        {
+            if (file.[FILE_SEEK] %! file{FILE_SECTORS_PER_CLUSTER} == 0 and file.[FILE_SEEK] != 0)
+            {
+                if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512, file)) return FALSE;
+                file.[FILE_CLUSTER_CUR] = file.[file.[FILE_CLUSTER_CUR] *! 4 %! 512] & 0x0FFFFFFF;
+                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return FALSE;
+            }
+            if (TRUE)
+            {
+                sectors_read = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER});
+                if (sectors_read == 0) sectors_read = 1;
+                if (!lba_write(file{FILE_DRIVE}, sectors_read, cur_sector(file), buf)) return FALSE;
+                x = sectors_read *! 512;
+                file.[FILE_SEEK] += x;
+                if (n <! x) n = 0;
+                else n -= x;
+                buf += x;
+            }
+            else
+            {
+                if (!lba_write(file{FILE_DRIVE}, 1, cur_sector(file), file)) return FALSE;
+                memcpy(buf, file, n);
+                file.[FILE_SEEK] += n;
+                return TRUE;
+            }
+        }
+    }
+
+    return TRUE;
+}
+
 function cluster2sector(file, cluster) return ((cluster - 2) *! file{FILE_SECTORS_PER_CLUSTER}) + file.[FILE_DATA_SECTOR];
