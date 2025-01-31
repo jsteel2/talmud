@@ -189,7 +189,7 @@ function tokenizer_ident_token(t, out)
             if (strcmp(s, "and")) out.[TOKEN_TYPE] = TLOGICALAND;
             else break;
             return TRUE;
-        case 'a':
+        case 'b':
             if (strcmp(s, "break")) out.[TOKEN_TYPE] = TBREAK;
             else break;
             return TRUE;
