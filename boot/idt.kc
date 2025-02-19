@@ -1,0 +1,128 @@
+struct IDT_ENTRY = <IDT_ENTRY_ISR_LOW>, <IDT_ENTRY_CS>, {IDT_ENTRY_RESERVED}, {IDT_ENTRY_ATTRIBUTES}, <IDT_ENTRY_ISR_HIGH>;
+const IDT_ENTRIES = 34;
+global idt{IDT_ENTRY *! IDT_ENTRIES};
+
+struct IDTR = <IDTR_LIMIT>, [IDTR_BASE];
+global idtr{IDTR};
+
+function idt_init()
+(v)
+{
+    v = 0;
+    while (v <! 32)
+    {
+        idt_set_entry(v, exception_handler, 0x8E);
+        v += 1;
+    }
+
+    idt_set_entry(0x20, timer_handler, 0x8E);
+    idt_set_entry(0x21, keyboard_handler, 0x8E);
+
+    idt_set_entry(0xD, gpf_handler, 0x8E);
+
+    idtr.[IDTR_BASE] = idt;
+    idtr.<IDTR_LIMIT> = IDT_ENTRY *! IDT_ENTRIES - 1;
+    pic_map(0x20, 0x28);
+    LIDT [idtr]
+    STI
+}
+
+function idt_set_entry(vector, isr, flags)
+(e)
+{
+    e = &idt{vector *! IDT_ENTRY};
+    e.<IDT_ENTRY_ISR_LOW> = isr & 0xFFFF;
+    e.<IDT_ENTRY_CS> = 0x08;
+    e{IDT_ENTRY_ATTRIBUTES} = flags;
+    e.<IDT_ENTRY_ISR_HIGH> = isr >> 16;
+    e{IDT_ENTRY_RESERVED} = 0;
+}
+
+exception_handler:
+    print("Exception. Goodbye!\n");
+    CLI
+.hlt:
+    HLT
+    JMP .hlt
+
+gpf_handler:
+    PUSH EAX
+    PUSH ECX
+    PUSH EDX
+    PUSH EBX
+    PUSH EDI
+    PUSH ESI
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
+
+    TEST DWORD [ESP + V86_EFLAGS], 0x20000
+    JNZ .v86
+
+    print("GPF. Goodbye!\n");
+    CLI
+.hlt:
+    HLT
+    JMP .hlt
+
+.v86:
+    PUSH ESP
+    CALL v86_monitor
+    POP EAX
+    POP ESI
+    POP EDI
+    POP EBX
+    POP EDX
+    POP ECX
+    POP EAX
+    ADD ESP, 4
+    IRET
+
+keyboard_handler:
+    PUSH EAX
+    PUSH ECX
+    PUSH EDX
+    PUSH EBX
+    PUSH EDI
+    PUSH ESI
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
+    IN AL, 0x60
+    MOV [0xb8006], AL
+    MOV AL, 0x20
+    OUT 0x20, AL
+    POP ESI
+    POP EDI
+    POP EBX
+    POP EDX
+    POP ECX
+    POP EAX
+    IRET
+
+timer_handler:
+    PUSH EAX
+    PUSH ECX
+    PUSH EDX
+    PUSH EBX
+    PUSH EDI
+    PUSH ESI
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
+    MOV [0xb8004], AL
+    MOV AL, 0x20
+    OUT 0x20, AL
+    POP ESI
+    POP EDI
+    POP EBX
+    POP EDX
+    POP ECX
+    POP EAX
+    IRET

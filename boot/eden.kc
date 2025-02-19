@@ -2,7 +2,10 @@ ORG 0x1000
 USE16
 
 const LOW_STACK = $$;
-const DISK_BUF = $!;
+const TSS = $!;
+const TSS_SIZE = 104 + 8192;
+const TSS_ESP0 = 0x04, TSS_SS0 = 0x08, TSS_IOPB = 0x66;
+const DISK_BUF = TSS + TSS_SIZE;
 const STACK = DISK_BUF + 512 *! 128 + 64 *! 1024;
 const HEAP_START = STACK;
 
@@ -26,6 +29,8 @@ function eden()
     MOV [r], DX
     file{FILE_DRIVE} = r;
     file{FILE_PARTITION} = r >> 8;
+
+    idt_init();
 
     print("Hello, World!\n");
 
@@ -75,34 +80,25 @@ function eden()
     JMP .hlt
 }
 
-switch_unreal:
-    CLI
+switch_v86:
+    MOV [TSS + TSS_ESP0], ESP
+    PUSH 0x0
+    PUSH 0x0
+    PUSH 0x0
+    PUSH 0x0
+    PUSH 0x0
+    PUSH EDI
+    PUSHF
+    POP EAX
+    OR EAX, 0x20000
+    PUSH EAX
+    PUSH 0x0
+    PUSH ESI
+    IRET
 
-    JMP 0x18:.bit16
-.bit16:
 USE16
-    MOV AX, 0x10
-    MOV DS, AX
-    MOV ES, AX
-    MOV SS, AX
-    MOV FS, AX
-    MOV GS, AX
-    MOV EAX, CR0
-    AND AL, 0xFE
-    MOV CR0, EAX
-    JMP 0x00:.unreal
-.unreal:
-    XOR AX, AX
-    MOV DS, AX
-    MOV ES, AX
-    MOV SS, AX
-    MOV FS, AX
-    MOV GS, AX
-    JMP ESI
-
 switch_protected:
     CLI
-
     LGDT [gdtr]
 
     MOV EAX, CR0
@@ -117,55 +113,59 @@ USE32
     MOV SS, AX
     MOV FS, AX
     MOV GS, AX
+    memset(TSS, 0, TSS_SIZE);
+    MOV WORD [TSS + TSS_SS0], 0x10
+    MOV WORD [TSS + TSS_IOPB], 104
+    MOV AX, 0x18
+    LTR AX
     JMP ESI
 
 function interrupt(int, eax, ecx, edx, ebx, esi, edi)
 {
-    MOV ESI, .unreal
-    JMP switch_unreal
+    LOW_STACK[-1] = *eax;
+    LOW_STACK[-2] = int;
+    LOW_STACK[-3] = *ecx;
+    LOW_STACK[-4] = *edx;
+    LOW_STACK[-5] = *ebx;
+    LOW_STACK[-6] = *esi;
+    LOW_STACK[-7] = *edi;
+    MOV ESI, .v86
+    MOV EDI, LOW_STACK - 28
+    JMP switch_v86
 USE16
-.unreal:
-    MOV AL, [int]
+.v86:
+    POP EDI
+    POP ESI
+    POP EBX
+    POP EDX
+    POP ECX
+    POP EAX
     MOV [.int + 1], AL
-    MOV [int], ESP
-    MOV ESP, LOW_STACK
-    MOV EAX, [eax]
-    MOV ECX, [ecx]
-    MOV EDX, [edx]
-    MOV EBX, [ebx]
-    MOV ESI, [esi]
-    MOV EDI, [edi]
-    MOV EAX, [EAX]
-    MOV ECX, [ECX]
-    MOV EDX, [EDX]
-    MOV EBX, [EBX]
-    MOV ESI, [ESI]
-    MOV EDI, [EDI]
+    POP EAX
     STI
 .int:
     INT 0x00
-    MOV ESP, [int]
-    MOV [int], EAX
-    MOV EAX, [ecx]
-    MOV [EAX], ECX
-    MOV EAX, [edx]
-    MOV [EAX], EDX
-    MOV EAX, [ebx]
-    MOV [EAX], EBX
-    MOV EAX, [esi]
-    MOV [EAX], ESI
-    MOV EAX, [edi]
-    MOV [EAX], EDI
-    MOV ECX, [int]
-    MOV EAX, [eax]
-    MOV [EAX], ECX
-    MOV DWORD [int], 0
-    SETB [int]
+    CLI
+    PUSH EDI
+    PUSH ESI
+    PUSH EBX
+    PUSH EDX
+    PUSH ECX
+    PUSH EAX
+    XOR EAX, EAX
+    SETB AL
+    PUSH EAX
     MOV ESI, .protected
-    JMP switch_protected
+    INT 0xFF
 USE32
 .protected:
-    return ~int;
+    *eax = LOW_STACK[-6];
+    *ecx = LOW_STACK[-5];
+    *edx = LOW_STACK[-4];
+    *ebx = LOW_STACK[-3];
+    *esi = LOW_STACK[-2];
+    *edi = LOW_STACK[-1];
+    return !LOW_STACK[-7];
 }
 
 gdtr:
@@ -175,7 +175,7 @@ gdtr:
     DD 0, 0
     DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0xCF, 0
     DB 0xFF, 0xFF, 0, 0, 0, 0x92, 0xCF, 0
-    DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0x00, 0
+    DB (TSS_SIZE - 1) & 0xFF, ((TSS_SIZE - 1) >> 8) & 0xFF, TSS & 0xFF, (TSS >> 8) & 0xFF, (TSS >> 16) & 0xFF, 0x89, 0, (TSS >> 24) & 0xFF
 .end:
 
 function print(s)
@@ -234,3 +234,6 @@ include "lib/malloc.kc"
 include "lib/map.kc"
 include "lib/vec.kc"
 include "compiler/compiler.kc"
+include "boot/idt.kc"
+include "boot/v86.kc"
+include "boot/pic.kc"

@@ -6,6 +6,7 @@ const IDENT_FLAG_VALID = 1;
 const IDENT_FLAG_LOCAL = 1 << 1;
 const IDENT_FLAG_ADDRESS = 1 << 2;
 const IDENT_FLAG_RELOCATE = 1 << 3;
+const IDENT_FLAG_GLOBAL = 1 << 4;
 struct COMPILER_IDENT = [COMPILER_IDENT_ADDR], {COMPILER_IDENT_FLAGS};
 struct COMPILER_STRING = [COMPILER_STRING_ADDR];
 struct COMPILER_CASE = [COMPILER_CASE_I], [COMPILER_CASE_JMP];
@@ -70,7 +71,7 @@ function compiler_throw_token(c, file, line, token, expected)
     s.[STRINGPTR] = buf;
     if (c.[token + TOKEN_TYPE] == TNUM) sp = int2str(s, c.[token + TOKEN_VALUE], 10, FALSE);
     else if (c.[token + TOKEN_TYPE] == TINVALID) sp = "INVALID";
-    else if (c.[token + TOKEN_TYPE] == TEND)
+    else if (c.[token + TOKEN_TYPE] >=! TEND)
     {
         if (strcmp(c.[CCUR_FILE], "stdin")) 
         {
@@ -280,10 +281,13 @@ function compiler_statement(c)
         case TSTI: return compiler_aemit8(c, OSTI);
         case TREP: return compiler_aemit8(c, OREP);
         case TRET: return compiler_aemit8(c, ORET);
+        case TLEAVE: return compiler_aemit8(c, OLEAVE);
+        case TIRET: return compiler_aemit8(c, OIRET);
         case THLT: return compiler_aemit8(c, OHLT);
         case TMOVSB: return compiler_aemit8(c, OMOVSB);
         case TCMPSB: return compiler_aemit8(c, OCMPSB);
         case TSTOSB: return compiler_aemit8(c, OSTOSB);
+        case TPUSHF: return compiler_aemit8(c, OPUSHF);
         case TINT: compiler_aemit8(c, OINT); return compiler_emit8(c, compiler_asm_immb(c));
         case TMOV: return compiler_asm_mov(c);
         case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
@@ -295,13 +299,17 @@ function compiler_statement(c)
         case TPUSH: return compiler_asm_pushpop(c, TRUE);
         case TPOP: return compiler_asm_pushpop(c, FALSE);
         case TJMP: return compiler_asm_jmp(c, OJMPB, OJMPW, OJMPFAR, OGRP5JMP, OGRP5JMPFAR);
+        case TCALL: return compiler_asm_jmp(c, 0, OCALL, OCALLFAR, OGRP5CALL, OGRP5CALLFAR);
         case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
+        case TJNZ: return compiler_asm_jcc(c, OJNZB, OJNZW);
         case TSETZ: return compiler_asm_setcc(c, OSETZ);
         case TSETB: return compiler_asm_setcc(c, OSETB);
         case TIN: return compiler_asm_in(c);
         case TOUT: return compiler_asm_out(c);
         case TLGDT: return compiler_asm_lxdt(c, OLXDTLGDT);
         case TLIDT: return compiler_asm_lxdt(c, OLXDTLIDT);
+        case TLTR: return compiler_asm_ltr(c);
+        case TTEST: return compiler_asm_test(c);
         case TDOT: local = TRUE; compiler_advance(c);
         case TIDENT: if (compiler_label(c, local)) break;
         default:
@@ -513,26 +521,36 @@ function compiler_const(c)
 }
 
 function compiler_global(c)
-(s{STRING}, x, ident{COMPILER_IDENT})
+(s{STRING}, a, t, ident{COMPILER_IDENT})
 {
     compiler_advance(c);
     do
     {
         compiler_consume(c, TIDENT);
-        if (map_get(&c{CIDENTS}, &c{CCUR + TOKEN_VALUE}, ident)) x = &c{CCUR + TOKEN_VALUE};
-        else x = strdup(&c{CCUR + TOKEN_VALUE}, s);
+        if (map_get(&c{CIDENTS}, &c{CCUR + TOKEN_VALUE}, ident)) memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
+        else strdup(&c{CCUR + TOKEN_VALUE}, s);
         if (c.[CIS_FIRST_PASS])
         {
             ident.[COMPILER_IDENT_ADDR] = c.[CGLOBAL_OFFSET];
-            c.[CGLOBAL_OFFSET] += 4;
-            ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_RELOCATE;
+            if (t = compiler_match(c, TLEFTBRACE)) a = 1 *! compiler_const_expression(c);
+            else if (t = compiler_match(c, TLEFTCHEVRON)) a = 2 *! compiler_const_expression(c);
+            else if (t = compiler_match(c, TLEFTBRACKET)) a = 4 *! compiler_const_expression(c);
+            else a = 4;
+            c.[CGLOBAL_OFFSET] += a;
+            if (t) compiler_consume(c, t + 1);
+            ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_GLOBAL | IDENT_FLAG_RELOCATE | (t ? IDENT_FLAG_ADDRESS : 0);
         }
         else
         {
+            if ((t = compiler_match(c, TLEFTBRACE)) or (t = compiler_match(c, TLEFTCHEVRON)) or (t = compiler_match(c, TLEFTBRACKET)))
+            {
+                compiler_const_expression(c);
+                compiler_consume(c, t + 1);
+            }
             ident.[COMPILER_IDENT_ADDR] += c.[CPROG_END] - c.[CGLOBAL_OFFSET];
-            ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID;
+            ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_GLOBAL | (t ? IDENT_FLAG_ADDRESS : 0);
         }
-        if (!map_set(&c{CIDENTS}, x, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", &c{CCUR + TOKEN_VALUE}, ident.[COMPILER_IDENT_ADDR]), x == &c{CCUR + TOKEN_VALUE} ? 0 : free(s.[STRINGPTR]));
+        if (!map_set(&c{CIDENTS}, s, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, ident.[COMPILER_IDENT_ADDR]));
     } while (compiler_match(c, TCOMMA));
     compiler_consume(c, TSEMICOLON);
 }
@@ -851,11 +869,11 @@ function compiler_binary(c, prec, econst, iconst)
     while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
     {
         rconst = TRUE;
-        if (!iconst) i = compiler_emit8(c, OPUSHR + REAX);
+        if (!iconst and !lconst) i = compiler_emit8(c, OPUSHR + REAX);
         if (prec{PREC_ASSOC} == ASSOC_LEFT and t != TLOGICALOR and t != TLOGICALAND) r = compiler_binary(c, prec + PREC, &rconst, iconst);
         else if (prec{PREC_ASSOC} == ASSOC_RIGHT) r = compiler_binary(c, prec, &rconst, iconst);
+        if (!iconst and !lconst and rconst) compiler_set(c, i, ONOP);
         if (!rconst) *econst = FALSE;
-        if (!iconst and (lconst or rconst)) compiler_set(c, i, ONOP);
 
         switch (t)
         {
@@ -1416,7 +1434,7 @@ function compiler_primary(c, econst, ref, iconst)
                 if ((ref and r != TDOT and r != TLEFTBRACKET and r != TLEFTCHEVRON and r != TLEFTBRACE) or f & IDENT_FLAG_ADDRESS or (r >=! TEQUALS and r <=! TPLUSEQUALS))
                 {
                     r = ident;
-                    if (f & IDENT_FLAG_LOCAL)
+                    if (f & IDENT_FLAG_LOCAL and !iconst)
                     {
                         *econst = FALSE;
                         compiler_emit8(c, OLEA);
@@ -1424,13 +1442,17 @@ function compiler_primary(c, econst, ref, iconst)
                         compiler_emit32(c, ident);
                     }
                 }
-                else
+                else if (!iconst)
                 {
                     *econst = FALSE;
                     compiler_emit8(c, OMOVRMW);
                     if (f & IDENT_FLAG_LOCAL) compiler_emit8(c, modrm(MODDISPW, REAX, REBP));
                     else compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
                     compiler_emit32(c, ident);
+                }
+                else
+                {
+                    r = ident;
                 }
             }
             else if (!c.[CIS_FIRST_PASS])
@@ -1469,7 +1491,7 @@ function compiler_primary(c, econst, ref, iconst)
             c.[CCUR + TOKEN_VALUE + STRINGPTR] = NULL;
             break;
         case TLEFTPAREN:
-            r = compiler_expression(c, econst);
+            r = compiler_binary(c, precs, econst, iconst);
             compiler_consume(c, TRIGHTPAREN);
             break;
         default:
@@ -1678,7 +1700,7 @@ function compiler_ident_get(c, name, out)
 
     if (map_get(&c{CIDENTS}, name, ident))
     {
-        *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_ADDRESS ? 0 : c.[CPROG_END] - c.[CGLOBAL_OFFSET]) : 0);
+        *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_GLOBAL ? c.[CPROG_END] - c.[CGLOBAL_OFFSET] : 0) : 0);
         return ident{COMPILER_IDENT_FLAGS};
     }
     return FALSE;

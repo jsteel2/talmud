@@ -1,0 +1,56 @@
+const PIC1 = 0x20, PIC2 = 0xA0, PIC1_COMMAND = PIC1, PIC1_DATA = PIC1 + 1, PIC2_COMMAND = PIC2, PIC2_DATA = PIC2 + 1;
+const ICW1_INIT = 0x10, ICW1_ICW4 = 0x01, ICW4_8086 = 0x01;
+
+function pic_map(m1, m2)
+(a{2})
+{
+    IN AL, PIC1_DATA
+    MOV [a], AL
+    IN AL, PIC2_DATA
+    MOV [a + 1], AL
+
+    MOV AL, ICW1_INIT | ICW1_ICW4
+    OUT PIC1_COMMAND, AL
+    XOR EAX, EAX
+    OUT 0x80, AL
+
+    MOV AL, ICW1_INIT | ICW1_ICW4
+    OUT PIC2_COMMAND, AL
+    XOR EAX, EAX
+    OUT 0x80, AL
+
+    MOV AL, [m1]
+    OUT PIC1_DATA, AL
+    XOR EAX, EAX
+    OUT 0x80, AL
+
+    MOV AL, [m2]
+    OUT PIC2_DATA, AL
+    XOR EAX, EAX
+    OUT 0x80, AL
+
+    MOV AL, 4
+    OUT PIC1_DATA, AL
+    XOR EAX, EAX
+    OUT 0x80, AL
+
+    MOV AL, 2
+    OUT PIC2_DATA, AL
+    XOR EAX, EAX
+    OUT 0x80, AL
+
+    MOV AL, ICW4_8086
+    OUT PIC1_DATA, AL
+    XOR EAX, EAX
+    OUT 0x80, AL
+
+    MOV AL, ICW4_8086
+    OUT PIC2_DATA, AL
+    XOR EAX, EAX
+    OUT 0x80, AL
+
+    MOV AL, [a]
+    OUT PIC1_DATA, AL
+    MOV AL, [a + 1]
+    OUT PIC2_DATA, AL
+}

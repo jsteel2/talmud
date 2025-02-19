@@ -1,7 +1,7 @@
 global ans;
 
 function eve(compiler)
-(vec{VEC}, x)
+(f{FILE}, x, s{STRING}, i)
 {
     print("
 i i i i i i i      mmmmmmm   mm   m      m    m m    m mmmm  
@@ -15,48 +15,18 @@ I  \\ `+' /  I         #     #  #  #      # ## # #    # #    #
 Welcome to TalmudOS (Formerly ChucksOS)
 ");
 
-    vec_init(vec, 64, 1);
+    i = 0;
     while (TRUE)
     {
-        print("> ");
-        input(vec);
-        x = compile(compiler, "stdin", vec);
-        if (x)
-        {
-            vec.[VEC_LEN] = 0;
-            ans = x();
-            format(print, "ans=%d (%x)\n", ans, ans);
-        }
-        else
-        {
-            if (compiler.[CCUR + TOKEN_TYPE] != TEND) vec.[VEC_LEN] = 0;
-        }
+        open("/compiler/compiler.kc", f, FALSE);
+        x = malloc(f.[FILE_SIZE]);
+        s.[STRINGLEN] = f.[FILE_SIZE];
+        s.[STRINGPTR] = x;
+        read(f, s.[STRINGLEN], x);
+        format(print, "\rOkay %u", i);
+        free(x);
+        i += 1;
     }
-}
-
-function input(v)
-(eax, unused)
-{
-    do {
-        eax = 0;
-        interrupt(0x16, &eax, &unused, &unused, &unused, &unused, &unused);
-        if ((eax & 0xff) == '\b')
-        {
-            if (v.[VEC_LEN] >! 0)
-            {
-                v.[VEC_LEN] -= 1;
-                print("\b \b");
-            }
-        }
-        else
-        {
-            format(print, "%c", eax & 0xff);
-            vec_push1(v, (eax & 0xff) == '\r' ? '\n' : eax);
-        }
-    } while ((eax & 0xff) != '\r');
-
-    print("\n");
-    return v;
 }
 
 include "lib/def.kc"
