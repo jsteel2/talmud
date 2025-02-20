@@ -7,6 +7,8 @@ const STACK = DISK_BUF + 512 *! 128 + 64 *! 1024;
 const HEAP_START = STACK;
 
 global first_free;
+global task;
+const TASK_CWD = 0;
 
 IN AL, 0x92
 OR AL, 2
@@ -20,13 +22,22 @@ pmode:
     MOV ESP, STACK
 
 function bstrap()
-(file{FILE}, r, eden, s{STRING}, compiler{COMPILER})
+(file{FILE}, cwd{FILE}, r, eden, s{STRING}, compiler{COMPILER})
 {
     MOV [r], DX
     file{FILE_DRIVE} = r;
     file{FILE_PARTITION} = r >> 8;
+    cwd{FILE_DRIVE} = r;
+    cwd{FILE_PARTITION} = r >> 8;
+    task = cwd;
 
     print("Hello, World!\n");
+
+    if (!cd("/"))
+    {
+        print("Could not cd to root directory\n");
+        JMP .hlt
+    }
 
     if (!openat(NULL, "/boot/eden.kc", file, FALSE))
     {

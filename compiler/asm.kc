@@ -498,7 +498,7 @@ function compiler_asm_setcc(c, op)
 }
 
 function compiler_asm_jmp(c, opb, opw, opfar, regnear, regfar)
-(dest, destsize)
+(dest, destsize, mem{CASMEMDATA})
 {
     compiler_advance(c);
     if ((dest = compiler_asm_reg(c, &destsize)) != -1)
@@ -507,6 +507,13 @@ function compiler_asm_jmp(c, opb, opw, opfar, regnear, regfar)
         compiler_asm_sizeoverride(c, destsize);
         compiler_emit8(c, OGRP5);
         compiler_emit8(c, modrm(MODREG, regnear, dest));
+    }
+    else if (compiler_asm_mem(c, &destsize, mem))
+    {
+        if (destsize == 8) compiler_throw(c, $@, $*, print("Invalid operand size"));
+        compiler_asm_sizeoverride(c, destsize);
+        compiler_emit8(c, OGRP5);
+        compiler_asm_emitmem(c, mem, regnear);
     }
     else
     {

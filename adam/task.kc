@@ -1,0 +1,71 @@
+const TASK_STACK_SIZE = 64 *! 1024;
+struct TASK = [TASK_NEXT], [TASK_PREV], [TASK_WAIT], [TASK_EAX], [TASK_ECX], [TASK_EDX], [TASK_EBX], [TASK_EDI], [TASK_ESI], [TASK_EBP], [TASK_ESP], [TASK_EIP], FILE{TASK_CWD}, COMPILER{TASK_COMPILER}, TASK_STACK_SIZE{TASK_STACK};
+
+function switch_task(t)
+{
+    MOV EAX, [task]
+    MOV [EAX + TASK_ESP], ESP
+    MOV [EAX + TASK_EBP], EBP
+    MOV DWORD [EAX + TASK_EIP], .ret
+    MOV EAX, [t]
+    MOV [task], EAX
+    MOV ECX, [EAX + TASK_ECX]
+    MOV EDX, [EAX + TASK_EDX]
+    MOV EBX, [EAX + TASK_EBX]
+    MOV EDI, [EAX + TASK_EDI]
+    MOV ESI, [EAX + TASK_ESI]
+    MOV EBP, [EAX + TASK_EBP]
+    MOV ESP, [EAX + TASK_ESP]
+    PUSH DWORD [EAX + TASK_EIP]
+    MOV EAX, [EAX + TASK_EAX]
+    RET
+.ret:
+}
+
+function next_task()
+{
+    switch_task(task.[TASK_NEXT]);
+}
+
+function wait()
+{
+    task.[TASK_WAIT] = TRUE;
+    next_task();
+}
+
+function preempt(ctx)
+{
+
+}
+
+function new_task(entry, arg)
+(t)
+{
+    t = malloc(TASK);
+    t.[TASK_NEXT] = task.[TASK_NEXT];
+    t.[TASK_PREV] = task;
+    compiler_init(&t{TASK_COMPILER});
+    t.[TASK_ESP] = &t{TASK_STACK} + TASK_STACK_SIZE - 8;
+    t.[TASK_ESP][0] = exit;
+    t.[TASK_ESP][1] = arg;
+    t.[TASK_EIP] = entry;
+    t.[TASK_WAIT] = FALSE;
+    t.[TASK_NEXT].[TASK_PREV] = t;
+    task.[TASK_NEXT] = t;
+    return t;
+}
+
+function kill(t)
+{
+    t.[TASK_NEXT].[TASK_PREV] = t.[TASK_PREV];
+    t.[TASK_PREV].[TASK_NEXT] = t.[TASK_NEXT];
+    compiler_free(&t{TASK_COMPILER});
+    free(t);
+}
+
+function exit()
+(t)
+{
+    t = t.[TASK_PREV];
+    kill(task);
+}

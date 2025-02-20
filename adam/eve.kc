@@ -1,5 +1,3 @@
-global ans;
-
 function eve(compiler)
 (f{FILE}, x, s{STRING}, i)
 {
@@ -15,6 +13,10 @@ I  \\ `+' /  I         #     #  #  #      # ## # #    # #    #
 Welcome to TalmudOS (Formerly ChucksOS)
 ");
 
+    new_task(seth, "Task1");
+    new_task(seth, "Task2");
+    new_task(seth, "Task3");
+
     i = 0;
     while (TRUE)
     {
@@ -23,9 +25,19 @@ Welcome to TalmudOS (Formerly ChucksOS)
         s.[STRINGLEN] = f.[FILE_SIZE];
         s.[STRINGPTR] = x;
         read(f, s.[STRINGLEN], x);
-        format(print, "\rOkay %u", i);
+        format(print, "Eve %u\n", i);
         free(x);
         i += 1;
+        next_task();
+    }
+}
+
+function seth(s)
+{
+    while (TRUE)
+    {
+        format(print, "Hello from Seth %s\n", s);
+        next_task();
     }
 }
 
@@ -36,3 +48,4 @@ include "lib/malloc.kc"
 include "lib/map.kc"
 include "lib/vec.kc"
 include "compiler/compiler.kc"
+include "adam/task.kc"

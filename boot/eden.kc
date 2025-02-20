@@ -6,10 +6,11 @@ const TSS = $!;
 const TSS_SIZE = 104 + 8192;
 const TSS_ESP0 = 0x04, TSS_SS0 = 0x08, TSS_IOPB = 0x66;
 const DISK_BUF = TSS + TSS_SIZE;
-const STACK = DISK_BUF + 512 *! 128 + 64 *! 1024;
-const HEAP_START = STACK;
+const ADAM = DISK_BUF + 512 *! 128;
+const HEAP_START = ADAM + TASK;
 
 global first_free;
+global task;
 
 IN AL, 0x92
 OR AL, 2
@@ -20,21 +21,33 @@ JMP switch_protected
 
 USE32
 pmode:
-    MOV ESP, STACK
+    MOV ESP, ADAM + TASK_STACK + TASK_STACK_SIZE
     JMP eden
 
 function eden()
-(file{FILE}, r, eve, s{STRING}, compiler{COMPILER})
+(file{FILE}, r, eve, s{STRING}, compiler)
 {
     MOV [r], DX
-    file{FILE_DRIVE} = r;
-    file{FILE_PARTITION} = r >> 8;
+    ADAM{TASK_CWD + FILE_DRIVE} = r;
+    ADAM{TASK_CWD + FILE_PARTITION} = r >> 8;
+
+    ADAM.[TASK_WAIT] = FALSE;
+    ADAM.[TASK_NEXT] = ADAM;
+    ADAM.[TASK_PREV] = ADAM;
+    task = ADAM;
+    compiler = &ADAM{TASK_COMPILER};
 
     idt_init();
 
     print("Hello, World!\n");
 
-    if (!openat(NULL, "/adam/eve.kc", file, FALSE))
+    if (!cd("/"))
+    {
+        print("Could not cd to root directory\n");
+        JMP .hlt
+    }
+
+    if (!open("/adam/eve.kc", file, FALSE))
     {
         print("Could not open /adam/eve.kc\n");
         JMP .hlt
@@ -65,6 +78,7 @@ function eden()
     if (!compiler_const_set(compiler, "lba_read", lba_read)) JMP .hlt
     if (!compiler_const_set(compiler, "lba_write", lba_write)) JMP .hlt
     if (!compiler_global_set(compiler, "first_free", &first_free)) JMP .hlt
+    if (!compiler_global_set(compiler, "task", &task)) JMP .hlt
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)
@@ -237,3 +251,4 @@ include "compiler/compiler.kc"
 include "boot/idt.kc"
 include "boot/v86.kc"
 include "boot/pic.kc"
+include "adam/task.kc"
