@@ -17,6 +17,16 @@ function memcpy(dest, src, n)
     REP MOVSB
 }
 
+function memcpyd(dest, src, n)
+{
+    if (dest == src) return;
+    CLD
+    MOV ESI, [src]
+    MOV EDI, [dest]
+    MOV ECX, [n]
+    REP MOVSD
+}
+
 function memmove(dest, src, n)
 {
     if (dest <=! src) return memcpy(dest, src, n);
@@ -65,6 +75,15 @@ function memset(d, x, n)
     MOV EDI, [d]
     MOV ECX, [n]
     REP STOSB
+}
+
+function memsetd(d, x, n)
+{
+    CLD
+    MOV EAX, [x]
+    MOV EDI, [d]
+    MOV ECX, [n]
+    REP STOSD
 }
 
 function strcmp(x, y)

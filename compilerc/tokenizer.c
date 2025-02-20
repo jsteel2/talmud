@@ -140,6 +140,7 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             if (LEN("MOVZX") == len && strncmp(start, SLEN("MOVZX")) == 0) return TMOVZX;
             if (LEN("MOVSB") == len && strncmp(start, SLEN("MOVSB")) == 0) return TMOVSB;
             if (LEN("MOVSW") == len && strncmp(start, SLEN("MOVSW")) == 0) return TMOVSW;
+            if (LEN("MOVSD") == len && strncmp(start, SLEN("MOVSD")) == 0) return TMOVSD;
             if (LEN("MOV") == len && strncmp(start, SLEN("MOV")) == 0) return TMOV;
             if (LEN("MUL") == len && strncmp(start, SLEN("MUL")) == 0) return TMUL;
             break;
@@ -164,6 +165,8 @@ TokenType tokenizer_ident_token(Tokenizer *t, char **value)
             break;
         case 'S':
             if (LEN("STOSB") == len && strncmp(start, SLEN("STOSB")) == 0) return TSTOSB;
+            if (LEN("STOSW") == len && strncmp(start, SLEN("STOSW")) == 0) return TSTOSW;
+            if (LEN("STOSD") == len && strncmp(start, SLEN("STOSD")) == 0) return TSTOSD;
             if (LEN("SETB") == len && strncmp(start, SLEN("SETB")) == 0) return TSETB;
             if (LEN("SETZ") == len && strncmp(start, SLEN("SETZ")) == 0) return TSETZ;
             if (LEN("STI") == len && strncmp(start, SLEN("STI")) == 0) return TSTI;

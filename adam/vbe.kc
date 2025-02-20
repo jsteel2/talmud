@@ -1,0 +1,101 @@
+const VBE_MODE_PTR = 0xE, VBE_ATTRIBUTES = 0x0, VBE_PITCH = 0x10, VBE_WIDTH = 0x12, VBE_HEIGHT = 0x14, VBE_BPP = 0x19, VBE_MEMORY_MODEL = 0x1B, VBE_FRAMEBUFFER = 0x28;
+
+global framebuffer, backbuffer, fb_pitch, fb_width, fb_height;
+
+function set_resolution(x, y)
+(ctrl, inf, modes, i, eax, ecx, ebx, edi, unused)
+{
+    ctrl = DISK_BUF;
+    inf = DISK_BUF + 512;
+    ctrl[0] = '2EBV';
+    eax = 0x4F00;
+    edi = ctrl %! 16;
+    interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &edi, ctrl /! 16);
+    modes = ctrl.<VBE_MODE_PTR> + ctrl.<VBE_MODE_PTR + 2> *! 16;
+    i = 0;
+    while (modes<i> != 0xFFFF)
+    {
+        eax = 0x4F01;
+        ecx = modes<i>;
+        edi = inf %! 16;
+        interrupt(0x10, &eax, &ecx, &unused, &unused, &unused, &edi, inf /! 16);
+        if (eax != 0x4F or (inf.<VBE_ATTRIBUTES> & 0x90) != 0x90 or (inf{VBE_MEMORY_MODEL} != 4 and inf{VBE_MEMORY_MODEL} != 6) or inf{VBE_BPP} != 32)
+        {
+            i += 1;
+            JMP .x
+        }
+        if (inf.<VBE_WIDTH> == x and inf.<VBE_HEIGHT> == y)
+        {
+            ebx = modes<i> | 0x4000;
+            edi = 0;
+            eax = 0x4F02;
+            interrupt(0x10, &eax, &unused, &unused, &ebx, &unused, &edi, 0);
+            framebuffer = inf.[VBE_FRAMEBUFFER];
+            fb_pitch = inf.<VBE_PITCH>;
+            fb_width = inf.<VBE_WIDTH>;
+            fb_height = inf.<VBE_HEIGHT>;
+            free(backbuffer);
+            backbuffer = malloc(fb_width *! fb_height *! 4);
+        }
+        i += 1;
+.x:
+    }
+}
+
+function framebuffer_refresh(x, y, w, h)
+(pf, pb, i)
+{
+    pf = framebuffer + y *! fb_pitch + x *! 4;
+    pb = backbuffer + y *! fb_width *! 4 + x *! 4;
+    i = 0;
+    while (i <! h)
+    {
+        memcpyd(pf, pb, w);
+        i += 1;
+        pf += fb_pitch;
+        pb += fb_width *! 4;
+    }
+}
+
+function backbuffer_fill_rect(x, y, w, h, color)
+(p, i)
+{
+    p = backbuffer + y *! fb_width *! 4 + x *! 4;
+    i = 0;
+    while (i <! h)
+    {
+        memsetd(p, color, w);
+        i += 1;
+        p += fb_width *! 4;
+    }
+}
+
+function screen_fill_rect(x, y, w, h, color)
+{
+    backbuffer_fill_rect(x, y, w, h, color);
+    framebuffer_refresh(x, y, w, h);
+}
+
+function backbuffer_draw_char(c, x, y, color)
+(p, i, j)
+{
+    p = backbuffer + y *! fb_width *! 4 + x *! 4;
+    i = 0;
+    while (i <! 8)
+    {
+        j = 0;
+        while (j <! 8)
+        {
+            if (FONT{c *! 8 + i} & (1 << j)) p[7 - j] = color;
+            j += 1;
+        }
+        i += 1;
+        p += fb_width *! 4;
+    }
+}
+
+function screen_draw_char(c, x, y, color)
+{
+    backbuffer_draw_char(c, x, y, color);
+    framebuffer_refresh(x, y, 8, 8);
+}

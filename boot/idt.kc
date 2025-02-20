@@ -39,7 +39,6 @@ function idt_set_entry(vector, isr, flags)
 }
 
 exception_handler:
-    print("Exception. Goodbye!\n");
     CLI
 .hlt:
     HLT
@@ -61,7 +60,6 @@ gpf_handler:
     TEST DWORD [ESP + V86_EFLAGS], 0x20000
     JNZ .v86
 
-    print("GPF. Goodbye!\n");
     CLI
 .hlt:
     HLT
@@ -93,7 +91,6 @@ keyboard_handler:
     MOV FS, AX
     MOV GS, AX
     IN AL, 0x60
-    MOV [0xb8006], AL
     MOV AL, 0x20
     OUT 0x20, AL
     POP ESI
@@ -116,7 +113,6 @@ timer_handler:
     MOV ES, AX
     MOV FS, AX
     MOV GS, AX
-    MOV [0xb8004], AL
     MOV AL, 0x20
     OUT 0x20, AL
     POP ESI

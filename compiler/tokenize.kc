@@ -2,7 +2,7 @@ struct TOKENIZER = [TSRC], [TPOS], [TCOL], [TLINE];
 
 enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
 
-    TWHILE, TDO, TIF, TELSE, TSWITCH, TCASE, TDEFAULT, TINCLUDE, TGLOBAL, TCONST, TSTRUCT, TENUM, TFUNCTION, TRETURN, TCONTINUE, TBREAK,
+    TWHILE, TDO, TIF, TELSE, TSWITCH, TCASE, TDEFAULT, TINCLUDE, TGLOBAL, TCONST, TSTRUCT, TENUM, TFUNCTION, TRETURN, TBREAK,
               
     TDOT, TLEFTPAREN, TRIGHTPAREN, TLEFTBRACE, TRIGHTBRACE, TLEFTBRACKET, TRIGHTBRACKET, TLEFTCHEVRON, TRIGHTCHEVRON, TSEMICOLON, TCOMMA,
 
@@ -21,7 +21,7 @@ enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
 
     TORG, TUSE16, TUSE32, TDB, TDW, TDD, TRB,
 
-    TAAA, TAAD, TAAM, TAAS, TADC, TADD, TAND, TCALL, TCBW, TCLC, TCLD, TCLI, TCMC, TCMP, TCMPSB, TCMPSW, TCWDE, TCWD, TCDQ, TDAA, TDAS, TDEC, TDIV, TESC, THLT, TIDIV, TIMUL, TIN, TINC, TINT, TINTO, TIRET, TJO, TJNO, TJB, TJNB, TJZ, TJNZ, TJBE, TJA, TJS, TJNS, TJPE, TJPO, TJL, TJGE, TJLE, TJG, TJCXZ, TJMP, TLAHF, TLDS, TLEAVE, TLEA, TLES, TLGDT, TLIDT, TLOCK, TLODSB, TLODSW, TLOOP, TLOOPZ, LOOPNZ, TLTR, TMOV, TMOVSB, TMOVSW, TMOVZX, TMUL, TNEG, TNOP, TNOT, TOR, TOUT, TPOPAD, TPOP, TPOPF, TPUSHAD, TPUSH, TPUSHF, TRCL, TRCR, TREP, TREPNZ, TRET, TRETF, TRETN, TROL, TROR, TSAHF, TSAL, TSAR, TSBB, TSCASB, TSCASW, TSETB, TSETZ, TSHL, TSHR, TSTC, TSTD, TSTI, TSTOSB, TSTOSW, TSUB, TTEST, TWAIT, TXCHG, TXLAT, TXOR,
+    TAAA, TAAD, TAAM, TAAS, TADC, TADD, TAND, TCALL, TCBW, TCLC, TCLD, TCLI, TCMC, TCMP, TCMPSB, TCMPSW, TCWDE, TCWD, TCDQ, TDAA, TDAS, TDEC, TDIV, TESC, THLT, TIDIV, TIMUL, TIN, TINC, TINT, TINTO, TIRET, TJO, TJNO, TJB, TJNB, TJZ, TJNZ, TJBE, TJA, TJS, TJNS, TJPE, TJPO, TJL, TJGE, TJLE, TJG, TJCXZ, TJMP, TLAHF, TLDS, TLEAVE, TLEA, TLES, TLGDT, TLIDT, TLOCK, TLODSB, TLODSW, TLOOP, TLOOPZ, LOOPNZ, TLTR, TMOV, TMOVSB, TMOVSW, TMOVSD, TMOVZX, TMUL, TNEG, TNOP, TNOT, TOR, TOUT, TPOPAD, TPOP, TPOPF, TPUSHAD, TPUSH, TPUSHF, TRCL, TRCR, TREP, TREPNZ, TRET, TRETF, TRETN, TROL, TROR, TSAHF, TSAL, TSAR, TSBB, TSCASB, TSCASW, TSETB, TSETZ, TSHL, TSHR, TSTC, TSTD, TSTI, TSTOSB, TSTOSW, TSTOSD, TSUB, TTEST, TWAIT, TXCHG, TXLAT, TXOR,
 
     TAX, TCX, TDX, TBX, TSP, TBP, TSI, TDI,
     TAL, TCL, TDL, TBL, TAH, TCH, TDH, TBH,
@@ -157,6 +157,8 @@ function tokenizer_ident_token(t, out)
             return TRUE;
         case 'M':
             if (strcmp(s, "MOVSB")) out.[TOKEN_TYPE] = TMOVSB;
+            else if (strcmp(s, "MOVSD")) out.[TOKEN_TYPE] = TMOVSD;
+            else if (strcmp(s, "MOVSW")) out.[TOKEN_TYPE] = TMOVSW;
             else if (strcmp(s, "MOV")) out.[TOKEN_TYPE] = TMOV;
             else break;
             return TRUE;
@@ -179,6 +181,8 @@ function tokenizer_ident_token(t, out)
             return TRUE;
         case 'S':
             if (strcmp(s, "STOSB")) out.[TOKEN_TYPE] = TSTOSB;
+            else if (strcmp(s, "STOSD")) out.[TOKEN_TYPE] = TSTOSD;
+            else if (strcmp(s, "STOSW")) out.[TOKEN_TYPE] = TSTOSW;
             else if (strcmp(s, "SETB")) out.[TOKEN_TYPE] = TSETB;
             else if (strcmp(s, "SETZ")) out.[TOKEN_TYPE] = TSETZ;
             else if (strcmp(s, "STD")) out.[TOKEN_TYPE] = TSTD;
@@ -213,8 +217,7 @@ function tokenizer_ident_token(t, out)
             else break;
             return TRUE;
         case 'c':
-            if (strcmp(s, "continue")) out.[TOKEN_TYPE] = TCONTINUE;
-            else if (strcmp(s, "const")) out.[TOKEN_TYPE] = TCONST;
+            if (strcmp(s, "const")) out.[TOKEN_TYPE] = TCONST;
             else if (strcmp(s, "case")) out.[TOKEN_TYPE] = TCASE;
             else break;
             return TRUE;

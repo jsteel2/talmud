@@ -254,7 +254,6 @@ function compiler_statement(c)
     {
         case TWHILE: return compiler_while(c);
         case TDO: return compiler_do(c);
-        case TCONTINUE: return compiler_continue(c);
         case TBREAK: return compiler_break(c);
         case TIF: return compiler_if(c);
         case TSWITCH: return compiler_switch(c);
@@ -285,8 +284,12 @@ function compiler_statement(c)
         case TIRET: return compiler_aemit8(c, OIRET);
         case THLT: return compiler_aemit8(c, OHLT);
         case TMOVSB: return compiler_aemit8(c, OMOVSB);
+        case TMOVSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OMOVSW);
+        case TMOVSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OMOVSW);
         case TCMPSB: return compiler_aemit8(c, OCMPSB);
         case TSTOSB: return compiler_aemit8(c, OSTOSB);
+        case TSTOSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OSTOSW);
+        case TSTOSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OSTOSW);
         case TPUSHF: return compiler_aemit8(c, OPUSHF);
         case TINT: compiler_aemit8(c, OINT); return compiler_emit8(c, compiler_asm_immb(c));
         case TMOV: return compiler_asm_mov(c);
@@ -678,13 +681,6 @@ function compiler_do(c)
         compiler_emit16(c, OJNZW);
         compiler_emit32(c, compiler_relative(c, loop, 4));
     }
-}
-
-function compiler_continue(c)
-{
-    print("todo continue\n");
-    compiler_advance(c);
-    compiler_consume(c, TSEMICOLON);
 }
 
 function compiler_break(c)

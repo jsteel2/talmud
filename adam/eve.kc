@@ -1,6 +1,9 @@
 function eve(compiler)
 (f{FILE}, x, s{STRING}, i)
 {
+    set_resolution(1024, 768);
+    screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
+
     print("
 i i i i i i i      mmmmmmm   mm   m      m    m m    m mmmm  
 I I I I I I I         #      ##   #      ##  ## #    # #   \"m
@@ -49,3 +52,37 @@ include "lib/map.kc"
 include "lib/vec.kc"
 include "compiler/compiler.kc"
 include "adam/task.kc"
+include "adam/vbe.kc"
+include "adam/font.kc"
+
+global print_x, print_y;
+function print(s)
+(i)
+{
+    i = 0;
+    while (i <! s.[STRINGLEN])
+    {
+        if (s.[STRINGPTR]{i} == '\n')
+        {
+            print_x = 0;
+            print_y += 8;
+        }
+        else
+        {
+            screen_draw_char(s.[STRINGPTR]{i}, print_x, print_y, 0x000000);
+            print_x += 8;
+            if (print_x + 8 >! fb_width)
+            {
+                print_x = 0;
+                print_y += 8;
+            }
+        }
+        if (print_y + 8 >! fb_height)
+        {
+            screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
+            print_x = 0;
+            print_y = 0;
+        }
+        i += 1;
+    }
+}

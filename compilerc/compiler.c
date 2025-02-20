@@ -2250,7 +2250,8 @@ bool compiler_statement(Compiler *c)
         case TLOOP: HANDLE(compiler_jmp8(c, 0xE2)); break;
         case TLEA: HANDLE(compiler_lea(c, 0x8D)); break;
         case TMOVZX: HANDLE(compiler_movzx(c)); break;
-        case TMOVSW: HANDLE(compiler_emit8(c, 0xA5)); break;
+        case TMOVSW: HANDLE(compiler_sizeoverride(c, 16)); HANDLE(compiler_emit8(c, 0xA5)); break;
+        case TMOVSD: HANDLE(compiler_sizeoverride(c, 32)); HANDLE(compiler_emit8(c, 0xA5)); break;
         case TMOVSB: HANDLE(compiler_emit8(c, 0xA4)); break;
         case TMOV: HANDLE(compiler_mov(c)); break;
         case TMUL: HANDLE(compiler_grp3(c, 4)); break;
@@ -2266,6 +2267,8 @@ bool compiler_statement(Compiler *c)
         case TRET: HANDLE(compiler_emit8(c, 0xC3)); break;
         case TREP: HANDLE(compiler_emit8(c, 0xF3)); break;
         case TSTOSB: HANDLE(compiler_emit8(c, 0xAA)); break;
+        case TSTOSW: HANDLE(compiler_sizeoverride(c, 16)); HANDLE(compiler_emit8(c, 0xAB)); break;
+        case TSTOSD: HANDLE(compiler_sizeoverride(c, 32)); HANDLE(compiler_emit8(c, 0xAB)); break;
         case TSETB: HANDLE(compiler_setcc(c, 0x92)); break;
         case TSETZ: HANDLE(compiler_setcc(c, 0x94)); break;
         case TSHL: HANDLE(compiler_grp2(c, 4)); break;
