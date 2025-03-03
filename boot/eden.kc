@@ -1,0 +1,260 @@
+ORG 0x1000
+USE16
+
+const LOW_STACK = $$;
+const TSS = $!;
+const TSS_SIZE = 104 + 8192;
+const TSS_ESP0 = 0x04, TSS_SS0 = 0x08, TSS_IOPB = 0x66;
+const DISK_BUF = TSS + TSS_SIZE;
+const ADAM = DISK_BUF + 512 *! 128;
+const HEAP_START = ADAM + TASK;
+
+global first_free;
+global task;
+global focused_window;
+
+IN AL, 0x92
+OR AL, 2
+OUT 0x92, AL
+
+MOV ESI, pmode
+JMP switch_protected
+
+USE32
+pmode:
+    MOV ESP, ADAM + TASK_STACK + TASK_STACK_SIZE
+    JMP eden
+
+function eden()
+(file{FILE}, r, eve, s{STRING}, compiler)
+{
+    MOV [r], DX
+    ADAM{TASK_CWD + FILE_DRIVE} = r;
+    ADAM{TASK_CWD + FILE_PARTITION} = r >> 8;
+
+    ADAM.[TASK_WAIT] = FALSE;
+    ADAM.[TASK_NEXT] = ADAM;
+    ADAM.[TASK_PREV] = ADAM;
+    task = ADAM;
+    compiler = &ADAM{TASK_COMPILER};
+
+    idt_init();
+
+    print("Hello, World!\n");
+
+    if (!cd("/"))
+    {
+        print("Could not cd to root directory\n");
+        JMP .hlt
+    }
+
+    if (!open("/adam/eve.kc", file, FALSE))
+    {
+        print("Could not open /adam/eve.kc\n");
+        JMP .hlt
+    }
+    malloc_init(HEAP_START);
+    r = malloc(file.[FILE_SIZE]);
+    if (!r)
+    {
+        format(print, "Could not allocate %uB of memory\n", file.[FILE_SIZE]);
+        JMP .hlt
+    }
+    if (!read(file, file.[FILE_SIZE], r))
+    {
+        print("Could not read /adam/eve.kc\n");
+        JMP .hlt
+    }
+
+    s.[STRINGPTR] = r;
+    s.[STRINGLEN] = file.[FILE_SIZE];
+    if (!compiler_init(compiler))
+    {
+        print("Could not initialize compiler\n");
+        JMP .hlt
+    }
+
+    if (!compiler_const_set(compiler, "interrupt", interrupt)) JMP .hlt
+    if (!compiler_const_set(compiler, "DISK_BUF", DISK_BUF)) JMP .hlt
+    if (!compiler_const_set(compiler, "lba_read", lba_read)) JMP .hlt
+    if (!compiler_const_set(compiler, "lba_write", lba_write)) JMP .hlt
+    if (!compiler_global_set(compiler, "first_free", &first_free)) JMP .hlt
+    if (!compiler_global_set(compiler, "task", &task)) JMP .hlt
+    if (!compiler_global_set(compiler, "focused_window", &focused_window)) JMP .hlt
+    eve = compile(compiler, "/adam/eve.kc", s);
+    free(r);
+    if (!eve)
+    {
+        print("Could not compile /adam/eve.kc\n");
+        JMP .hlt
+    }
+
+    compiler_ident_get(compiler, "eve", &eve);
+    eve(compiler);
+.hlt:
+    HLT
+    JMP .hlt
+}
+
+switch_v86:
+    MOV [TSS + TSS_ESP0], ESP
+    PUSH 0x0
+    PUSH 0x0
+    PUSH 0x0
+    PUSH 0x0
+    PUSH 0x0
+    PUSH EDI
+    PUSHF
+    POP EAX
+    OR EAX, 0x20000
+    PUSH EAX
+    PUSH 0x0
+    PUSH ESI
+    IRET
+
+USE16
+switch_protected:
+    CLI
+    LGDT [gdtr]
+
+    MOV EAX, CR0
+    OR AL, 1
+    MOV CR0, EAX
+    JMP 0x08:.protected
+.protected:
+USE32
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV SS, AX
+    MOV FS, AX
+    MOV GS, AX
+    memset(TSS, 0, TSS_SIZE);
+    MOV WORD [TSS + TSS_SS0], 0x10
+    MOV WORD [TSS + TSS_IOPB], 104
+    MOV AX, 0x18
+    LTR AX
+    JMP ESI
+
+function interrupt(int, eax, ecx, edx, ebx, esi, edi, es)
+{
+    LOW_STACK[-1] = *eax;
+    LOW_STACK[-2] = int;
+    LOW_STACK[-3] = *ecx;
+    LOW_STACK[-4] = *edx;
+    LOW_STACK[-5] = *ebx;
+    LOW_STACK[-6] = *esi;
+    LOW_STACK[-7] = *edi;
+    LOW_STACK[-8] = es;
+    MOV ESI, .v86
+    MOV EDI, LOW_STACK - 32
+    JMP switch_v86
+USE16
+.v86:
+    POP EAX
+    MOV ES, AX
+    POP EDI
+    POP ESI
+    POP EBX
+    POP EDX
+    POP ECX
+    POP EAX
+    MOV [.int + 1], AL
+    POP EAX
+    STI
+.int:
+    INT 0x00
+    CLI
+    PUSH EDI
+    PUSH ESI
+    PUSH EBX
+    PUSH EDX
+    PUSH ECX
+    PUSH EAX
+    XOR EAX, EAX
+    SETB AL
+    PUSH EAX
+    MOV ESI, .protected
+    INT 0xFF
+USE32
+.protected:
+    *eax = LOW_STACK[-6];
+    *ecx = LOW_STACK[-5];
+    *edx = LOW_STACK[-4];
+    *ebx = LOW_STACK[-3];
+    *esi = LOW_STACK[-2];
+    *edi = LOW_STACK[-1];
+    return !LOW_STACK[-7];
+}
+
+gdtr:
+    DW .end - .gdt - 1
+    DD .gdt
+.gdt:
+    DD 0, 0
+    DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0xCF, 0
+    DB 0xFF, 0xFF, 0, 0, 0, 0x92, 0xCF, 0
+    DB (TSS_SIZE - 1) & 0xFF, ((TSS_SIZE - 1) >> 8) & 0xFF, TSS & 0xFF, (TSS >> 8) & 0xFF, (TSS >> 16) & 0xFF, 0x89, 0, (TSS >> 24) & 0xFF
+.end:
+
+function print(s)
+(i, eax, unused)
+{
+    i = 0;
+    while (i <! s.[STRINGLEN])
+    {
+        if (s.[STRINGPTR]{i} == '\n') print("\r");
+        eax = 0x0E00 | s.[STRINGPTR]{i};
+        interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &unused, 0);
+        i += 1;
+    }
+}
+
+function lba_do(ax, dl, sectors, lba)
+(unused, _dap)
+{
+    MOV AX, [sectors]
+    MOV [dap_sectors], AX
+    MOV EAX, [lba]
+    MOV [dap_lba], EAX
+    _dap = dap;
+    return interrupt(0x13, &ax, &unused, &dl, &unused, &_dap, &unused, 0);
+}
+
+function lba_write(dl, sectors, lba, buf)
+{
+    memcpy(DISK_BUF, buf, sectors *! 512);
+    return lba_do(0x4300, dl, sectors, lba);
+}
+
+function lba_read(dl, sectors, lba, buf)
+{
+    if (!lba_do(0x4200, dl, sectors, lba)) return FALSE;
+    memcpy(buf, DISK_BUF, sectors *! 512);
+    return TRUE;
+}
+
+dap:
+    DB 16
+    DB 0
+dap_sectors:
+    DW 0
+dap_buffer:
+    DW DISK_BUF %! 16
+    DW DISK_BUF /! 16
+dap_lba:
+    DD 0
+    DD 0
+
+include "lib/def.kc"
+include "lib/util.kc"
+include "lib/fs.kc"
+include "lib/malloc.kc"
+include "lib/map.kc"
+include "lib/vec.kc"
+include "compiler/compiler.kc"
+include "boot/idt.kc"
+include "boot/v86.kc"
+include "boot/pic.kc"
+include "adam/task.kc"
+include "adam/window.kc"

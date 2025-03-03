@@ -1,0 +1,255 @@
+ORG 0x1000
+USE16
+
+const LOW_STACK = $$;
+const DISK_BUF = $!;
+const STACK = DISK_BUF + 512 *! 128 + 64 *! 1024;
+const HEAP_START = STACK;
+
+global first_free;
+global task;
+const TASK_CWD = 0;
+
+IN AL, 0x92
+OR AL, 2
+OUT 0x92, AL
+
+MOV ESI, pmode
+JMP switch_protected
+
+USE32
+pmode:
+    MOV ESP, STACK
+
+function bstrap()
+(file{FILE}, cwd{FILE}, r, eden, s{STRING}, compiler{COMPILER})
+{
+    MOV [r], DX
+    file{FILE_DRIVE} = r;
+    file{FILE_PARTITION} = r >> 8;
+    cwd{FILE_DRIVE} = r;
+    cwd{FILE_PARTITION} = r >> 8;
+    task = cwd;
+
+    print("Hello, World!\n");
+
+    if (!cd("/"))
+    {
+        print("Could not cd to root directory\n");
+        JMP .hlt
+    }
+
+    if (!openat(NULL, "/boot/eden.kc", file, FALSE))
+    {
+        print("Could not open /boot/eden.kc\n");
+        JMP .hlt
+    }
+    malloc_init(HEAP_START);
+    r = malloc(file.[FILE_SIZE]);
+    if (!r)
+    {
+        format(print, "Could not allocate %uB of memory\n", file.[FILE_SIZE]);
+        JMP .hlt
+    }
+    if (!read(file, file.[FILE_SIZE], r))
+    {
+        print("Could not read /boot/eden.kc\n");
+        JMP .hlt
+    }
+
+    s.[STRINGPTR] = r;
+    s.[STRINGLEN] = file.[FILE_SIZE];
+    if (!compiler_init(compiler))
+    {
+        print("Could not initialize compiler\n");
+        JMP .hlt
+    }
+
+    eden = compile(compiler, "/boot/eden.kc", s);
+    free(r);
+    if (!eden)
+    {
+        print("Could not compile /boot/eden.kc\n");
+        JMP .hlt
+    }
+
+    if (!openat(NULL, "/eden.exe", file, FALSE))
+    {
+        print("Could not open /eden.exe\n");
+        JMP .hlt
+    }
+
+    if (!write(file, compiler.[CIP] - compiler.[CORG], eden))
+    {
+        print("Could not write to /eden.exe\n");
+        JMP .hlt
+    }
+
+    MOV DX, 0x604
+    MOV AX, 0x2000
+    OUT DX, AX
+
+.hlt:
+    HLT
+    JMP .hlt
+}
+
+switch_unreal:
+    CLI
+
+    JMP 0x18:.bit16
+.bit16:
+USE16
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV SS, AX
+    MOV FS, AX
+    MOV GS, AX
+    MOV EAX, CR0
+    AND AL, 0xFE
+    MOV CR0, EAX
+    JMP 0x00:.unreal
+.unreal:
+    XOR AX, AX
+    MOV DS, AX
+    MOV ES, AX
+    MOV SS, AX
+    MOV FS, AX
+    MOV GS, AX
+    JMP ESI
+
+switch_protected:
+    CLI
+
+    LGDT [gdtr]
+
+    MOV EAX, CR0
+    OR AL, 1
+    MOV CR0, EAX
+    JMP 0x08:.protected
+.protected:
+USE32
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV SS, AX
+    MOV FS, AX
+    MOV GS, AX
+    JMP ESI
+
+function interrupt(int, eax, ecx, edx, ebx, esi, edi)
+{
+    MOV ESI, .unreal
+    JMP switch_unreal
+USE16
+.unreal:
+    MOV AL, [int]
+    MOV [.int + 1], AL
+    MOV [int], ESP
+    MOV ESP, LOW_STACK
+    MOV EAX, [eax]
+    MOV ECX, [ecx]
+    MOV EDX, [edx]
+    MOV EBX, [ebx]
+    MOV ESI, [esi]
+    MOV EDI, [edi]
+    MOV EAX, [EAX]
+    MOV ECX, [ECX]
+    MOV EDX, [EDX]
+    MOV EBX, [EBX]
+    MOV ESI, [ESI]
+    MOV EDI, [EDI]
+    STI
+.int:
+    INT 0x00
+    MOV ESP, [int]
+    MOV [int], EAX
+    MOV EAX, [ecx]
+    MOV [EAX], ECX
+    MOV EAX, [edx]
+    MOV [EAX], EDX
+    MOV EAX, [ebx]
+    MOV [EAX], EBX
+    MOV EAX, [esi]
+    MOV [EAX], ESI
+    MOV EAX, [edi]
+    MOV [EAX], EDI
+    MOV ECX, [int]
+    MOV EAX, [eax]
+    MOV [EAX], ECX
+    MOV DWORD [int], 0
+    SETB [int]
+    MOV ESI, .protected
+    JMP switch_protected
+USE32
+.protected:
+    return ~int;
+}
+
+gdtr:
+    DW .end - .gdt - 1
+    DD .gdt
+.gdt:
+    DD 0, 0
+    DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0xCF, 0
+    DB 0xFF, 0xFF, 0, 0, 0, 0x92, 0xCF, 0
+    DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0x00, 0
+.end:
+
+function print(s)
+(i, eax, unused)
+{
+    i = 0;
+    while (i <! s.[STRINGLEN])
+    {
+        if (s.[STRINGPTR]{i} == '\n') print("\r");
+        eax = 0x0E00 | s.[STRINGPTR]{i};
+        interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &unused);
+        i += 1;
+    }
+}
+
+function lba_do(ax, dl, sectors, lba)
+(unused, _dap)
+{
+    MOV AX, [sectors]
+    MOV [dap_sectors], AX
+    MOV EAX, [lba]
+    MOV [dap_lba], EAX
+    _dap = dap;
+    return interrupt(0x13, &ax, &unused, &dl, &unused, &_dap, &unused);
+}
+
+function lba_write(dl, sectors, lba, buf)
+{
+    memcpy(DISK_BUF, buf, sectors *! 512);
+    return lba_do(0x4300, dl, sectors, lba);
+}
+
+function lba_read(dl, sectors, lba, buf)
+{
+    if (!lba_do(0x4200, dl, sectors, lba)) return FALSE;
+    memcpy(buf, DISK_BUF, sectors *! 512);
+    return TRUE;
+}
+
+dap:
+    DB 16
+    DB 0
+dap_sectors:
+    DW 0
+dap_buffer:
+    DW DISK_BUF %! 16
+    DW DISK_BUF /! 16
+dap_lba:
+    DD 0
+    DD 0
+
+include "lib/def.kc"
+include "lib/util.kc"
+include "lib/fs.kc"
+include "lib/malloc.kc"
+include "lib/map.kc"
+include "lib/vec.kc"
+include "compiler/compiler.kc"

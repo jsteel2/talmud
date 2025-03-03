@@ -1,0 +1,120 @@
+include "lib/def.kc"
+include "lib/util.kc"
+include "lib/fs.kc"
+include "lib/malloc.kc"
+include "lib/map.kc"
+include "lib/vec.kc"
+include "compiler/compiler.kc"
+include "adam/task.kc"
+include "adam/vbe.kc"
+include "adam/font.kc"
+include "adam/window.kc"
+include "adam/keyboard.kc"
+
+global ans;
+
+function eve(compiler)
+(v{VEC}, x)
+{
+    set_resolution(1024, 768);
+    screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
+    create_window();
+
+    print("
+i i i i i i i      mmmmmmm   mm   m      m    m m    m mmmm  
+I I I I I I I         #      ##   #      ##  ## #    # #   \"m
+I  \\ `+' /  I         #     #  #  #      # ## # #    # #    #
+ \\  `-+-'  /          #     #mm#  #      # \"\" # #    # #    #
+  `-__|__-'           #    #    # #mmmmm #    # \"mmmm\" #mmm\" 
+      |
+------+------
+
+Welcome to TalmudOS (Formerly ChucksOS)
+");
+
+    vec_init(v, 128, 1);
+    while (TRUE)
+    {
+        print("> ");
+        x = compile(&task{TASK_COMPILER}, "stdin", input(v));
+        if (x)
+        {
+            v.[VEC_LEN] = 0;
+            ans = x();
+            format(print, "ans=%d (%x)\n", ans, ans);
+        }
+        else
+        {
+            if (task.[TASK_COMPILER + CCUR + TOKEN_TYPE] != TEND) v.[VEC_LEN] = 0;
+        }
+    }
+}
+
+global print_x, print_y;
+function print(s)
+(i)
+{
+    i = 0;
+    while (i <! s.[STRINGLEN])
+    {
+        if (s.[STRINGPTR]{i} == '\n')
+        {
+            print_x = 0;
+            print_y += 8;
+        }
+        else if (s.[STRINGPTR]{i} == '\b')
+        {
+            print_x -= 8;
+            screen_fill_rect(print_x, print_y, 8, 8, 0xFFFFFF);
+        }
+        else
+        {
+            screen_draw_char(s.[STRINGPTR]{i}, print_x, print_y, 0x000000);
+            print_x += 8;
+            if (print_x + 8 >! fb_width)
+            {
+                print_x = 0;
+                print_y += 8;
+            }
+        }
+        if (print_y + 8 >! fb_height)
+        {
+            screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
+            print_x = 0;
+            print_y = 0;
+        }
+        i += 1;
+    }
+}
+
+global shift_pressed;
+function input(vec)
+(c)
+{
+    c = 0;
+    while (TRUE)
+    {
+.l:
+        if (task.[TASK_WINDOW].[WINDOW_KEY_EVENTS + VEC_LEN] == 0)
+        {
+            wait();
+        }
+        else
+        {
+            if (!vec_shift(&task.[TASK_WINDOW]{WINDOW_KEY_EVENTS}, &c)) break;
+            if (c == 0x2A or c == 0x36) { shift_pressed = TRUE; JMP .l }
+            else if (c == 0xAA or c == 0xB6) shift_pressed = FALSE;
+            if (c & 0x80) JMP .l
+            c = shift_pressed ? qwerty_upper{c} : qwerty{c};
+            format(print, "%c", c);
+            if (c == '\n') break;
+            if (c == '\b')
+            {
+                if (vec.[VEC_LEN] != 0) vec.[VEC_LEN] -= 1;
+                JMP .l
+            }
+            vec_push1(vec, c);
+        }
+    }
+    return vec;
+}

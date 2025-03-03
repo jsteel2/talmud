@@ -1,6 +1,7 @@
-# adapted BootProg boot16.asm
+# adapted BootProg boot32.asm
 
 ORG 0
+USE16
 
 RB 3
 bsOemName: RB 8
@@ -18,37 +19,40 @@ bpbHeadsPerCylinder:  RB 2
 bpbHiddenSectors:     RB 4
 bpbTotalSectorsBig:   RB 4
 
-bsDriveNumber:      RB 1
-bsUnused:           RB 1
-bsExtBootSignature: RB 1
-bsSerialNumber:     RB 4
-bsVolumeLabel:      RB 11
-bsFileSystem:       RB 8   
+bsSectorsPerFAT32:        RB 4
+bsExtendedFlags:          RB 2
+bsFSVersion:              RB 2
+bsRootDirectoryClusterNo: RB 4
+bsFSInfoSectorNo:         RB 2
+bsBackupBootSectorNo:     RB 2
+bsreserved:               RB 12
+bsDriveNumber:           RB 1
+bsreserved1:              RB 1
+bsExtendedBootSignature:  RB 1
+bsVolumeSerialNumber:     RB 4
+bsVolumeLabel:            RB 11
+bsFileSystemName:         RB 8
 
 start:
     CLD
-    
+    MOV CX, DI
+    MOV DH, CL
+
     INT 0x12
-    MOV CL, 6
-    SHL AX, CL
-
-    SUB AX, 4096 /! 16
+    SHL AX, 6
+    SUB AX, (512 + 2048) /! 16
     MOV ES, AX
-    CLI
     MOV SS, AX
-    MOV SP, 4096
-    STI
+    MOV SP, 512 + 2048
 
-    MOV [partnumber], DI
     MOV CX, 256
     MOV SI, 0x7C00
     XOR DI, DI
     MOV DS, DI
-    REPZ MOVSW
+    REP MOVSW
 
     PUSH ES
-    MOV CL, main
-    PUSH CX
+    PUSH main
     RETF
 
 main:
@@ -57,201 +61,164 @@ main:
 
     MOV [bsDriveNumber], DL
 
-    MOV AH, 8
-    INT 0x13
-    MOV BX, 0
-    JB .no_new_geom
-    AND CX, 63
-    MOV [bpbSectorsPerTrack], CX
-    MOV CL, DH
-    INC CX
-    MOV [bpbHeadsPerCylinder], CX
-.no_new_geom:
-
-    MOV AX, 32
-    MUL WORD [bpbRootEntries]
-    DIV WORD [bpbBytesPerSector]
-    XCHG CX, AX
-
-    MOV AL, [bpbNumberOfFATs]
-    CBW
-    MUL WORD [bpbSectorsPerFAT]
-
-    MOV DI, 0x50
-    MOV ES, DI
-
-    PUSH ES
-    CALL read_sector
+    PUSH 0x100
     POP ES
 
-    PUSH DX
-    PUSH AX
+    AND BYTE [bsRootDirectoryClusterNo + 3], 0x0F
+    MOV EBP, [bsRootDirectoryClusterNo]
 
-    MOV DI, BX
-    MOV DX, [bpbRootEntries]
+RootDirReadContinue:
+    PUSH ES
+    CALL ReadCluster
+    POP ES
+    PUSHF
 
-find_name:
-    MOV SI, kernel_name
-    MOV CX, 11
+    XOR DI, DI
+
+    MOVZX AX, BYTE [bpbSectorsPerCluster]
+    MUL WORD [bpbBytesPerSector]
+
+FindName:
+    MOV SI, ProgramName
+    MOV CL, 11
     CMP BYTE [ES:DI], CH
-    JZ .find_name_error
+    JZ FindNameFailed
     PUSH DI
-    REPZ CMPSB
+    REP CMPSB
     POP DI
-    JZ .find_name_found
+    JZ FindNameFound
     ADD DI, 32
-    DEC DX
-    JNZ find_name
-.find_name_error:
-    CALL error
-    DB 'File not found', 0
-.find_name_found:
-    MOV DI, [ES:DI + 0x1A]
+    CMP DI, AX
+    JNZ FindName
+    POPF
+    JB RootDirReadContinue
+FindNameFailed:
+    CALL Error
+    DB 'NoFile', 0
+FindNameFound:
+    PUSH WORD [ES:DI + 0x14]
+    PUSH WORD [ES:DI + 0x1A]
+    POP EBP
+
     PUSH ES
 
-read_cluster:
-    MOV BP, SP
-    PUSH DI
-    MOV AX, [bpbBytesPerSector]
-    SHR AX, 1
-    XCHG AX, DI
-    XOR DX, DX
-    DIV DI
+FileReadContinue:
+    CALL ReadCluster
+    JB FileReadContinue
 
-    PUSH DX
-
-    XOR DX, DX
-    MOV CX, 1
-    PUSH ES
-    CALL read_sector
-    POP ES
-
-    POP DI
-    ADD DI, DI
-    MOV CX, [ES:BX+DI]
-
-    POP DI
-    LEA AX, [DI+-2]
-    MOV DI, CX
-    XOR CH, CH
-    MOV CL, [bpbSectorsPerCluster]
-    MUL CX
-
-    ADD AX, [BP+2]
-    ADC DX, [BP+4]
-
-    CALL read_sector
-    CMP DI, 0xFFF8
-    JB read_cluster
-
-    MOV DI, [partnumber]
     MOV DL, [bsDriveNumber]
-    MOV DH, 0
-    POP AX
+
+    XOR AX, AX
     MOV ES, AX
     MOV DS, AX
-    CLI
     MOV SS, AX
-    MOV SP, 0xFFFF
-    STI
-    PUSH AX
-    PUSH AX
-    XOR AX, AX
-    PUSH AX
-    MOV BP, SP
-    SUB SP, 4
-    CALL FAR [BP]
-    JMP 0xFFFF:0
+    MOV SP, 0x1000
+    PUSH 0
+    PUSH 0x1000
+    RETF
 
-read_sector:
-    PUSH DI
-.read_sector_next:
+ReadCluster:
+    LEA ESI, [EBP + -2]
+
+    MOV AX, [bpbBytesPerSector]
+    SHR AX, 2
+    CWDE
+    XCHG EAX, EBP
+    CDQ
+    DIV EBP
+
+    MOV CX, 1
+    PUSH ES
+    CALL ReadSector
+    POP ES
+
+    IMUL DI, DX, 4
+    AND BYTE [ES:DI + 3], 0x0F
+    MOV EBP, [ES:DI]
+
+    MOVZX EAX, BYTE [bpbNumberOfFATs]
+    MUL DWORD [bsSectorsPerFAT32]
+
+    XCHG EAX, ESI
+
+    MOVZX ECX, BYTE [bpbSectorsPerCluster]
+    MUL ECX
+
+    ADD EAX, ESI
+
+ReadSector:
     MOV DI, 5
-.read_sector_retry:
-    PUSH AX
-    PUSH DX
-    PUSH CX
 
-    ADD AX, [bpbReservedSectors]
-    ADC DX, BX
+ReadSectorRetry:
+    PUSHAD
+    
+    MOVZX EDX, WORD [bpbReservedSectors]
+    ADD EAX, EDX
 
-    ADD AX, [bpbHiddenSectors]
-    ADC DX, [bpbHiddenSectors + 2]
+    XOR DX, DX
+    ADD EAX, [bpbHiddenSectors]
+    ADC DX, 0
 
-    JB .read_error
-    TEST DH, DH
-    JNZ .read_error
+    PUSH EDX
+    PUSH EAX
+    PUSH ES
+    PUSH 0
+    PUSH 1
+    PUSH 16
 
-    XCHG AX, CX
-    XCHG AX, DX
+    MOV SI, SP
+    MOV AH, 0x42
 
-    CWD
-    DIV WORD [bpbSectorsPerTrack]
-    XCHG AX, CX
-    DIV WORD [bpbSectorsPerTrack]
-    XCHG CX, DX
-    INC CX
-    DIV WORD [bpbHeadsPerCylinder]
-    MOV CH, AL
-    CMP AH, 4
-    JNB .read_error
-    ROR AH, 1
-    ROR AH, 1
-    OR CL, AH
-    MOV DH, DL
-    MOV AX, 0x201
     MOV DL, [bsDriveNumber]
+
     INT 0x13
 
-    JNB .read_sector_done
+    LEA SP, [SI + 16]
+
+    JNB ReadSectorDone
+
     MOV AH, 0
+
     INT 0x13
-    POP CX
-    POP DX
-    POP AX
+
+    POPAD
 
     DEC DI
-    JNZ .read_sector_retry
+    JNZ ReadSectorRetry
 
-.read_error:
-    CALL error
-    DB 'Read Error', 0
+ReadError:
+    CALL Error
+    DB 'ReadErr', 0
 
-.read_sector_done:
+ReadSectorDone:
     MOV DX, [bpbBytesPerSector]
-    MOV CL, 4
-    SHR DX, CL
+    SHR DX, 4
     MOV AX, ES
     ADD AX, DX
     MOV ES, AX
 
-    POP CX
-    POP DX
-    POP AX
+    POPAD
 
-    INC AX
-    JNZ .read_sector_incd
-    INC DX
-.read_sector_incd:
-    LOOP .read_sector_next
+    INC EAX
 
-    POP DI
+    LOOP ReadSector
+
+    CMP EBP, 0xFFFFFF8
+
     RET
 
-error:
+Error:
     POP SI
     MOV AH, 0x0E
     MOV BX, 7
-.error_next:
-    LODSB
-    TEST AL, AL
-    JZ .done
-    INT 0x10
-    JMP .error_next
-.done:
-    CLI
-    HLT
-    JMP $
 
-kernel_name: DB 'COMMAND EXE'
-partnumber: RB 2
+ErrorNext:
+    LODSB
+Halt:
+    HLT
+    TEST AL, AL
+    JZ Halt
+    INT 0x10
+    JMP ErrorNext
+
+ProgramName: DB 'EDEN    EXE'

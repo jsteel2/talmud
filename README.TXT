@@ -1,5 +1,4 @@
-Hi!
+Talmud Second Edition. Bigger and Better!
+Requires 386+ CPU
 
-self-hosting in just 2 more weeks :^)
-
-check talmud2 branch for new wip version
+May contain traces of soy

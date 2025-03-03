@@ -1,0 +1,77 @@
+struct V86_CTX = [V86_ESI], [V86_EDI], [V86_EBX], [V86_EDX], [V86_ECX], [V86_EAX], [V86_CODE], [V86_EIP], [V86_CS], [V86_EFLAGS], [V86_ESP], [V86_SS], [V86_ES], [V86_DS], [V86_FS], [V86_GS];
+
+global v86_if;
+
+function v86_monitor(ctx)
+(ip, sp)
+{
+    ip = (ctx.[V86_CS] << 4) + ctx.[V86_EIP];
+    sp = (ctx.[V86_SS] << 4) + ctx.[V86_ESP];
+    while (TRUE)
+    {
+        switch (ip{0})
+        {
+            case OSTI:
+                v86_if = TRUE;
+                ctx.<V86_EIP> += 1;
+                return;
+            case OCLI:
+                v86_if = FALSE;
+                ctx.<V86_EIP> += 1;
+                return;
+            case OINT:
+                if (ip{1} == 0xFF)
+                {
+                    LEAVE
+                    ADD ESP, 8
+                    AND DWORD [ESP + 36], ~0x20000
+                    POP ESI
+                    POP EDI
+                    POP EBX
+                    POP EDX
+                    POP ECX
+                    POP EAX
+                    ADD ESP, 40
+                    PUSH DWORD [ESP + -28]
+                    PUSH 0x08
+                    PUSH ESI
+                    IRET
+                }
+                ctx.<V86_ESP> -= 6;
+                sp -= 6;
+                sp<0> = ctx.<V86_EIP> + 2;
+                sp<1> = ctx.<V86_CS>;
+                sp<2> = ctx.<V86_EFLAGS>;
+                if (v86_if) sp<2> |= 0x200;
+                else sp<2> &= ~0x200;
+                ctx.<V86_CS> = 0<ip{1} *! 2 + 1>;
+                ctx.<V86_EIP> = 0<ip{1} *! 2>;
+                return;
+            case OIRET:
+                ctx.<V86_EIP> = sp<0>;
+                ctx.<V86_CS> = sp<1>;
+                ctx.<V86_EFLAGS> = 0x20200 | sp<2>;
+                v86_if = (sp<2> & 0x200) != 0;
+                ctx.<V86_ESP> += 6;
+                return;
+            case OPUSHF:
+                ctx.<V86_ESP> -= 2;
+                sp -= 2;
+                sp<0> = ctx.<V86_EFLAGS>;
+                if (v86_if) sp<0> |= 0x200;
+                else sp<0> &= ~0x200;
+                ctx.<V86_EIP> += 1;
+                return;
+            case OPOPF:
+                ctx.<V86_EFLAGS> = 0x20200 | sp<0>;
+                v86_if = (sp<0> & 0x200) != 0;
+                ctx.<V86_ESP> += 2;
+                ctx.<V86_EIP> += 1;
+                return;
+            default:
+                MOV EAX, [ip]
+                MOV EAX, [EAX]
+                while (1);
+        }
+    }
+}

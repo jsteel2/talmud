@@ -1,0 +1,1765 @@
+include "compiler/tokenize.kc"
+include "compiler/asm.kc"
+
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, VEC{CCASES}, [CDEFAULT], [CBREAK], [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], STRING{CCUR_FUNC}, [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CGLOBAL_OFFSET], [CPROG_END], {CUSE32};
+const IDENT_FLAG_VALID = 1;
+const IDENT_FLAG_LOCAL = 1 << 1;
+const IDENT_FLAG_ADDRESS = 1 << 2;
+const IDENT_FLAG_RELOCATE = 1 << 3;
+const IDENT_FLAG_GLOBAL = 1 << 4;
+struct COMPILER_IDENT = [COMPILER_IDENT_ADDR], {COMPILER_IDENT_FLAGS};
+struct COMPILER_STRING = [COMPILER_STRING_ADDR];
+struct COMPILER_CASE = [COMPILER_CASE_I], [COMPILER_CASE_JMP];
+
+function compiler_init(c)
+{
+    c.[CEXCEPT] = 0;
+    c.[CCUR_FILE] = "None";
+    if (!map_init(&c{CIDENTS}, 1024, STRING, COMPILER_IDENT, strcmp, hash_string, free_string)) return FALSE;
+    if (!map_init(&c{CSTRINGS}, 64, STRING, COMPILER_STRING, strcmp, hash_string, free_string)) return FALSE;
+    if (!map_init(&c{CLOCALS}, 32, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
+    if (!map_init(&c{CLOCAL_LABELS}, 16, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
+    if (!vec_init(&c{CLATER}, 1024, 4)) return FALSE;
+    return TRUE;
+}
+
+function compiler_free(c)
+{
+    map_free(&c{CIDENTS});
+    map_free(&c{CSTRINGS});
+    map_free(&c{CLOCALS});
+    map_free(&c{CLOCAL_LABELS});
+    vec_free(&c{CLATER});
+}
+
+function compiler_throw(c, file, line)
+{
+    if (file) format(print, ", compiler died at %s(%u) in file \"%s\", line %u, column %u\n", file, line, c.[CCUR_FILE], c.[CTOK + TLINE], c.[CTOK + TCOL]);
+
+    if (!c.[CEXCEPT]) return FALSE;
+
+    MOV EDI, [c]
+    MOV ESP, [EDI + CEXCEPT]
+    POP EAX
+    POP DWORD [EDI + CEXCEPT]
+    POP EBP
+    JMP EAX
+}
+
+compiler_try:
+    POP EAX # return address
+    POP EDI # compiler
+    POP EBX # label
+    PUSH EBP
+    PUSH DWORD [EDI + CEXCEPT]
+    PUSH EBX
+    MOV [EDI + CEXCEPT], ESP
+    SUB ESP, 8
+    JMP EAX
+
+compiler_try_end:
+    POP EAX # return address
+    POP EDI # compiler
+    MOV ESP, [EDI + CEXCEPT]
+    POP EBX
+    POP DWORD [EDI + CEXCEPT]
+    JMP EAX
+
+function compiler_throw_token(c, file, line, token, expected)
+(s{STRING}, buf{10}, sp)
+{
+    s.[STRINGPTR] = buf;
+    if (c.[token + TOKEN_TYPE] == TNUM) sp = int2str(s, c.[token + TOKEN_VALUE], 10, FALSE);
+    else if (c.[token + TOKEN_TYPE] == TINVALID) sp = "INVALID";
+    else if (c.[token + TOKEN_TYPE] >=! TEND)
+    {
+        if (strcmp(c.[CCUR_FILE], "stdin")) 
+        {
+            c.[CCUR + TOKEN_TYPE] = TEND;
+            return compiler_throw(c, NULL, NULL);
+        }
+        else sp = "END";
+    }
+    else sp = &c{token + TOKEN_VALUE};
+    format(print, "Unexpected token %u(\"%s\")", c.[token + TOKEN_TYPE], sp);
+    if (expected) sp = int2str(s, expected, 10, FALSE);
+    else sp = "Unknown";
+    return compiler_throw(c, file, line, format(print, " expected type %s", sp));
+}
+
+function compiler_advance(c)
+{
+    memcpy(&c{CCUR}, &c{CNEXT}, TOKEN);
+    if (c.[CCUR + TOKEN_TYPE] == TEND)
+    {
+        if (strcmp(c.[CCUR_FILE], "stdin")) return compiler_throw(c, NULL, NULL);
+        return compiler_throw(c, $@, $*, print("Unexpected EOF"));
+    }
+    if (!tokenizer_token(&c{CTOK}, &c{CNEXT})) return compiler_throw(c, $@, $*);
+    return c.[CCUR + TOKEN_TYPE];
+}
+
+function compiler_peek(c)
+{
+    return c.[CNEXT + TOKEN_TYPE];
+}
+
+function compiler_end(c)
+{
+    return compiler_peek(c) == TEND;
+}
+
+function compiler_match(c, t)
+{
+    return compiler_peek(c) == t ? compiler_advance(c) : FALSE;
+}
+
+function compiler_matches(c, t_start, t_end)
+{
+    return compiler_peek(c) >=! t_start and compiler_peek(c) <=! t_end ? compiler_advance(c) : FALSE;
+}
+
+function compiler_consume(c, t)
+{
+    return compiler_match(c, t) ? TRUE : compiler_throw_token(c, $@, $*, CNEXT, t);
+}
+
+function compiler_emit8(c, b)
+{
+    if (!c.[CIS_FIRST_PASS]) c.[CBIN]{c.[CIP] - c.[CORG]} = b;
+    c.[CIP] += 1;
+    return c.[CIP] - 1;
+}
+
+function compiler_emit16(c, w)
+{
+    compiler_emit8(c, w & 0xff);
+    compiler_emit8(c, w >> 8);
+    return c.[CIP] - 2;
+}
+
+function compiler_emit32(c, dw)
+{
+    compiler_emit16(c, dw & 0xffff);
+    compiler_emit16(c, dw >> 16);
+    return c.[CIP] - 4;
+}
+
+function compiler_emitvar(c, x)
+{
+    if (x >! 0xffff) compiler_emit32(c, x);
+    else if (x >! 0xff) compiler_emit16(c, x);
+    else compiler_emit8(c, x);
+}
+
+function compiler_getlater(c)
+(r)
+{
+    if (c.[CIS_FIRST_PASS]) r = c.[CLATER_I];
+    else r = c.[CLATER + VEC_PTR][c.[CLATER_I]];
+    c.[CLATER_I] += 1;
+    return r;
+}
+
+function compiler_setlater(c, index, value)
+{
+    if (!c.[CIS_FIRST_PASS]) return;
+    if (!vec_set4(&c{CLATER}, index, value)) compiler_throw(c, $@, $*, format(print, "vec_set failed at index %u", index));
+}
+
+function compiler_relative(c, abs, opsize)
+{
+    return abs - c.[CIP] - opsize;
+}
+
+function compiler_set(c, i, b)
+(ip)
+{
+    if (!c.[CIS_FIRST_PASS]) c.[CBIN]{i - c.[CORG]} = b;
+}
+
+function compiler_pass(c, src, is_first_pass)
+(state, i)
+{
+    c.[CIS_FIRST_PASS] = is_first_pass;
+    c.[CLATER_I] = 0;
+    c.[CIP] = c.[CORG];
+    c{CUSE32} = TRUE;
+    tokenizer_init(&c{CTOK}, src);
+
+    c.[CNEXT + TOKEN_TYPE] = TINVALID;
+    compiler_advance(c);
+
+    while (!compiler_end(c)) compiler_statement(c);
+    
+    compiler_emit8(c, ORET);
+
+    state = 0;
+    while (map_iter(&c{CSTRINGS}, &state))
+    {
+        compiler_emit32(c, state.[STRINGLEN]);
+        compiler_emit32(c, c.[CIP] + 4);
+        i = 0;
+        while (i <! state.[STRINGLEN])
+        {
+            compiler_emit8(c, state.[STRINGPTR]{i});
+            i += 1;
+        }
+    }
+    i = 0;
+    while (i <! c.[CGLOBAL_OFFSET])
+    {
+        compiler_emit8(c, 0);
+        i += 1;
+    }
+}
+
+function compile(c, filename, src)
+{
+    compiler_try(c, .catch);
+    c.[CCUR_FILE] = filename;
+    c.[CSTRING_OFFSET] = 0;
+    c.[CBIN] = NULL;
+    c.[CGLOBAL_OFFSET] = 0;
+    c.[CCUR_FUNC + STRINGPTR] = NULL;
+
+    c.[CORG] = 0;
+    compiler_pass(c, src, TRUE);
+    c.[CORG] = c.[CBIN] = malloc(c.[CIP]);
+    if (!c.[CBIN]) compiler_throw(c, $@, $*, format(print, "Failed to allocate %uB of memory", c.[CIP]));
+    c.[CPROG_END] = c.[CIP] + c.[CORG];
+    compiler_pass(c, src, FALSE);
+
+    compiler_try_end(c);
+    map_free2(&c{CSTRINGS});
+    map_free2(&c{CLOCAL_LABELS});
+    free(c.[CCUR_FUNC + STRINGPTR]);
+    return c.[CBIN];
+
+.catch:
+    if ((c.[CCUR + TOKEN_TYPE] == TSTRING or c.[CCUR + TOKEN_TYPE] == TCHARS) and c.[CCUR + TOKEN_VALUE + STRINGPTR]) free(c.[CCUR + TOKEN_VALUE + STRINGPTR]);
+    if ((c.[CNEXT + TOKEN_TYPE] == TSTRING or c.[CNEXT + TOKEN_TYPE] == TCHARS) and c.[CNEXT + TOKEN_VALUE + STRINGPTR]) free(c.[CNEXT + TOKEN_VALUE + STRINGPTR]);
+    free(c.[CBIN]);
+    map_free2(&c{CSTRINGS});
+    map_free2(&c{CLOCAL_LABELS});
+    free(c.[CCUR_FUNC + STRINGPTR]);
+    return NULL;
+}
+
+function compiler_statement(c)
+(econst, local)
+{
+    local = FALSE;
+    switch (compiler_peek(c))
+    {
+        case TWHILE: return compiler_while(c);
+        case TDO: return compiler_do(c);
+        case TBREAK: return compiler_break(c);
+        case TIF: return compiler_if(c);
+        case TSWITCH: return compiler_switch(c);
+        case TCASE: return compiler_case(c);
+        case TDEFAULT: return compiler_default(c);
+        case TLEFTBRACE: return compiler_statements(c);
+        case TINCLUDE: return compiler_include(c);
+        case TCONST: return compiler_const(c);
+        case TGLOBAL: return compiler_global(c);
+        case TSTRUCT: return compiler_struct(c);
+        case TENUM: return compiler_enum(c);
+        case TFUNCTION: return compiler_function(c);
+        case TRETURN: return compiler_return(c);
+        case TSEMICOLON: return compiler_advance(c);
+        case TORG: return compiler_org(c);
+        case TUSE16: compiler_advance(c); return c{CUSE32} = FALSE;
+        case TUSE32: compiler_advance(c); return c{CUSE32} = TRUE;
+        case TDB: return compiler_asm_dx(c, compiler_emit8, compiler_asm_immb);
+        case TDW: return compiler_asm_dx(c, compiler_emit16, compiler_asm_imm16);
+        case TDD: return compiler_asm_dx(c, compiler_emit32, compiler_const_expression);
+        case TCLD: return compiler_aemit8(c, OCLD);
+        case TCLI: return compiler_aemit8(c, OCLI);
+        case TSTD: return compiler_aemit8(c, OSTD);
+        case TSTI: return compiler_aemit8(c, OSTI);
+        case TREP: return compiler_aemit8(c, OREP);
+        case TRET: return compiler_aemit8(c, ORET);
+        case TLEAVE: return compiler_aemit8(c, OLEAVE);
+        case TIRET: return compiler_aemit8(c, OIRET);
+        case THLT: return compiler_aemit8(c, OHLT);
+        case TMOVSB: return compiler_aemit8(c, OMOVSB);
+        case TMOVSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OMOVSW);
+        case TMOVSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OMOVSW);
+        case TCMPSB: return compiler_aemit8(c, OCMPSB);
+        case TSTOSB: return compiler_aemit8(c, OSTOSB);
+        case TSTOSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OSTOSW);
+        case TSTOSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OSTOSW);
+        case TPUSHF: return compiler_aemit8(c, OPUSHF);
+        case TINT: compiler_aemit8(c, OINT); return compiler_emit8(c, compiler_asm_immb(c));
+        case TMOV: return compiler_asm_mov(c);
+        case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
+        case TSUB: return compiler_asm_grp1(c, OSUBMRB, OGRP1SUB);
+        case TOR: return compiler_asm_grp1(c, OORMRB, OGRP1OR);
+        case TXOR: return compiler_asm_grp1(c, OXORMRB, OGRP1XOR);
+        case TAND: return compiler_asm_grp1(c, OANDMRB, OGRP1AND);
+        case TDEC: return compiler_asm_incdec(c, ODECR);
+        case TPUSH: return compiler_asm_pushpop(c, TRUE);
+        case TPOP: return compiler_asm_pushpop(c, FALSE);
+        case TJMP: return compiler_asm_jmp(c, OJMPB, OJMPW, OJMPFAR, OGRP5JMP, OGRP5JMPFAR);
+        case TCALL: return compiler_asm_jmp(c, 0, OCALL, OCALLFAR, OGRP5CALL, OGRP5CALLFAR);
+        case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
+        case TJNZ: return compiler_asm_jcc(c, OJNZB, OJNZW);
+        case TSETZ: return compiler_asm_setcc(c, OSETZ);
+        case TSETB: return compiler_asm_setcc(c, OSETB);
+        case TIN: return compiler_asm_in(c);
+        case TOUT: return compiler_asm_out(c);
+        case TLGDT: return compiler_asm_lxdt(c, OLXDTLGDT);
+        case TLIDT: return compiler_asm_lxdt(c, OLXDTLIDT);
+        case TLTR: return compiler_asm_ltr(c);
+        case TTEST: return compiler_asm_test(c);
+        case TDOT: local = TRUE; compiler_advance(c);
+        case TIDENT: if (compiler_label(c, local)) break;
+        default:
+            local = compiler_expression(c, &econst);
+            if (econst)
+            {
+                compiler_emit8(c, OMOVRIMMW + REAX);
+                compiler_emit32(c, local);
+            }
+            return compiler_consume(c, TSEMICOLON);
+    }
+}
+
+function compiler_org(c)
+{
+    compiler_advance(c);
+    if (c.[CIS_FIRST_PASS])
+    {
+        compiler_const_expression(c); 
+    }
+    else
+    {
+        c.[CPROG_END] -= c.[CORG];
+        c.[CORG] = compiler_const_expression(c); 
+        c.[CPROG_END] += c.[CORG];
+        c.[CIP] = c.[CORG];
+    }
+}
+
+function compiler_label(c, local)
+(t{TOKENIZER}, b{TOKEN}, p)
+{
+    memcpy(t, &c{CTOK}, TOKENIZER);
+    memcpy(b, &c{CCUR}, TOKEN);
+    compiler_advance(c);
+    if (compiler_peek(c) != TCOLON)
+    {
+        memcpy(&c{CTOK}, t, TOKENIZER);
+        memcpy(&c{CNEXT}, &c{CCUR}, TOKEN);
+        memcpy(&c{CCUR}, b, TOKEN);
+        return FALSE;
+    }
+    if (local)
+    {
+        p = malloc(c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1 + c.[CCUR_FUNC + STRINGLEN]);
+        memcpy(p, c.[CCUR + TOKEN_VALUE + STRINGPTR], c.[CCUR + TOKEN_VALUE + STRINGLEN]);
+        p{c.[CCUR + TOKEN_VALUE + STRINGLEN]} = '.';
+        memcpy(p + c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1, c.[CCUR_FUNC + STRINGPTR], c.[CCUR_FUNC + STRINGLEN]);
+        b.[TOKEN_VALUE + STRINGLEN] = c.[CCUR + TOKEN_VALUE + STRINGLEN] + 1 + c.[CCUR_FUNC + STRINGLEN];
+        b.[TOKEN_VALUE + STRINGPTR] = p;
+        compiler_label_set(c, &c{CLOCAL_LABELS}, &b{TOKEN_VALUE});
+        free(p);
+    }
+    else
+    {
+        free(c.[CCUR_FUNC + STRINGPTR]);
+        strdup(&c{CCUR + TOKEN_VALUE}, &c{CCUR_FUNC});
+        compiler_label_set(c, &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
+    }
+    compiler_consume(c, TCOLON);
+    return TRUE;
+}
+
+function compiler_aemit8(c, o)
+{
+    compiler_advance(c);
+    compiler_emit8(c, o);
+}
+
+function compiler_statements(c)
+{
+    compiler_consume(c, TLEFTBRACE);
+    while (!compiler_match(c, TRIGHTBRACE)) compiler_statement(c);
+}
+
+function compiler_return(c)
+(r, econst)
+{
+    compiler_consume(c, TRETURN);
+    if (!compiler_match(c, TSEMICOLON))
+    {
+        r = compiler_expression(c, &econst);
+        if (econst)
+        {
+            compiler_emit8(c, OMOVRIMMW + REAX);
+            compiler_emit32(c, r);
+        }
+        compiler_consume(c, TSEMICOLON);
+    }
+    compiler_emit8(c, OLEAVE);
+    compiler_emit8(c, ORET);
+}
+
+function compiler_function(c)
+(i, x, t, s{STRING}, end)
+{
+    compiler_consume(c, TFUNCTION);
+    compiler_consume(c, TIDENT);
+    free(c.[CCUR_FUNC + STRINGPTR]);
+    strdup(&c{CCUR + TOKEN_VALUE}, &c{CCUR_FUNC});
+
+    end = compiler_getlater(c);
+    compiler_emit8(c, OJMPW);
+    compiler_emit32(c, compiler_relative(c, end + c.[CORG], 4));
+
+    compiler_label_set(c, &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
+    compiler_consume(c, TLEFTPAREN);
+
+    i = 4;
+    while (compiler_match(c, TIDENT))
+    {
+        compiler_local_set(c, &c{CCUR + TOKEN_VALUE}, i += 4, 0);
+        if (compiler_peek(c) != TRIGHTPAREN) compiler_consume(c, TCOMMA);
+    }
+    compiler_consume(c, TRIGHTPAREN);
+
+    i = 0;
+    x = FALSE;
+    if (compiler_match(c, TLEFTPAREN))
+    {
+        do
+        {
+            compiler_consume(c, TIDENT);
+            memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
+            if (t = compiler_match(c, TLEFTBRACE)) x = 1 *! compiler_const_expression(c);
+            else if (t = compiler_match(c, TLEFTCHEVRON)) x = 2 *! compiler_const_expression(c);
+            else if (t = compiler_match(c, TLEFTBRACKET)) x = 4 *! compiler_const_expression(c);
+            else x = 4;
+            compiler_local_set(c, s, i -= x, t ? IDENT_FLAG_ADDRESS : 0);
+            if (t) compiler_consume(c, t + 1);
+        } while (compiler_match(c, TCOMMA));
+        compiler_consume(c, TRIGHTPAREN);
+        x = TRUE;
+    }
+
+    compiler_emit8(c, OPUSHR + REBP);
+    compiler_emit8(c, OMOVRMW);
+    compiler_emit8(c, modrm(MODREG, REBP, RESP));
+
+    if (x)
+    {
+        compiler_emit8(c, OGRP1MIMMWW);
+        compiler_emit8(c, modrm(MODREG, OGRP1SUB, RESP));
+        compiler_emit32(c, -i);
+    }
+
+    compiler_statement(c);
+    map_free2(&c{CLOCALS});
+
+    compiler_emit8(c, OLEAVE);
+    compiler_emit8(c, ORET);
+    compiler_setlater(c, end, c.[CIP]);
+}
+
+function compiler_struct(c)
+(s{STRING}, i, t, a, mul, mconst)
+{
+    compiler_consume(c, TSTRUCT);
+    compiler_consume(c, TIDENT);
+    memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
+    compiler_consume(c, TEQUALS);
+    i = 0;
+    do
+    {
+        mul = 1;
+.x:
+        if (t = compiler_match(c, TLEFTBRACKET)) a = 4;
+        else if (t = compiler_match(c, TLEFTCHEVRON)) a = 2;
+        else if (t = compiler_match(c, TLEFTBRACE)) a = 1;
+        else
+        {
+            mul = compiler_const_expression(c);
+            JMP .x
+        }
+        compiler_consume(c, TIDENT);
+        compiler_const_set(c, &c{CCUR + TOKEN_VALUE}, i);
+        compiler_consume(c, t + 1);
+        i += a *! mul;
+    } while (compiler_match(c, TCOMMA));
+    compiler_const_set(c, s, i);
+    compiler_consume(c, TSEMICOLON);
+}
+
+function compiler_enum(c)
+(i)
+{
+    compiler_advance(c);
+    i = -1;
+    do
+    {
+        compiler_consume(c, TIDENT);
+        compiler_const_set(c, &c{CCUR + TOKEN_VALUE}, i += 1);
+    } while (compiler_match(c, TCOMMA));
+    compiler_consume(c, TSEMICOLON);
+}
+
+function compiler_const(c)
+(s{STRING})
+{
+    compiler_consume(c, TCONST);
+    do
+    {
+        compiler_consume(c, TIDENT);
+        memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
+        compiler_consume(c, TEQUALS);
+        compiler_const_set(c, s, compiler_const_expression(c));
+    } while (compiler_match(c, TCOMMA));
+    compiler_consume(c, TSEMICOLON);
+}
+
+function compiler_global(c)
+(s{STRING}, a, t, ident{COMPILER_IDENT})
+{
+    compiler_advance(c);
+    do
+    {
+        compiler_consume(c, TIDENT);
+        if (map_get(&c{CIDENTS}, &c{CCUR + TOKEN_VALUE}, ident)) memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
+        else strdup(&c{CCUR + TOKEN_VALUE}, s);
+        if (c.[CIS_FIRST_PASS])
+        {
+            ident.[COMPILER_IDENT_ADDR] = c.[CGLOBAL_OFFSET];
+            if (t = compiler_match(c, TLEFTBRACE)) a = 1 *! compiler_const_expression(c);
+            else if (t = compiler_match(c, TLEFTCHEVRON)) a = 2 *! compiler_const_expression(c);
+            else if (t = compiler_match(c, TLEFTBRACKET)) a = 4 *! compiler_const_expression(c);
+            else a = 4;
+            c.[CGLOBAL_OFFSET] += a;
+            if (t) compiler_consume(c, t + 1);
+            ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_GLOBAL | IDENT_FLAG_RELOCATE | (t ? IDENT_FLAG_ADDRESS : 0);
+        }
+        else
+        {
+            if ((t = compiler_match(c, TLEFTBRACE)) or (t = compiler_match(c, TLEFTCHEVRON)) or (t = compiler_match(c, TLEFTBRACKET)))
+            {
+                compiler_const_expression(c);
+                compiler_consume(c, t + 1);
+            }
+            ident.[COMPILER_IDENT_ADDR] += c.[CPROG_END] - c.[CGLOBAL_OFFSET];
+            ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_GLOBAL | (t ? IDENT_FLAG_ADDRESS : 0);
+        }
+        if (!map_set(&c{CIDENTS}, s, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, ident.[COMPILER_IDENT_ADDR]));
+    } while (compiler_match(c, TCOMMA));
+    compiler_consume(c, TSEMICOLON);
+}
+
+function compiler_include(c)
+(f{FILE}, ocur_file, ocur{TOKEN}, onext{TOKEN}, s{STRING}, src{STRING}, otok{TOKENIZER})
+{
+    compiler_consume(c, TINCLUDE);
+    compiler_consume(c, TSTRING);
+
+    ocur_file = c.[CCUR_FILE];
+    memcpy(otok, &c{CTOK}, TOKENIZER);
+    memcpy(ocur, &c{CCUR}, TOKEN);
+    memcpy(onext, &c{CNEXT}, TOKEN);
+
+    memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
+    c.[CCUR_FILE] = s;
+
+    src.[STRINGPTR] = NULL;
+    compiler_try(c, .catch);
+    if (!open(s, f, FALSE)) compiler_throw(c, $@, $*, format(print, "Could not open file \"%s\"", s));
+    src.[STRINGLEN] = f.[FILE_SIZE];
+    src.[STRINGPTR] = malloc(src.[STRINGLEN]);
+    if (!src.[STRINGPTR]) compiler_throw(c, $@, $*, format(print, "Failed to allocate %uB of memory", src.[STRINGLEN]));
+
+    if (!read(f, src.[STRINGLEN], src.[STRINGPTR])) compiler_throw(c, $@, $*, format(print, "Could not read file \"%s\"", s));
+
+    tokenizer_init(&c{CTOK}, src);
+
+    c.[CNEXT + TOKEN_TYPE] = TINVALID;
+    compiler_advance(c);
+
+    while (!compiler_end(c)) compiler_statement(c);
+
+    compiler_try_end(c);
+
+    free(src.[STRINGPTR]);
+    free(s.[STRINGPTR]);
+    s.[STRINGPTR] = NULL;
+
+    c.[CCUR_FILE] = ocur_file;
+    memcpy(&c{CTOK}, otok, TOKENIZER);
+    memcpy(&c{CCUR}, ocur, TOKEN);
+    memcpy(&c{CNEXT}, onext, TOKEN);
+    return;
+
+.catch:
+    free(src.[STRINGPTR]);
+    free(s.[STRINGPTR]);
+    s.[STRINGPTR] = NULL;
+    compiler_throw(c, NULL, NULL);
+}
+
+function compiler_while(c)
+(loop, loopend, r, econst, ob)
+{
+    loop = c.[CIP];
+    ob = c.[CBREAK];
+    c.[CBREAK] = compiler_getlater(c);
+
+    compiler_consume(c, TWHILE);
+    compiler_consume(c, TLEFTPAREN);
+    r = compiler_expression(c, &econst);
+    compiler_consume(c, TRIGHTPAREN);
+
+    loopend = compiler_getlater(c);
+    if (econst)
+    {
+        if (!r)
+        {
+            compiler_emit8(c, OJMPW);
+            compiler_emit32(c, compiler_relative(c, loopend + c.[CORG], 4));
+        }
+        else
+        {
+            compiler_emit8(c, ONOP);
+            compiler_emit32(c, 0x90909090);
+        }
+    }
+    else
+    {
+        compiler_emit8(c, OTESTW);
+        compiler_emit8(c, modrm(MODREG, REAX, REAX));
+
+        compiler_emit16(c, OJZW);
+        compiler_emit32(c, compiler_relative(c, loopend + c.[CORG], 4));
+    }
+
+    compiler_statement(c);
+
+    compiler_emit8(c, OJMPW);
+    compiler_emit32(c, compiler_relative(c, loop, 4));
+
+    compiler_setlater(c, loopend, c.[CIP]);
+    compiler_setlater(c, c.[CBREAK], c.[CIP]);
+    c.[CBREAK] = ob;
+}
+
+function compiler_do(c)
+(loop, r, econst)
+{
+    loop = c.[CIP];
+    compiler_consume(c, TDO);
+    compiler_statement(c);
+
+    compiler_consume(c, TWHILE);
+    compiler_consume(c, TLEFTPAREN);
+    r = compiler_expression(c, &econst);
+    compiler_consume(c, TRIGHTPAREN);
+
+    if (econst)
+    {
+        if (r)
+        {
+            compiler_emit8(c, OJMPW);
+            compiler_emit32(c, compiler_relative(c, loop, 4));
+        }
+        else
+        {
+            compiler_emit8(c, ONOP);
+            compiler_emit32(c, 0x90909090);
+        }
+    }
+    else
+    {
+        compiler_emit8(c, OTESTW);
+        compiler_emit8(c, modrm(MODREG, REAX, REAX));
+
+        compiler_emit16(c, OJNZW);
+        compiler_emit32(c, compiler_relative(c, loop, 4));
+    }
+}
+
+function compiler_break(c)
+{
+    compiler_advance(c);
+    compiler_consume(c, TSEMICOLON);
+
+    compiler_emit8(c, OJMPW);
+    compiler_emit32(c, compiler_relative(c, c.[CBREAK] + c.[CORG], 4));
+}
+
+function compiler_if(c)
+(econst, ifelse, ifend, r)
+{
+    compiler_consume(c, TIF);
+    compiler_consume(c, TLEFTPAREN);
+    r = compiler_expression(c, &econst);
+    compiler_consume(c, TRIGHTPAREN);
+    
+    ifelse = compiler_getlater(c);
+    if (econst)
+    {
+        if (!r)
+        {
+            compiler_emit8(c, OJMPW);
+            compiler_emit32(c, compiler_relative(c, ifelse + c.[CORG], 4));
+        }
+        else
+        {
+            compiler_emit8(c, ONOP);
+            compiler_emit32(c, 0x90909090);
+        }
+    }
+    else
+    {
+        compiler_emit8(c, OTESTW);
+        compiler_emit8(c, modrm(MODREG, REAX, REAX));
+
+        compiler_emit16(c, OJZW);
+        compiler_emit32(c, compiler_relative(c, ifelse + c.[CORG], 4));
+    }
+
+    compiler_statement(c);
+
+    if (compiler_match(c, TELSE))
+    {
+        ifend = compiler_getlater(c);
+        compiler_emit8(c, OJMPW);
+        compiler_emit32(c, compiler_relative(c, ifend + c.[CORG], 4));
+        compiler_setlater(c, ifelse, c.[CIP]);
+        compiler_statement(c);
+        compiler_setlater(c, ifend, c.[CIP]);
+    }
+    else
+    {
+        compiler_setlater(c, ifelse, c.[CIP]);
+    }
+}
+
+function compiler_switch(c)
+(econst, r, oldcases{VEC}, tmp{COMPILER_CASE *! 2}, ob, od, default_case, lowest, highest, table, cas, i)
+{
+    # could add a compiler_try to free incase of throw (leaks otherwise)
+    # Maybe do this someday!
+
+    compiler_advance(c);
+    compiler_consume(c, TLEFTPAREN);
+    r = compiler_expression(c, &econst);
+    if (econst)
+    {
+        compiler_emit8(c, OMOVRIMMW + REAX);
+        compiler_emit32(c, r);
+    }
+    compiler_consume(c, TRIGHTPAREN);
+
+    memcpy(oldcases, &c{CCASES}, VEC);
+    vec_init(&c{CCASES}, 32, COMPILER_CASE);
+
+    ob = c.[CBREAK];
+    c.[CBREAK] = compiler_getlater(c);
+    default_case = compiler_getlater(c);
+    od = c.[CDEFAULT];
+    c.[CDEFAULT] = NULL;
+    lowest = compiler_getlater(c);
+    highest = compiler_getlater(c);
+    table = compiler_getlater(c);
+
+    compiler_emit8(c, OCMPEAXIMMW);
+    compiler_emit32(c, lowest);
+
+    compiler_emit16(c, OJBW);
+    compiler_emit32(c, compiler_relative(c, default_case + c.[CORG], 4));
+
+    compiler_emit8(c, OCMPEAXIMMW);
+    compiler_emit32(c, highest);
+
+    compiler_emit16(c, OJAW);
+    compiler_emit32(c, compiler_relative(c, default_case + c.[CORG], 4));
+
+    compiler_emit8(c, OGRP5);
+    compiler_emit8(c, modrm(MODMEM, OGRP5JMP, RSIB));
+    compiler_emit8(c, sib(SIBSCALE4, REAX, RDISP));
+    compiler_emit32(c, table + c.[CORG] - lowest *! 4);
+
+    compiler_statement(c);
+
+    compiler_emit8(c, OJMPW);
+    compiler_emit32(c, compiler_relative(c, c.[CBREAK] + c.[CORG], 4));
+
+    qsort(c.[CCASES + VEC_PTR], c.[CCASES + VEC_LEN], COMPILER_CASE, sortdwcmp, tmp);
+
+    compiler_setlater(c, lowest, c.[CCASES + VEC_PTR].[COMPILER_CASE_I]);
+    compiler_setlater(c, highest, c.[CCASES + VEC_PTR].[c.[CCASES + VEC_LEN] *! COMPILER_CASE - COMPILER_CASE + COMPILER_CASE_I]);
+    compiler_setlater(c, table, c.[CIP]);
+
+    cas = 0;
+    i = 0;
+    while (i <! c.[CCASES + VEC_LEN])
+    {
+        r = c.[CCASES + VEC_PTR].[i *! COMPILER_CASE + COMPILER_CASE_I] - c.[CCASES + VEC_PTR].[COMPILER_CASE_I];
+        while (cas <! r)
+        {
+            compiler_emit32(c, default_case + c.[CORG]);
+            cas += 1;
+        }
+        compiler_emit32(c, c.[CCASES + VEC_PTR].[i *! COMPILER_CASE + COMPILER_CASE_JMP]);
+        i += 1;
+        cas += 1;
+    }
+
+    compiler_setlater(c, c.[CBREAK], c.[CIP]);
+    compiler_setlater(c, default_case, c.[CDEFAULT] ? c.[CDEFAULT] : c.[CIP]);
+
+    vec_free(&c{CCASES});
+    memcpy(&c{CCASES}, oldcases, VEC);
+    c.[CBREAK] = ob;
+    c.[CDEFAULT] = od;
+}
+
+function compiler_case(c)
+(x{COMPILER_CASE})
+{
+    compiler_advance(c);
+    x.[COMPILER_CASE_I] = compiler_const_expression(c);
+    x.[COMPILER_CASE_JMP] = c.[CIP];
+    compiler_consume(c, TCOLON);
+    vec_push(&c{CCASES}, x);
+}
+
+function compiler_default(c)
+{
+    compiler_advance(c);
+    compiler_consume(c, TCOLON);
+    c.[CDEFAULT] = c.[CIP];
+}
+
+function compiler_const_expression(c)
+(r, econst)
+{
+    econst = TRUE;
+    r = compiler_binary(c, precs, &econst, TRUE);
+    if (!econst) compiler_throw(c, $@, $*, print("Expression not constant"));
+    return r;
+}
+
+function compiler_expression(c, econst)
+{
+    *econst = TRUE;
+    return compiler_binary(c, precs, econst, FALSE);
+}
+
+function compiler_binary(c, prec, econst, iconst)
+(t, last, l, r, lconst, rconst, i)
+{
+    if (!prec{PREC_START}) return compiler_unary(c, econst, iconst);
+
+    lconst = TRUE;
+    l = compiler_binary(c, prec + PREC, &lconst, iconst);
+    if (!lconst) *econst = FALSE;
+
+    last = c.[CCUR + TOKEN_TYPE];
+    while (t = compiler_matches(c, prec{PREC_START}, prec{PREC_END}))
+    {
+        rconst = TRUE;
+        if (!iconst and !lconst) i = compiler_emit8(c, OPUSHR + REAX);
+        if (prec{PREC_ASSOC} == ASSOC_LEFT and t != TLOGICALOR and t != TLOGICALAND) r = compiler_binary(c, prec + PREC, &rconst, iconst);
+        else if (prec{PREC_ASSOC} == ASSOC_RIGHT) r = compiler_binary(c, prec, &rconst, iconst);
+        if (!iconst and !lconst and rconst) compiler_set(c, i, ONOP);
+        if (!rconst) *econst = FALSE;
+
+        switch (t)
+        {
+            case TPLUS:
+                if (*econst)
+                {
+                    l = l + r;
+                }
+                else if (rconst or lconst)
+                {
+                    compiler_emit8(c, OADDEAXIMMW);
+                    compiler_emit32(c, rconst ? r : l);
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + REDX);
+                    compiler_emit8(c, OADDRMW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REDX));
+                }
+                break;
+            case TMINUS:
+                if (*econst)
+                {
+                    l = l - r;
+                }
+                else if (rconst)
+                {
+                    compiler_emit8(c, OSUBEAXIMMW);
+                    compiler_emit32(c, r);
+                }
+                else if (lconst)
+                {
+                    compiler_emit8(c, OXCHGEAX + REDX);
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, l);
+                    compiler_emit8(c, OSUBRMW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REDX));
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + REDX);
+                    compiler_emit8(c, OXCHGEAX + REDX);
+                    compiler_emit8(c, OSUBRMW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REDX));
+                }
+                break;
+            case TSTARU:
+            case TSTARS:
+            case TSTARUEQUALS:
+            case TSTARSEQUALS:
+                if (*econst)
+                {
+                    if (t == TSTARUEQUALS or t == TSTARSEQUALS)
+                    {
+                        print("todo se\n");
+                        *econst = FALSE;
+                    }
+                    else
+                    {
+                        l = t == TSTARS ? l *$ r : l *! r;
+                    }
+                    break;
+                }
+                else if (lconst)
+                {
+                    print("todo sel\n");
+                }
+                else if (rconst)
+                {
+                    if ((last == TRIGHTBRACE or last == TRIGHTCHEVRON) and (t == TSTARSEQUALS or t == TSTARUEQUALS)) print("todo ser\n");
+                    if (t == TSTARS or t == TSTARSEQUALS)
+                    {
+                        compiler_emit8(c, OIMULRMWIMMW);
+                        compiler_emit8(c, modrm(t == TSTARSEQUALS ? MODMEM : MODREG, REAX, REAX));
+                        compiler_emit32(c, r);
+                    }
+                    else
+                    {
+                        compiler_emit8(c, OMOVRIMMW + REBX);
+                        compiler_emit32(c, r);
+
+                        compiler_emit8(c, OXCHGEAX + REBX);
+
+                        compiler_emit8(c, OGRP3W);
+                        compiler_emit8(c, modrm(t == TSTARUEQUALS or t == TSTARSEQUALS ? MODMEM : MODREG, t == TSTARS or t == TSTARSEQUALS ? OGRP3IMUL : OGRP3MUL, REBX));
+                    }
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + REBX);
+                    if ((t == TSTARUEQUALS or t == TSTARSEQUALS) and last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if ((t == TSTARUEQUALS or t == TSTARSEQUALS) and last == TRIGHTBRACE) compiler_emit8(c, OGRP3B);
+                    else compiler_emit8(c, OGRP3W);
+                    compiler_emit8(c, modrm(t == TSTARUEQUALS or t == TSTARSEQUALS ? MODMEM : MODREG, t == TSTARS or t == TSTARSEQUALS ? OGRP3IMUL : OGRP3MUL, REBX));
+                }
+                if (t == TSTARUEQUALS or t == TSTARSEQUALS)
+                {
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMRB);
+                    else compiler_emit8(c, OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, REBX));
+                }
+                break;
+            case TSLASHU:
+            case TSLASHS:
+            case TMODULOU:
+            case TMODULOS:
+            case TSLASHUEQUALS:
+            case TSLASHSEQUALS:
+            case TMODULOUEQUALS:
+            case TMODULOSEQUALS:
+                if (*econst)
+                {
+                    switch (t)
+                    {
+                        case TSLASHU: l = l /! r; break;
+                        case TSLASHS: l = l /$ r; break;
+                        case TMODULOU: l = l %! r; break;
+                        case TMODULOS:  l = l %$ r; break;
+                        default: print("todo div\n"); break;
+                    }
+                    break;
+                }
+                else if (rconst)
+                {
+                    compiler_emit8(c, OMOVRIMMW + RECX);
+                    compiler_emit32(c, r);
+                }
+                else if (lconst)
+                {
+                    print("todo div\n");
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + RECX);
+                    compiler_emit8(c, OXCHGEAX + RECX);
+                }
+                if (t >=! TSLASHUEQUALS and t <=! TMODULOSEQUALS)
+                {
+                    compiler_emit8(c, OXCHGEAX + REBX);
+                    compiler_emit8(c, OMOVRMW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, REBX));
+                }
+                if (t == TSLASHS or t == TMODULOS or t == TSLASHSEQUALS or t == TMODULOSEQUALS)
+                {
+                    compiler_emit8(c, OCDQ);
+                    compiler_emit8(c, OGRP3W);
+                    compiler_emit8(c, modrm(MODREG, OGRP3IDIV, RECX));
+                }
+                else
+                {
+                    compiler_emit8(c, OXORMRW);
+                    compiler_emit8(c, modrm(MODREG, REDX, REDX));
+                    compiler_emit8(c, OGRP3W);
+                    compiler_emit8(c, modrm(MODREG, OGRP3DIV, RECX));
+                }
+                if (t == TMODULOU or t == TMODULOS or t == TMODULOUEQUALS or t == TMODULOSEQUALS)
+                {
+                    compiler_emit8(c, OXCHGEAX + REDX);
+                }
+                if (t >=! TSLASHUEQUALS and t <=! TMODULOSEQUALS)
+                {
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, OMOVMRB);
+                    else compiler_emit8(c, OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, REBX));
+                }
+                break;
+            case TEQUALS:
+            case TPLUSEQUALS:
+            case TMINUSEQUALS:
+            case TBITWISEOREQUALS:
+            case TBITWISEANDEQUALS:
+            case TBITWISEXOREQUALS:
+                if (*econst)
+                {
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t != TEQUALS ? OGRP1MIMMBB : OMOVMIMMB);
+                    else compiler_emit8(c, t != TEQUALS ? OGRP1MIMMWW : OMOVMIMMW);
+                    compiler_emit8(c, modrm(MODMEM, t == TPLUSEQUALS ? OGRP1ADD : t == TMINUSEQUALS ? OGRP1SUB : t == TBITWISEXOREQUALS ? OGRP1XOR : t == TBITWISEANDEQUALS ? OGRP1AND : t == TBITWISEOREQUALS ? OGRP1OR : 0, RDISP));
+                    compiler_emit32(c, l);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, r);
+                    else if (last == TRIGHTCHEVRON) compiler_emit16(c, r);
+                    else compiler_emit32(c, r);
+                    *econst = FALSE;
+
+                    if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
+                    else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
+                    else compiler_emitvar(c, OMOVRMW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+                    compiler_emit32(c, l);
+                }
+                else if (rconst)
+                {
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t != TEQUALS ? OGRP1MIMMBB : OMOVMIMMB);
+                    else compiler_emit8(c, t != TEQUALS ? OGRP1MIMMWW : OMOVMIMMW);
+                    compiler_emit8(c, modrm(MODMEM, t == TPLUSEQUALS ? OGRP1ADD : t == TMINUSEQUALS ? OGRP1SUB : t == TBITWISEXOREQUALS ? OGRP1XOR : t == TBITWISEANDEQUALS ? OGRP1AND : t == TBITWISEOREQUALS ? OGRP1OR : 0, REAX));
+                    if (last == TRIGHTBRACE) compiler_emit8(c, r);
+                    else if (last == TRIGHTCHEVRON) compiler_emit16(c, r);
+                    else compiler_emit32(c, r);
+
+                    if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
+                    else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
+                    else compiler_emitvar(c, OMOVRMW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, REAX));
+                }
+                else if (lconst)
+                {
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : t == TMINUSEQUALS ? OSUBMRB : t == TBITWISEXOREQUALS ? OXORMRB : t == TBITWISEANDEQUALS ? OANDMRB : t == TBITWISEOREQUALS ? OORMRB : OMOVMRB);
+                    else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : t == TMINUSEQUALS ? OSUBMRW : t == TBITWISEXOREQUALS ? OXORMRW : t == TBITWISEANDEQUALS ? OANDMRW : t == TBITWISEOREQUALS ? OORMRW : OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+                    compiler_emit32(c, l);
+
+                    if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
+                    else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
+                    else compiler_emitvar(c, OMOVRMW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+                    compiler_emit32(c, l);
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + RECX);
+                    if (last == TRIGHTCHEVRON) compiler_emit8(c, OSIZEOVERRIDE);
+                    if (last == TRIGHTBRACE) compiler_emit8(c, t == TPLUSEQUALS ? OADDMRB : t == TMINUSEQUALS ? OSUBMRB : t == TBITWISEXOREQUALS ? OXORMRB : t == TBITWISEANDEQUALS ? OANDMRB : t == TBITWISEOREQUALS ? OORMRB : OMOVMRB);
+                    else compiler_emit8(c, t == TPLUSEQUALS ? OADDMRW : t == TMINUSEQUALS ? OSUBMRW : t == TBITWISEXOREQUALS ? OXORMRW : t == TBITWISEANDEQUALS ? OANDMRW : t == TBITWISEOREQUALS ? OORMRW : OMOVMRW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RECX));
+
+                    if (last == TRIGHTCHEVRON) compiler_emitvar(c, OMOVZXW);
+                    else if (last == TRIGHTBRACE) compiler_emitvar(c, OMOVZXB);
+                    else compiler_emitvar(c, OMOVRMW);
+                    compiler_emit8(c, modrm(MODMEM, REAX, RECX));
+                }
+                break;
+            case TGREATERTHANU:
+            case TGREATERTHANS:
+            case TGREATEREQUALSU:
+            case TGREATEREQUALSS:
+            case TLESSTHANU:
+            case TLESSTHANS:
+            case TLESSEQUALSU:
+            case TLESSEQUALSS:
+                if (*econst)
+                {
+                    print("todo cmp");
+                    break;
+                }
+                else if (rconst)
+                {
+                    compiler_emit8(c, OCMPEAXIMMW);
+                    compiler_emit32(c, r);
+                }
+                else if (lconst)
+                {
+                    # dont have to swap order, just ex. turn >! into <=!? unsure
+                    print("todo cmp");
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + REDX);
+
+                    compiler_emit8(c, OCMPMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REDX));
+                }
+                compiler_emit8(c, OMOVRIMMW + REAX);
+                compiler_emit32(c, 0);
+                
+                switch (t)
+                {
+                    case TGREATERTHANU: compiler_emit16(c, OSETA); break;
+                    case TGREATERTHANS: compiler_emit16(c, OSETG); break;
+                    case TGREATEREQUALSU: compiler_emit16(c, OSETAE); break;
+                    case TGREATEREQUALSS: compiler_emit16(c, OSETGE); break;
+                    case TLESSTHANU: compiler_emit16(c, OSETB); break;
+                    case TLESSTHANS: compiler_emit16(c, OSETL); break;
+                    case TLESSEQUALSU: compiler_emit16(c, OSETBE); break;
+                    case TLESSEQUALSS: compiler_emit16(c, OSETLE); break;
+                }
+                compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                break;
+            case TEQUALSEQUALS:
+            case TNOTEQUALS:
+                if (*econst)
+                {
+                    print("todo eqe\n");
+                    format(print, "%s\n", &c.[CCUR_FUNC]);
+                }
+                else if (rconst)
+                {
+                    compiler_emit8(c, OCMPEAXIMMW);
+                    compiler_emit32(c, r);
+
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, 0);
+
+                    compiler_emit16(c, t == TEQUALSEQUALS ? OSETZ : OSETNZ);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + REDX);
+                    
+                    compiler_emit8(c, OCMPMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REDX));
+
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, 0);
+                    
+                    compiler_emit16(c, t == TEQUALSEQUALS ? OSETZ : OSETNZ);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                }
+                break;
+            case TBITWISEAND:
+            case TBITWISEOR:
+            case TBITWISEXOR:
+                if (*econst)
+                {
+                    l = t == TBITWISEAND ? l & r : t == TBITWISEOR ? l | r : l ^ r;
+                }
+                else if (rconst or lconst)
+                {
+                    compiler_emit8(c, t == TBITWISEAND ? OANDEAXIMMW : t == TBITWISEOR ? OOREAXIMMW : OXOREAXIMMW);
+                    compiler_emit32(c, rconst ? r : l);
+                }
+                else
+                {
+                    compiler_emit8(c, OPOPR + REDX);
+                    compiler_emit8(c, t == TBITWISEAND ? OANDMRW : t == TBITWISEOR ? OORMRW : OXORMRW);
+                    compiler_emit8(c, modrm(MODREG, REDX, REAX));
+                }
+                break;
+            case TQMARK:
+                t = compiler_getlater(c);
+                *econst = FALSE;
+                if (lconst)
+                {
+                    if (!l)
+                    {
+                        compiler_emit8(c, OJMPW);
+                        compiler_emit32(c, compiler_relative(c, t + c.[CORG], 4));
+                    }
+                    else
+                    {
+                        compiler_emit8(c, ONOP);
+                        compiler_emit32(c, 0x90909090);
+                    }
+                }
+                else
+                {
+                    compiler_emit8(c, OTESTMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+
+                    compiler_emit16(c, OJZW);
+                    compiler_emit32(c, compiler_relative(c, t + c.[CORG], 4));
+                }
+                r = compiler_expression(c, &rconst);
+                if (rconst)
+                {
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, r);
+                }
+                l = compiler_getlater(c);
+                compiler_emit8(c, OJMPW);
+                compiler_emit32(c, compiler_relative(c, l + c.[CORG], 4));
+                compiler_setlater(c, t, c.[CIP]);
+                compiler_consume(c, TCOLON);
+                r = compiler_expression(c, &rconst);
+                if (rconst)
+                {
+                    compiler_emit8(c, OMOVRIMMW + REAX);
+                    compiler_emit32(c, r);
+                }
+                compiler_setlater(c, l, c.[CIP]);
+                break;
+            case TLOGICALAND:
+                if (lconst)
+                {
+                    print("todo and\n");
+                }
+                else
+                {
+                    compiler_emit8(c, OTESTMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                    l = compiler_getlater(c);
+                    compiler_emit16(c, OJZW);
+                    compiler_emit32(c, compiler_relative(c, l + c.[CORG], 4));
+                    r = compiler_binary(c, prec + PREC, &rconst, iconst);
+                    if (rconst)
+                    {
+                        print("todo and\n");
+                    }
+                    else
+                    {
+                        i = compiler_getlater(c);
+                        compiler_emit8(c, OJMPW);
+                        compiler_emit32(c, compiler_relative(c, i + c.[CORG], 4));
+                        compiler_setlater(c, l, c.[CIP]);
+                        compiler_emit8(c, OXORMRW);
+                        compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                        compiler_setlater(c, i, c.[CIP]);
+                    }
+                }
+                break;
+            case TLOGICALOR:
+                if (lconst)
+                {
+                    print("todo or\n");
+                    r = compiler_binary(c, prec + PREC, &rconst, iconst);
+                    if (!rconst) *econst = FALSE;
+                }
+                else
+                {
+                    compiler_emit8(c, OTESTMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                    l = compiler_getlater(c);
+                    compiler_emit16(c, OJNZW);
+                    compiler_emit32(c, compiler_relative(c, l + c.[CORG], 4));
+                    r = compiler_binary(c, prec + PREC, &rconst, iconst);
+                    if (rconst)
+                    {
+                        compiler_emit8(c, OMOVRIMMW + REAX);
+                        compiler_emit32(c, r);
+                    }
+                    compiler_setlater(c, l, c.[CIP]);
+                }
+                break;
+        case TSHIFTLEFT:
+        case TSHIFTRIGHT:
+            if (*econst)
+            {
+                l = t == TSHIFTRIGHT ? l >> r : l << r;
+            }
+            else if (lconst)
+            {
+                compiler_emit8(c, OXCHGEAX + RECX);
+                compiler_emit8(c, OMOVRIMMW + REAX);
+                compiler_emit32(c, l);
+                compiler_emit8(c, OGRP2MWCL);
+                compiler_emit8(c, modrm(MODREG, t == TSHIFTRIGHT ? OGRP2SHR : OGRP2SHL, REAX));
+            }
+            else if (rconst)
+            {
+                compiler_emit8(c, OGRP2MWIMMB);
+                compiler_emit8(c, modrm(MODREG, t == TSHIFTRIGHT ? OGRP2SHR : OGRP2SHL, REAX));
+                compiler_emit8(c, r);
+            }
+            else
+            {
+                compiler_emit8(c, OPOPR + RECX);
+                compiler_emit8(c, OXCHGEAX + RECX);
+                compiler_emit8(c, OGRP2MWCL);
+                compiler_emit8(c, modrm(MODREG, t == TSHIFTRIGHT ? OGRP2SHR : OGRP2SHL, REAX));
+            }
+            break;
+        case TSHIFTLEFTEQUALS:
+        case TSHIFTRIGHTEQUALS:
+            if (*econst)
+            {
+                *econst = FALSE;
+                print("todo shrlee\n");
+            }
+            else if (lconst)
+            {
+                print("todo shrlel\n");
+            }
+            else if (rconst)
+            {
+                # FIXME: read back the value, and check last token for >]}
+                compiler_emit8(c, OGRP2MWIMMB);
+                compiler_emit8(c, modrm(MODMEM, t == TSHIFTRIGHT ? OGRP2SHR : OGRP2SHL, REAX));
+                compiler_emit8(c, r);
+            }
+            else
+            {
+                print("todo shrle\n");
+            }
+            break;
+        default: compiler_throw(c, $@, $*, format(print, "Unimplemented operand %u", t));
+        }
+        if (lconst) lconst = rconst;
+        last = c.[CCUR + TOKEN_TYPE];
+    }
+
+    return l;
+}
+
+function compiler_unary(c, econst, iconst)
+(t, ident)
+{
+    switch (compiler_peek(c))
+    {
+        case TSTAR:
+            compiler_advance(c);
+            t = compiler_unary(c, econst, iconst);
+            if (*econst)
+            {
+                compiler_emit8(c, OMOVRMW);
+                compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+                compiler_emit32(c, t);
+            }
+            else
+            {
+                compiler_emit8(c, OMOVRMW);
+                compiler_emit8(c, modrm(MODMEM, REAX, REAX));
+            }
+            *econst = FALSE;
+            return;
+        case TBANG:
+            compiler_advance(c);
+            t = compiler_unary(c, econst, iconst);
+            if (*econst) return !t;
+
+            compiler_emit8(c, OTESTW);
+            compiler_emit8(c, modrm(MODREG, REAX, REAX));
+
+            compiler_emit8(c, OMOVRIMMW + REAX);
+            compiler_emit32(c, 0);
+
+            compiler_emitvar(c, OSETZ);
+            compiler_emit8(c, modrm(MODREG, REAX, REAX));
+            return;
+        case TBITWISENOT:
+            compiler_advance(c);
+            t = compiler_unary(c, econst, iconst);
+            if (*econst) return ~t;
+            compiler_emit8(c, OGRP3W);
+            compiler_emit8(c, modrm(MODREG, OGRP3NOT, REAX));
+            return;
+        case TMINUS:
+            compiler_advance(c);
+            t = compiler_unary(c, econst, iconst);
+            if (*econst) return -t;
+            compiler_emit8(c, OGRP3W);
+            compiler_emit8(c, modrm(MODREG, OGRP3NEG, REAX));
+            return;
+        case TBITWISEAND:
+            compiler_advance(c);
+            return compiler_primary(c, econst, TRUE, iconst);
+        default:
+            return compiler_primary(c, econst, FALSE, iconst);
+    }
+}
+
+function compiler_primary(c, econst, ref, iconst)
+(ident, f, r, ig)
+{
+    ig = compiler_ident_get;
+    switch (compiler_advance(c))
+    {
+        case TDOT:
+            compiler_advance(c);
+            ig = compiler_local_label_get;
+        case TIDENT:
+            if (f = ig(c, &c{CCUR + TOKEN_VALUE}, &ident))
+            {
+                r = compiler_peek(c);
+                if ((ref and r != TDOT and r != TLEFTBRACKET and r != TLEFTCHEVRON and r != TLEFTBRACE) or f & IDENT_FLAG_ADDRESS or (r >=! TEQUALS and r <=! TPLUSEQUALS))
+                {
+                    r = ident;
+                    if (f & IDENT_FLAG_LOCAL and !iconst)
+                    {
+                        *econst = FALSE;
+                        compiler_emit8(c, OLEA);
+                        compiler_emit8(c, modrm(MODDISPW, REAX, REBP));
+                        compiler_emit32(c, ident);
+                    }
+                }
+                else if (!iconst)
+                {
+                    *econst = FALSE;
+                    compiler_emit8(c, OMOVRMW);
+                    if (f & IDENT_FLAG_LOCAL) compiler_emit8(c, modrm(MODDISPW, REAX, REBP));
+                    else compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+                    compiler_emit32(c, ident);
+                }
+                else
+                {
+                    r = ident;
+                }
+            }
+            else if (!c.[CIS_FIRST_PASS])
+            {
+                compiler_throw(c, $@, $*, format(print, "Undefined identifier %s", &c{CCUR + TOKEN_VALUE}));
+            }
+            break;
+        case TSTRING:
+            r = compiler_string_get(c, &c{CCUR + TOKEN_VALUE}, TRUE);
+            break;
+        case TFUNC:
+            r = compiler_string_get(c, &c{CCUR_FUNC}, FALSE);
+            break;
+        case TPLINE:
+            r = c.[CTOK + TLINE];
+            break;
+        case TORIGIN:
+            r = c.[CORG];
+            break;
+        case TPROGEND:
+            r = c.[CPROG_END];
+            break;
+        case TNUM:
+            r = c.[CCUR + TOKEN_VALUE];
+            break;
+        case TCHARS:
+            r = 0;
+            f = 0;
+            while (f <! c.[CCUR + TOKEN_VALUE + STRINGLEN])
+            {
+                r <<= 8;
+                r |= c.[CCUR + TOKEN_VALUE + STRINGPTR]{f};
+                f += 1;
+            }
+            free(c.[CCUR + TOKEN_VALUE + STRINGPTR]);
+            c.[CCUR + TOKEN_VALUE + STRINGPTR] = NULL;
+            break;
+        case TLEFTPAREN:
+            r = compiler_binary(c, precs, econst, iconst);
+            compiler_consume(c, TRIGHTPAREN);
+            break;
+        default:
+            compiler_throw_token(c, $@, $*, CCUR, 0);
+            break;
+    }
+
+    if (!iconst) while (compiler_post(c, econst, &r, ref));
+    return r;
+}
+
+function compiler_post(c, econst, r, ref)
+(align)
+{
+    align = TRUE;
+.l:
+    switch (compiler_peek(c))
+    {
+        case TLEFTPAREN: compiler_call(c, econst, *r); break;
+        case TDOT: compiler_advance(c); align = FALSE; JMP .l
+        case TLEFTBRACKET:
+        case TLEFTCHEVRON:
+        case TLEFTBRACE: *r = compiler_index(c, align, econst, *r, ref); break;
+        default: return FALSE;
+    }
+
+    return TRUE;
+}
+
+function compiler_call(c, lconst, r)
+(s, i, e, econst)
+{
+    i = 0;
+    s = compiler_getlater(c);
+    compiler_consume(c, TLEFTPAREN);
+
+    if (compiler_match(c, TRIGHTPAREN)) JMP .noargs
+    compiler_emit8(c, OGRP1MIMMWB);
+    compiler_emit8(c, modrm(MODREG, OGRP1SUB, RESP));
+    compiler_emit8(c, s *! 4);
+
+    if (!*lconst) 
+    {
+        compiler_emit8(c, OPUSHR + REAX);
+        i = 1;
+    }
+
+    do
+    {
+        e = compiler_expression(c, &econst);
+
+        if (econst)
+        {
+            compiler_emit8(c, OMOVMIMMW);
+            compiler_emit8(c, modrm(MODDISPB, REAX, RSIB));
+            compiler_emit8(c, sib(SIBSCALE1, SIBNOINDEX, RESP));
+            compiler_emit8(c, i *! 4);
+            compiler_emit32(c, e);
+        }
+        else
+        {
+            compiler_emit8(c, OMOVMRW);
+            compiler_emit8(c, modrm(MODDISPB, REAX, RSIB));
+            compiler_emit8(c, sib(SIBSCALE1, SIBNOINDEX, RESP));
+            compiler_emit8(c, i *! 4);
+        }
+
+        i += 1;
+    } while (compiler_match(c, TCOMMA));
+    compiler_consume(c, TRIGHTPAREN);
+
+    compiler_setlater(c, s, *lconst ? i : i - 1);
+
+    if (!*lconst) compiler_emit8(c, OPOPR + REAX);
+
+.noargs:
+    if (*lconst)
+    {
+        compiler_emit8(c, OCALL);
+        compiler_emit32(c, compiler_relative(c, r, 4));
+    }
+    else
+    {
+        compiler_emit8(c, OGRP5);
+        compiler_emit8(c, modrm(MODREG, OGRP5CALL, REAX));
+    }
+
+    if (i >! 1 or (*lconst and i >! 0))
+    {
+        compiler_emit8(c, OGRP1MIMMWB);
+        compiler_emit8(c, modrm(MODREG, OGRP1ADD, RESP));
+        compiler_emit8(c, s *! 4);
+    }
+    *lconst = FALSE;
+}
+
+function compiler_index(c, align, lconst, r, ref)
+(scale, t, e, econst, op, i)
+{
+    if (t = compiler_match(c, TLEFTBRACKET)) { scale = SIBSCALE4; op = OMOVRMW; }
+    else if (t = compiler_match(c, TLEFTCHEVRON)) { scale = SIBSCALE2; op = OMOVZXW; }
+    else if (t = compiler_match(c, TLEFTBRACE)) { scale = SIBSCALE1; op = OMOVZXB; }
+    if (!align) scale = SIBSCALE1;
+
+    i = compiler_emit8(c, OPUSHR + REAX);
+    e = compiler_expression(c, &econst);
+    compiler_consume(c, t + 1);
+    t = compiler_peek(c);
+    if ((ref and t != TDOT and t != TLEFTBRACKET and t != TLEFTCHEVRON and t != TLEFTBRACE) or (t >=! TEQUALS and t <=! TPLUSEQUALS)) op = OLEA;
+
+    if (*lconst or econst) compiler_set(c, i, ONOP);
+
+    if (*lconst and econst)
+    {
+        if (op == OLEA) return r + e *! (1 << scale);
+        *lconst = FALSE;
+        compiler_emitvar(c, op);
+        compiler_emit8(c, modrm(MODMEM, REAX, RDISP));
+        compiler_emit32(c, r + e *! (1 << scale));
+    }
+    else if (*lconst)
+    {
+        *lconst = FALSE;
+        compiler_emitvar(c, op);
+        if (scale == SIBSCALE1)
+        {
+            compiler_emit8(c, modrm(MODDISPW, REAX, REAX));
+        }
+        else
+        {
+            compiler_emit8(c, modrm(MODMEM, REAX, RSIB));
+            compiler_emit8(c, sib(scale, REAX, RDISP));
+        }
+        compiler_emit32(c, r);
+    }
+    else if (econst)
+    {
+        compiler_emitvar(c, op);
+        compiler_emit8(c, modrm(MODDISPW, REAX, REAX));
+        compiler_emit32(c, e *! (1 << scale));
+    }
+    else
+    {
+        compiler_emit8(c, OPOPR + RECX);
+        compiler_emitvar(c, op);
+        compiler_emit8(c, modrm(MODMEM, REAX, RSIB));
+        compiler_emit8(c, sib(scale, REAX, RECX));
+    }
+}
+
+function compiler_const_set(c, name, address)
+(s{STRING}, x, ident{COMPILER_IDENT})
+{
+    if (map_get(&c{CIDENTS}, name, s)) x = name;
+    else x = strdup(name, s);
+    ident.[COMPILER_IDENT_ADDR] = address;
+    ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_ADDRESS;
+    if (!map_set(&c{CIDENTS}, x, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), x == name ? 0 : free(s.[STRINGPTR]));
+    return TRUE;
+}
+
+function compiler_global_set(c, name, address)
+(s{STRING}, x, ident{COMPILER_IDENT})
+{
+    if (map_get(&c{CIDENTS}, name, s)) x = name;
+    else x = strdup(name, s);
+    ident.[COMPILER_IDENT_ADDR] = address;
+    ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID;
+    if (!map_set(&c{CIDENTS}, x, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), x == name ? 0 : free(s.[STRINGPTR]));
+    return TRUE;
+}
+
+function compiler_label_set(c, m, name)
+(s{STRING}, ident{COMPILER_IDENT})
+{
+    if (c.[CIS_FIRST_PASS]) 
+    {
+        ident.[COMPILER_IDENT_ADDR] = c.[CIP];
+        ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_RELOCATE | IDENT_FLAG_ADDRESS;
+        if (!map_set(m, strdup(name, s), ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR])); # FIX leak later (i dont remember what the leak is or if this still applies, curse you)
+    }
+    else
+    {
+        ident.[COMPILER_IDENT_ADDR] = c.[CIP];
+        ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_ADDRESS;
+        if (!map_set(m, name, ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]));
+    }
+}
+
+function compiler_local_set(c, name, offset, flags)
+(ident{COMPILER_IDENT})
+{
+    ident.[COMPILER_IDENT_ADDR] = offset;
+    ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_LOCAL | flags;
+    if (!map_set(&c{CLOCALS}, name, ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, offset));
+}
+
+function compiler_ident_get(c, name, out)
+(ident{COMPILER_IDENT})
+{
+    if (map_get(&c{CLOCALS}, name, ident))
+    {
+        *out = ident.[COMPILER_IDENT_ADDR];
+        return ident{COMPILER_IDENT_FLAGS};
+    }
+
+    if (map_get(&c{CIDENTS}, name, ident))
+    {
+        *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_GLOBAL ? c.[CPROG_END] - c.[CGLOBAL_OFFSET] : 0) : 0);
+        return ident{COMPILER_IDENT_FLAGS};
+    }
+    return FALSE;
+}
+
+function compiler_local_label_get(c, name, out)
+(ident{COMPILER_IDENT}, p, b)
+{
+    p = malloc(name.[STRINGLEN] + 1 + c.[CCUR_FUNC + STRINGLEN]);
+    memcpy(p, name.[STRINGPTR], name.[STRINGLEN]);
+    p{name.[STRINGLEN]} = '.';
+    memcpy(p + name.[STRINGLEN] + 1, c.[CCUR_FUNC + STRINGPTR], c.[CCUR_FUNC + STRINGLEN]);
+    name.[STRINGLEN] += 1 + c.[CCUR_FUNC + STRINGLEN];
+    b = name.[STRINGPTR];
+    name.[STRINGPTR] = p;
+    if (map_get(&c{CLOCAL_LABELS}, name, ident))
+    {
+        free(p);
+        name.[STRINGPTR] = b;
+        name.[STRINGLEN] -= 1 + c.[CCUR_FUNC + STRINGLEN];
+        *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] : 0);
+        return ident{COMPILER_IDENT_FLAGS};
+    }
+    free(p);
+    name.[STRINGPTR] = b;
+    name.[STRINGLEN] -= 1 + c.[CCUR_FUNC + STRINGLEN];
+    return FALSE;
+}
+
+function compiler_string_get(c, s, should_free)
+(x, y{STRING})
+{
+    if (map_get(&c{CSTRINGS}, s, &x))
+    {
+        if (should_free)
+        {
+            free(s.[STRINGPTR]);
+            s.[STRINGPTR] = NULL;
+        }
+        return x + c.[CPROG_END] - c.[CSTRING_OFFSET] - c.[CGLOBAL_OFFSET];
+    }
+
+    x = c.[CSTRING_OFFSET];
+    c.[CSTRING_OFFSET] += 8 + s.[STRINGLEN];
+    if (!map_set(&c{CSTRINGS}, should_free ? s : strdup(s, y), &x)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, x));
+
+    return 0;
+}
+
+enum ASSOC_LEFT, ASSOC_RIGHT, ASSOC_MIDDLE;
+struct PREC = {PREC_ASSOC}, {PREC_START}, {PREC_END};
+precs:
+    DB ASSOC_RIGHT, TEQUALS, TPLUSEQUALS # assign
+    DB ASSOC_MIDDLE, TQMARK, TQMARK # ternary
+    DB ASSOC_LEFT, TLOGICALOR, TLOGICALOR # logical or
+    DB ASSOC_LEFT, TLOGICALAND, TLOGICALAND # logical and
+    DB ASSOC_LEFT, TEQUALSEQUALS, TNOTEQUALS # equality
+    DB ASSOC_LEFT, TGREATERTHANU, TLESSEQUALSS # comparison
+    DB ASSOC_LEFT, TSHIFTRIGHT, TBITWISEAND # bitwise
+    DB ASSOC_LEFT, TPLUS, TMINUS # term
+    DB ASSOC_LEFT, TMODULOU, TSTARS # factor
+    DB 0, 0, 0 # unary

@@ -1,0 +1,146 @@
+struct MAP = [MAP_ENTRIES], [MAP_LEN], [MAP_SIZE], [MAP_KEY_SIZE], [MAP_ENTRY_SIZE], [MAP_COMPARE], [MAP_HASH], [MAP_FREE], [MAP_FIRST], [MAP_LAST];
+
+struct MAP_ENTRY = {MAP_ENTRY_USED}, [MAP_ENTRY_NEXT];
+
+function map_init(m, size, key_size, value_size, compare, hash, free)
+{
+    m.[MAP_FIRST] = NULL;
+    m.[MAP_LAST] = NULL;
+    m.[MAP_COMPARE] = compare;
+    m.[MAP_HASH] = hash;
+    m.[MAP_FREE] = free;
+    m.[MAP_LEN] = 0;
+    m.[MAP_SIZE] = size;
+    m.[MAP_KEY_SIZE] = key_size;
+    m.[MAP_ENTRY_SIZE] = key_size + value_size + MAP_ENTRY;
+    m.[MAP_ENTRIES] = malloc(m.[MAP_ENTRY_SIZE] *! size);
+    if (!m.[MAP_ENTRIES]) return FALSE;
+    memset(m.[MAP_ENTRIES], 0, m.[MAP_ENTRY_SIZE] *! size);
+    return TRUE;
+}
+
+function map_free2(m)
+(state, s)
+{
+    state = 0;
+    while (s = map_iter(m, &state))
+    {
+        s{MAP_ENTRY_USED - MAP_ENTRY} = FALSE;
+        if (m.[MAP_FREE]) m.[MAP_FREE](s);
+    }
+    m.[MAP_FIRST] = NULL;
+    m.[MAP_LAST] = NULL;
+    m.[MAP_LEN] = 0;
+}
+
+function map_free(m)
+{
+    map_free2(m);
+    free(m.[MAP_ENTRIES]);
+}
+
+function hash_string(s)
+(hash, i)
+{
+    hash = 2166136261;
+    i = 0;
+    while (i <! s.[STRINGLEN])
+    {
+        hash ^= s.[STRINGPTR]{i};
+        hash *!= 16777619;
+        i += 1;
+    }
+    return hash;
+}
+
+function free_string(s)
+{
+    free(s.[STRINGPTR]);
+}
+
+function map_iter(m, state)
+{
+    if (!*state) return *state = m.[MAP_FIRST];
+    return *state = (*state).[MAP_ENTRY_NEXT - MAP_ENTRY];
+}
+
+function map_ref(m, key, index)
+(hash, i, e)
+{
+    hash = m.[MAP_HASH](key);
+    i = hash %! m.[MAP_SIZE];
+
+    while (m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY_USED})
+    {
+        e = &m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY};
+        if (m.[MAP_COMPARE](key, e)) return e;
+        i += 1;
+        if (i >=! m.[MAP_SIZE]) i = 0;
+    }
+
+    if (index) *index = i;
+    return NULL;
+}
+
+function map_get(m, key, value)
+(e)
+{
+    e = map_ref(m, key, NULL);
+    if (!e) return FALSE;
+    memcpy(value, e + m.[MAP_KEY_SIZE], m.[MAP_ENTRY_SIZE] - MAP_ENTRY - m.[MAP_KEY_SIZE]);
+    return TRUE;
+}
+
+function map_expand(m)
+(old_entries, state)
+{
+    old_entries = m.[MAP_ENTRIES];
+    state = m.[MAP_FIRST];
+    m.[MAP_SIZE] *!= 2;
+    m.[MAP_LEN] = 0;
+    m.[MAP_FIRST] = NULL;
+    m.[MAP_ENTRIES] = malloc(m.[MAP_SIZE] *! m.[MAP_ENTRY_SIZE]);
+    if (!m.[MAP_ENTRIES]) return FALSE;
+    memset(m.[MAP_ENTRIES], 0, m.[MAP_SIZE] *! m.[MAP_ENTRY_SIZE]);
+
+    do 
+    {
+        map_set(m, state, state + m.[MAP_KEY_SIZE]);
+    } while (state = state.[MAP_ENTRY_NEXT - MAP_ENTRY]);
+
+    free(old_entries);
+    return TRUE;
+}
+
+function map_set(m, key, value)
+(entry, i)
+{
+    if (m.[MAP_LEN] >=! m.[MAP_SIZE] /! 2)
+    {
+        if (!map_expand(m)) return FALSE;
+    }
+
+    entry = map_ref(m, key, &i);
+    if (!entry)
+    {
+        entry = &m.[MAP_ENTRIES]{i *! m.[MAP_ENTRY_SIZE] + MAP_ENTRY};
+        entry{MAP_ENTRY_USED - MAP_ENTRY} = TRUE;
+        entry.[MAP_ENTRY_NEXT - MAP_ENTRY] = NULL;
+        m.[MAP_LEN] += 1;
+        memcpy(entry, key, m.[MAP_KEY_SIZE]);
+
+        if (!m.[MAP_FIRST])
+        {
+            m.[MAP_FIRST] = m.[MAP_LAST] = entry;
+        }
+        else
+        {
+            m.[MAP_LAST].[MAP_ENTRY_NEXT - MAP_ENTRY] = entry;
+            m.[MAP_LAST] = entry;
+        }
+    }
+
+    memcpy(entry + m.[MAP_KEY_SIZE], value, m.[MAP_ENTRY_SIZE] - m.[MAP_KEY_SIZE] - MAP_ENTRY);
+
+    return TRUE;
+}

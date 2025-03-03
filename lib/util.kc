@@ -1,188 +1,297 @@
-import "/lib/string.kc"
-
 function minu(x, y) return x <! y ? x : y;
-function maxu(x, y) return x >! y ? x : y;
-function mins(x, y) return x <$ y ? x : y;
-function maxs(x, y) return x >$ y ? x : y;
-function upper(c) return c >=! 'a' and c <=! 'z' ? c + 'A' - 'a' : c;
-function lower(c) return c >=! 'A' and c <=! 'Z' ? c - 'A' - 'a' : c;
+function upper(c) return islower(c) ? c + 'A' - 'a' : c;
+function islower(c) return c >=! 'a' and c <=! 'z';
 function isnum(c) return c >=! '0' and c <=! '9';
-function ishex(c) return isnum(c) or upper(c) >=! 'A' and upper(c) <=! 'F';
-function abs(x) return x <$ 0 ? -x : x;
+function isalpha(c) return upper(c) >=! 'A' and upper(c) <=! 'Z';
+function isalnum(c) return isalpha(c) or isnum(c);
+function ishex(c) return upper(c) >=! 'A' and upper(c) <=! 'F' or isnum(c);
+function isspace(c) return c == ' ' or c == '\t' or c == '\n' or c == '\r';
 
-function strtok(s, delim, out, state)
-(start)
+function memcpy(dest, src, n)
 {
-    if (*state >=! s[STRINGLEN]) return 0;
-    start = *state;
-    out[STRINGPTR] = s[STRINGPTR] + start;
-    while (s[STRINGPTR]{*state} != delim)
+    if (dest == src) return;
+    CLD
+    MOV ESI, [src]
+    MOV EDI, [dest]
+    MOV ECX, [n]
+    REP MOVSB
+}
+
+function memcpyd(dest, src, n)
+{
+    if (dest == src) return;
+    CLD
+    MOV ESI, [src]
+    MOV EDI, [dest]
+    MOV ECX, [n]
+    REP MOVSD
+}
+
+function memmove(dest, src, n)
+{
+    if (dest <=! src) return memcpy(dest, src, n);
+    STD
+    MOV ESI, [src]
+    MOV EDI, [dest]
+    ADD ESI, [n]
+    ADD EDI, [n]
+    DEC ESI
+    DEC EDI
+    MOV ECX, [n]
+    REP MOVSB
+}
+
+function memcmp(x, y, n)
+{
+    if (x == y) return TRUE;
+    CLD
+    MOV ESI, [x]
+    MOV EDI, [y]
+    MOV ECX, [n]
+    REP CMPSB
+    MOV EAX, 0
+    SETZ AL
+}
+
+function memicmp(x, y, n)
+(i)
+{
+    if (x == y) return TRUE;
+
+    i = 0;
+    while (i <! n)
     {
-        if (*state >=! s[STRINGLEN]) JMP .e;
-        *state = *state + 1;
+        if (upper(x{i}) != upper(y{i})) return FALSE;
+        i += 1;
     }
-.e:
-    out[STRINGLEN] = *state - start;
-    *state = *state + 1;
-    return 1;
+
+    return TRUE;
+}
+
+function memset(d, x, n)
+{
+    CLD
+    MOV AL, [x]
+    MOV EDI, [d]
+    MOV ECX, [n]
+    REP STOSB
+}
+
+function memsetd(d, x, n)
+{
+    CLD
+    MOV EAX, [x]
+    MOV EDI, [d]
+    MOV ECX, [n]
+    REP STOSD
+}
+
+function strcmp(x, y)
+{
+    if (x.[STRINGLEN] != y.[STRINGLEN]) return FALSE;
+    return memcmp(x.[STRINGPTR], y.[STRINGPTR], x.[STRINGLEN]);
 }
 
 function strchr(s, c)
 (i)
 {
     i = 0;
-    while (i <! s[STRINGLEN] and s[STRINGPTR]{i} != c) i = i + 1;
+    while (i <! s.[STRINGLEN] and s.[STRINGPTR]{i} != c) i += 1;
     return i;
 }
 
-function strrchr(s, c)
-(i)
+function strtok(s, delim, out, state)
+(start)
 {
-    i = s[STRINGLEN] - 1;
-    while (i and s[STRINGPTR]{i} != c) i = i - 1;
-    return i;
+    if (*state >=! s.[STRINGLEN]) return FALSE;
+
+    start = *state;
+    out.[STRINGPTR] = s.[STRINGPTR] + *state;
+    while (*state <! s.[STRINGLEN] and s.[STRINGPTR]{*state} != delim) *state += 1;
+    out.[STRINGLEN] = *state - start;
+
+    *state += 1;
+    return TRUE;
 }
 
-function memcpy(d, s, n, seg)
+function strdup(s, new)
 {
-    if (seg = -1) MOV [seg], DS
-    MOV ES, [seg]
-    MOV CX, [n]
-    MOV SI, [s]
-    MOV DI, [d]
-    CLD
-    XOR AX, AX
-    REPZ MOVSB
-    MOV AX, DS
-    MOV ES, AX
+    new.[STRINGPTR] = malloc(s.[STRINGLEN]);
+    new.[STRINGLEN] = s.[STRINGLEN];
+    memcpy(new.[STRINGPTR], s.[STRINGPTR], new.[STRINGLEN]);
+    return new;
 }
 
-function memmove(d, s, n, seg)
+function reverse(s)
+(i, c)
 {
-    if (seg = -1) MOV [seg], DS
-    if (d <! s)
+    i = 0;
+    while (i <! s.[STRINGLEN] /! 2)
     {
-        return memcpy(d, s, n, seg);
+        c = s.[STRINGPTR]{i};
+        s.[STRINGPTR]{i} = s.[STRINGPTR]{s.[STRINGLEN] - 1 - i};
+        s.[STRINGPTR]{s.[STRINGLEN] - 1 - i} = c;
+        i += 1;
+    }
+    return s;
+}
+
+function format(fn, fmt)
+(s{STRING}, i, start, v, c)
+{
+    i = 0;
+    start = 0;
+    v = 2;
+
+    while (i <! fmt.[STRINGLEN])
+    {
+        c = fmt.[STRINGPTR]{i};
+        if (c == '%')
+        {
+            s.[STRINGPTR] = fmt.[STRINGPTR] + start;
+            s.[STRINGLEN] = i - start;
+            fn(s);
+
+            i += 1;
+            c = fmt.[STRINGPTR]{i};
+            if (c == 's') fn(vararg(v));
+            else if (c == 'x') format_hex(fn, s, vararg(v));
+            else if (c == 'd') format_dec(fn, s, vararg(v));
+            else if (c == 'u') format_udec(fn, s, vararg(v));
+            else if (c == 'c') format_char(fn, s, vararg(v));
+
+            start = i + 1;
+            v += 1;
+        }
+        i += 1;
+    }
+
+    s.[STRINGPTR] = fmt.[STRINGPTR] + start;
+    s.[STRINGLEN] = i - start;
+    fn(s);
+}
+
+function format_hex(fn, s, n)
+(buf{8}, i, c)
+{
+    s.[STRINGPTR] = buf;
+    fn(int2str(s, n, 16, FALSE));
+}
+
+function format_dec(fn, s, n)
+(buf{11}, i)
+{
+    s.[STRINGPTR] = buf;
+    fn(int2str(s, n, 10, TRUE));
+}
+
+function format_udec(fn, s, n)
+(buf{10}, i)
+{
+    s.[STRINGPTR] = buf;
+    fn(int2str(s, n, 10, FALSE));
+}
+
+function format_char(fn, s, c)
+{
+    s.[STRINGPTR] = &c;
+    s.[STRINGLEN] = 1;
+    fn(s);
+}
+
+function int2str(s, n, radix, signed)
+(p, i, neg)
+{
+    s.[STRINGLEN] = 0;
+    p = s.[STRINGPTR];
+    if (signed and n <$ 0)
+    {
+        n = -n;
+        neg = TRUE;
     }
     else
     {
-        MOV ES, [seg]
-        MOV CX, [n]
-        MOV SI, [s]
-        MOV DI, [d]
-        ADD SI, [n]
-        ADD DI, [n]
-        DEC SI
-        DEC DI
-        STD
-        XOR AX, AX
-        REPZ MOVSB
-        MOV AX, DS
-        MOV ES, AX
+        neg = FALSE;
     }
+
+    while (n or s.[STRINGLEN] == 0)
+    {
+        i = n %! radix;
+        n /!= radix;
+        if (i <! 10) p{s.[STRINGLEN]} = i + '0';
+        else p{s.[STRINGLEN]} = i + 'A' - 10;
+        s.[STRINGLEN] += 1;
+    }
+
+    if (neg)
+    {
+        p{s.[STRINGLEN]} = '-';
+        s.[STRINGLEN] += 1;
+    }
+
+    return reverse(s);
 }
 
-function strcmp(x, y)
+function str2int(s, base, len)
+(i, p, n)
 {
-    if (*x != *y) return 0;
-    return memcmp(x[STRINGPTR], y[STRINGPTR], *x);
-}
-
-function memcmp(x, y, n)
-{
-    MOV CX, [n]
-    MOV SI, [x]
-    MOV DI, [y]
-    CLD
-    REPZ CMPSB
-    JZ .e
-    return 0;
-.e: return 1;
-}
-
-function memset(d, c, n, seg)
-{
-    if (seg = -1) MOV [seg], DS
-    MOV ES, [seg]
-    MOV DI, [d]
-    MOV AL, [c]
-    MOV CX, [n]
-    CLD
-    XOR BX, BX
-    REPZ STOSB
-}
-
-function stricmp(x, y)
-(i, l)
-{
-    if (*x != *y) return 0;
-    return memicmp(x[STRINGPTR], y[STRINGPTR], *x);
-}
-
-function memicmp(x, y, n)
-(i, l)
-{
-    l = n;
-    if (l != n) return 0;
+    p = s.[STRINGPTR];
     i = 0;
-    while (i <! l)
-    {
-        if (upper(x{i}) != upper(y{i})) return 0;
-        i = i + 1;
-    }
-    return 1;
-}
 
-function atoi(s, end)
-(n, c)
-{
-    *end = 0;
+    if (p{0} == '0')
+    {
+        if (upper(p{1}) == 'X') base = 16;
+        else if (upper(p{1}) == 'B') base = 2;
+        else i -= 1;
+        i += 2;
+    }
+
     n = 0;
-    c = s[STRINGPTR]{*end};
-    while (*end <! s[STRINGLEN])
+    while (i <! s.[STRINGLEN] and (base == 16 ? ishex(p{i}) : isnum(p{i})))
     {
-        n = n << 4;
-        if (isnum(c)) n = n + c - '0';
-        else if (ishex(c)) n = n + 10 + upper(c) - 'A';
-        else JMP .e
-        *end = *end + 1;
-        c = s[STRINGPTR]{*end};
+        n *!= base;
+        n += p{i} >! '9' ? upper(p{i}) - 'A' + 10 : p{i} - '0';
+        i += 1;
     }
-    *end = *end - 1;
+
+    if (len) *len = i;
     return n;
-.e:
-    return n >> 4;
 }
 
-function rand(seed)
-{
-    *seed = *seed *! 75 + 74;
-    return *seed;
-}
+vararg:
+    MOV EAX, [ESP + 4]
+    MOV EAX, [EBP + EAX * 4 + 8]
+    RET
 
-function time(hi)
+function qsort(p, n, size, cmp, tmp)
+(pi, x, h, i)
 {
-    MOV AH, 0
-    INT 0x1A
-    MOV BX, [hi]
-    CMP WORD [BX], 0
-    JZ .e
-    MOV [BX], CX
-.e: MOV AX, DX
-}
-
-function sleep(ticks)
-(fromLo, fromHi, toLo, toHi)
-{
-    fromLo = time(&fromHi);
-    toLo = fromLo;
-    toHi = fromHi;
-    MOV AX, [ticks]
-    ADD [toLo], AX
-    ADC WORD [toHi], 0
-    while (fromLo <! toLo and fromHi <=! toHi)
+    if (n >! 1)
     {
-        HLT
-        fromLo = time(&fromHi);
+        i = p;
+        x = h = p + (n - 1) *! size;
+        memcpy(&tmp{size}, p, size);
+        while (i <! x)
+        {
+            while (cmp(i, &tmp{size}) <=$ 0 and i <! h) i += size;
+            while (cmp(x, &tmp{size}) >=$ 1 and x >! p) x -= size;
+            if (i <! x)
+            {
+                memcpy(tmp, i, size);
+                memcpy(i, x, size);
+                memcpy(x, tmp, size);
+            }
+        }
+        memcpy(tmp, p, size);
+        memcpy(p, x, size);
+        memcpy(x, tmp, size);
+
+        i = (x - p) /! size;
+        qsort(p, i, size, cmp, tmp);
+        qsort(x + size, n - i - 1, size, cmp, tmp);
     }
 }
+
+function sortbcmp(x, y) return x{0} - y{0};
+function sortwcmp(x, y) return x<0> - y<0>;
+function sortdwcmp(x, y) return x[0] - y[0];

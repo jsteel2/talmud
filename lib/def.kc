@@ -1,0 +1,4 @@
+const TRUE = 1;
+const FALSE = 0;
+const NULL = 0;
+struct STRING = [STRINGLEN], [STRINGPTR];
