@@ -18,7 +18,7 @@ function eve(compiler)
 {
     set_resolution(1024, 768);
     screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
-    focused_window = task.[TASK_WINDOW] = new_window();
+    create_window();
 
     print("
 i i i i i i i      mmmmmmm   mm   m      m    m m    m mmmm  
@@ -97,7 +97,7 @@ function input(vec)
 .l:
         if (task.[TASK_WINDOW].[WINDOW_KEY_EVENTS + VEC_LEN] == 0)
         {
-            HLT # wait();
+            wait();
         }
         else
         {

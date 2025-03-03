@@ -1,9 +1,11 @@
-struct WINDOW = VEC{WINDOW_KEY_EVENTS};
+struct WINDOW = VEC{WINDOW_KEY_EVENTS}, [WINDOW_TASK];
 
-function new_window()
+function create_window()
 (w)
 {
     w = malloc(WINDOW);
     vec_init(&w{WINDOW_KEY_EVENTS}, 32, 1);
+    w.[WINDOW_TASK] = task;
+    focused_window = task.[TASK_WINDOW] = w;
     return w;
 }

@@ -1,12 +1,8 @@
 const TASK_STACK_SIZE = 64 *! 1024;
 struct TASK = [TASK_NEXT], [TASK_PREV], [TASK_WAIT], [TASK_EAX], [TASK_ECX], [TASK_EDX], [TASK_EBX], [TASK_EDI], [TASK_ESI], [TASK_EBP], [TASK_ESP], [TASK_EIP], [TASK_WINDOW], FILE{TASK_CWD}, COMPILER{TASK_COMPILER}, TASK_STACK_SIZE{TASK_STACK};
 
-function switch_task(t)
+function switch_task2(t)
 {
-    MOV EAX, [task]
-    MOV [EAX + TASK_ESP], ESP
-    MOV [EAX + TASK_EBP], EBP
-    MOV DWORD [EAX + TASK_EIP], .ret
     MOV EAX, [t]
     MOV [task], EAX
     MOV ECX, [EAX + TASK_ECX]
@@ -19,12 +15,28 @@ function switch_task(t)
     PUSH DWORD [EAX + TASK_EIP]
     MOV EAX, [EAX + TASK_EAX]
     RET
+}
+
+function switch_task(t)
+{
+    MOV EAX, [task]
+    MOV [EAX + TASK_ESP], ESP
+    MOV [EAX + TASK_EBP], EBP
+    MOV DWORD [EAX + TASK_EIP], .ret
+    switch_task2(t);
 .ret:
 }
 
 function next_task()
+(f, c)
 {
-    switch_task(task.[TASK_NEXT]);
+    f = c = task.[TASK_NEXT];
+    while (c.[TASK_WAIT])
+    {
+        c = c.[TASK_NEXT];
+        if (c == f) HLT
+    }
+    switch_task(c);
 }
 
 function wait()
@@ -67,6 +79,7 @@ function kill(t)
 function exit()
 (t)
 {
-    t = t.[TASK_PREV];
+    t = task.[TASK_PREV];
     kill(task);
+    switch_task2(t);
 }

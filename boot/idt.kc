@@ -94,6 +94,8 @@ keyboard_handler:
     MOV EBX, [focused_window]
     TEST EBX, EBX
     JZ .e
+    MOV ECX, [EBX + WINDOW_TASK]
+    MOV DWORD [ECX + TASK_WAIT], FALSE
     PUSH EAX
     ADD EBX, WINDOW_KEY_EVENTS
     PUSH EBX
