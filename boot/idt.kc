@@ -91,6 +91,15 @@ keyboard_handler:
     MOV FS, AX
     MOV GS, AX
     IN AL, 0x60
+    MOV EBX, [focused_window]
+    TEST EBX, EBX
+    JZ .e
+    PUSH EAX
+    ADD EBX, WINDOW_KEY_EVENTS
+    PUSH EBX
+    CALL vec_push1
+    ADD ESP, 8
+.e:
     MOV AL, 0x20
     OUT 0x20, AL
     POP ESI

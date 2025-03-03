@@ -11,6 +11,7 @@ const HEAP_START = ADAM + TASK;
 
 global first_free;
 global task;
+global focused_window;
 
 IN AL, 0x92
 OR AL, 2
@@ -79,6 +80,7 @@ function eden()
     if (!compiler_const_set(compiler, "lba_write", lba_write)) JMP .hlt
     if (!compiler_global_set(compiler, "first_free", &first_free)) JMP .hlt
     if (!compiler_global_set(compiler, "task", &task)) JMP .hlt
+    if (!compiler_global_set(compiler, "focused_window", &focused_window)) JMP .hlt
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)
@@ -255,3 +257,4 @@ include "boot/idt.kc"
 include "boot/v86.kc"
 include "boot/pic.kc"
 include "adam/task.kc"
+include "adam/window.kc"

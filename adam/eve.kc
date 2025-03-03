@@ -1,8 +1,24 @@
+include "lib/def.kc"
+include "lib/util.kc"
+include "lib/fs.kc"
+include "lib/malloc.kc"
+include "lib/map.kc"
+include "lib/vec.kc"
+include "compiler/compiler.kc"
+include "adam/task.kc"
+include "adam/vbe.kc"
+include "adam/font.kc"
+include "adam/window.kc"
+include "adam/keyboard.kc"
+
+global ans;
+
 function eve(compiler)
-(f{FILE}, x, s{STRING}, i)
+(v{VEC}, x)
 {
     set_resolution(1024, 768);
     screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
+    focused_window = task.[TASK_WINDOW] = new_window();
 
     print("
 i i i i i i i      mmmmmmm   mm   m      m    m m    m mmmm  
@@ -16,44 +32,23 @@ I  \\ `+' /  I         #     #  #  #      # ## # #    # #    #
 Welcome to TalmudOS (Formerly ChucksOS)
 ");
 
-    new_task(seth, "Task1");
-    new_task(seth, "Task2");
-    new_task(seth, "Task3");
-
-    i = 0;
+    vec_init(v, 128, 1);
     while (TRUE)
     {
-        open("/compiler/compiler.kc", f, FALSE);
-        x = malloc(f.[FILE_SIZE]);
-        s.[STRINGLEN] = f.[FILE_SIZE];
-        s.[STRINGPTR] = x;
-        read(f, s.[STRINGLEN], x);
-        format(print, "Eve %u\n", i);
-        free(x);
-        i += 1;
-        next_task();
+        print("> ");
+        x = compile(&task{TASK_COMPILER}, "stdin", input(v));
+        if (x)
+        {
+            v.[VEC_LEN] = 0;
+            ans = x();
+            format(print, "ans=%d (%x)\n", ans, ans);
+        }
+        else
+        {
+            if (task.[TASK_COMPILER + CCUR + TOKEN_TYPE] != TEND) v.[VEC_LEN] = 0;
+        }
     }
 }
-
-function seth(s)
-{
-    while (TRUE)
-    {
-        format(print, "Hello from Seth %s\n", s);
-        next_task();
-    }
-}
-
-include "lib/def.kc"
-include "lib/util.kc"
-include "lib/fs.kc"
-include "lib/malloc.kc"
-include "lib/map.kc"
-include "lib/vec.kc"
-include "compiler/compiler.kc"
-include "adam/task.kc"
-include "adam/vbe.kc"
-include "adam/font.kc"
 
 global print_x, print_y;
 function print(s)
@@ -85,4 +80,31 @@ function print(s)
         }
         i += 1;
     }
+}
+
+global shift_pressed;
+function input(vec)
+(c)
+{
+    c = 0;
+    while (TRUE)
+    {
+.l:
+        if (task.[TASK_WINDOW].[WINDOW_KEY_EVENTS + VEC_LEN] == 0)
+        {
+            HLT # wait();
+        }
+        else
+        {
+            if (!vec_shift(&task.[TASK_WINDOW]{WINDOW_KEY_EVENTS}, &c)) break;
+            if (c == 0x2A or c == 0x36) { shift_pressed = TRUE; JMP .l }
+            else if (c == 0xAA or c == 0xB6) shift_pressed = FALSE;
+            if (c & 0x80) JMP .l
+            c = shift_pressed ? qwerty_upper{c} : qwerty{c};
+            format(print, "%c", c);
+            if (c == '\n') break;
+            vec_push1(vec, c);
+        }
+    }
+    return vec;
 }

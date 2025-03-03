@@ -58,3 +58,12 @@ function vec_push1(v, x)
     v.[VEC_LEN] += 1;
     return TRUE;
 }
+
+function vec_shift(v, p)
+{
+    if (v.[VEC_LEN] == 0) return FALSE;
+    memcpy(p, v.[VEC_PTR], v.[VEC_ENTRY_SIZE]);
+    v.[VEC_LEN] -= 1;
+    memcpy(v.[VEC_PTR], v.[VEC_PTR] + v.[VEC_ENTRY_SIZE], v.[VEC_LEN] *! v.[VEC_ENTRY_SIZE]);
+    return TRUE;
+}

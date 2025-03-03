@@ -608,9 +608,11 @@ function compiler_include(c)
 }
 
 function compiler_while(c)
-(loop, loopend, r, econst)
+(loop, loopend, r, econst, ob)
 {
     loop = c.[CIP];
+    ob = c.[CBREAK];
+    c.[CBREAK] = compiler_getlater(c);
 
     compiler_consume(c, TWHILE);
     compiler_consume(c, TLEFTPAREN);
@@ -646,6 +648,8 @@ function compiler_while(c)
     compiler_emit32(c, compiler_relative(c, loop, 4));
 
     compiler_setlater(c, loopend, c.[CIP]);
+    compiler_setlater(c, c.[CBREAK], c.[CIP]);
+    c.[CBREAK] = ob;
 }
 
 function compiler_do(c)

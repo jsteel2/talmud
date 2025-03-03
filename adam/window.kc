@@ -1,0 +1,9 @@
+struct WINDOW = VEC{WINDOW_KEY_EVENTS};
+
+function new_window()
+(w)
+{
+    w = malloc(WINDOW);
+    vec_init(&w{WINDOW_KEY_EVENTS}, 32, 1);
+    return w;
+}
