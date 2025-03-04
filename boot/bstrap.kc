@@ -8,6 +8,8 @@ const HEAP_START = STACK;
 
 global first_free;
 global task;
+global ADAM;
+const TASK_COMPILER = 0;
 const TASK_CWD = 0;
 
 IN AL, 0x92
@@ -30,6 +32,7 @@ function bstrap()
     cwd{FILE_DRIVE} = r;
     cwd{FILE_PARTITION} = r >> 8;
     task = cwd;
+    ADAM = compiler;
 
     print("Hello, World!\n");
 

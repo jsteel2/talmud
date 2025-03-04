@@ -11,7 +11,8 @@ const HEAP_START = ADAM + TASK;
 
 global first_free;
 global task;
-global focused_window;
+global adam_key_events;
+global adam_mouse_events;
 
 IN AL, 0x92
 OR AL, 2
@@ -78,9 +79,11 @@ function eden()
     if (!compiler_const_set(compiler, "DISK_BUF", DISK_BUF)) JMP .hlt
     if (!compiler_const_set(compiler, "lba_read", lba_read)) JMP .hlt
     if (!compiler_const_set(compiler, "lba_write", lba_write)) JMP .hlt
+    if (!compiler_const_set(compiler, "ADAM", ADAM)) JMP .hlt
     if (!compiler_global_set(compiler, "first_free", &first_free)) JMP .hlt
     if (!compiler_global_set(compiler, "task", &task)) JMP .hlt
-    if (!compiler_global_set(compiler, "focused_window", &focused_window)) JMP .hlt
+    if (!compiler_global_set(compiler, "adam_key_events", &adam_key_events)) JMP .hlt
+    if (!compiler_global_set(compiler, "adam_mouse_events", &adam_mouse_events)) JMP .hlt
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)
@@ -257,4 +260,3 @@ include "boot/idt.kc"
 include "boot/v86.kc"
 include "boot/pic.kc"
 include "adam/task.kc"
-include "adam/window.kc"

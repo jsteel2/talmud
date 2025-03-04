@@ -91,6 +91,7 @@ function tokenizer_ident_token(t, out)
             else if (strcmp(s, "CALL")) out.[TOKEN_TYPE] = TCALL;
             else if (strcmp(s, "CLD")) out.[TOKEN_TYPE] = TCLD;
             else if (strcmp(s, "CLI")) out.[TOKEN_TYPE] = TCLI;
+            else if (strcmp(s, "CMP")) out.[TOKEN_TYPE] = TCMP;
             else if (strcmp(s, "CR0")) out.[TOKEN_TYPE] = TCR0;
             else if (strcmp(s, "CR1")) out.[TOKEN_TYPE] = TCR1;
             else if (strcmp(s, "CR2")) out.[TOKEN_TYPE] = TCR2;
@@ -138,6 +139,7 @@ function tokenizer_ident_token(t, out)
             return TRUE;
         case 'I':
             if (strcmp(s, "IRET")) out.[TOKEN_TYPE] = TIRET;
+            else if (strcmp(s, "INC")) out.[TOKEN_TYPE] = TINC;
             else if (strcmp(s, "INT")) out.[TOKEN_TYPE] = TINT;
             else if (strcmp(s, "IN")) out.[TOKEN_TYPE] = TIN;
             else break;

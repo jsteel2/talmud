@@ -99,3 +99,37 @@ function screen_draw_char(c, x, y, color)
     backbuffer_draw_char(c, x, y, color);
     framebuffer_refresh(x, y, 8, 8);
 }
+
+function backbuffer_write_rect(x, y, w, h, b)
+(pb, i)
+{
+    pb = backbuffer + y *! fb_width *! 4 + x *! 4;
+    i = 0;
+    while (i <! h)
+    {
+        memcpyd(pb, b, w);
+        i += 1;
+        pb += fb_width *! 4;
+        b += fb_width *! 4;
+    }
+}
+
+function backbuffer_read_rect(x, y, w, h, b)
+(pb, i)
+{
+    pb = backbuffer + y *! fb_width *! 4 + x *! 4;
+    i = 0;
+    while (i <! h)
+    {
+        memcpyd(b, pb, w);
+        i += 1;
+        pb += fb_width *! 4;
+        b += fb_width *! 4;
+    }
+}
+
+function screen_write_rect(x, y, w, h, b)
+{
+    backbuffer_write_rect(x, y, w, h, b);
+    framebuffer_refresh(x, y, w, h);
+}

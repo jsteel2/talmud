@@ -298,6 +298,8 @@ function compiler_statement(c)
         case TOR: return compiler_asm_grp1(c, OORMRB, OGRP1OR);
         case TXOR: return compiler_asm_grp1(c, OXORMRB, OGRP1XOR);
         case TAND: return compiler_asm_grp1(c, OANDMRB, OGRP1AND);
+        case TCMP: return compiler_asm_grp1(c, OCMPMRB, OGRP1CMP);
+        case TINC: return compiler_asm_incdec(c, OINCR);
         case TDEC: return compiler_asm_incdec(c, ODECR);
         case TPUSH: return compiler_asm_pushpop(c, TRUE);
         case TPOP: return compiler_asm_pushpop(c, FALSE);
@@ -1698,7 +1700,7 @@ function compiler_ident_get(c, name, out)
         return ident{COMPILER_IDENT_FLAGS};
     }
 
-    if (map_get(&c{CIDENTS}, name, ident))
+    if (map_get(&c{CIDENTS}, name, ident) or map_get(&ADAM{TASK_COMPILER + CIDENTS}, name, ident))
     {
         *out = ident.[COMPILER_IDENT_ADDR] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_RELOCATE ? c.[CORG] + (ident{COMPILER_IDENT_FLAGS} & IDENT_FLAG_GLOBAL ? c.[CPROG_END] - c.[CGLOBAL_OFFSET] : 0) : 0);
         return ident{COMPILER_IDENT_FLAGS};

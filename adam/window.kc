@@ -1,5 +1,7 @@
 struct WINDOW = VEC{WINDOW_KEY_EVENTS}, [WINDOW_TASK];
 
+global focused_window;
+
 function create_window()
 (w)
 {

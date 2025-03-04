@@ -1,5 +1,5 @@
 struct IDT_ENTRY = <IDT_ENTRY_ISR_LOW>, <IDT_ENTRY_CS>, {IDT_ENTRY_RESERVED}, {IDT_ENTRY_ATTRIBUTES}, <IDT_ENTRY_ISR_HIGH>;
-const IDT_ENTRIES = 34;
+const IDT_ENTRIES = 45;
 global idt{IDT_ENTRY *! IDT_ENTRIES};
 
 struct IDTR = <IDTR_LIMIT>, [IDTR_BASE];
@@ -9,7 +9,7 @@ function idt_init()
 (v)
 {
     v = 0;
-    while (v <! 32)
+    while (v <! IDT_ENTRIES)
     {
         idt_set_entry(v, exception_handler, 0x8E);
         v += 1;
@@ -17,6 +17,7 @@ function idt_init()
 
     idt_set_entry(0x20, timer_handler, 0x8E);
     idt_set_entry(0x21, keyboard_handler, 0x8E);
+    idt_set_entry(0x2C, mouse_handler, 0x8E);
 
     idt_set_entry(0xD, gpf_handler, 0x8E);
 
@@ -91,19 +92,17 @@ keyboard_handler:
     MOV FS, AX
     MOV GS, AX
     IN AL, 0x60
-    MOV EBX, [focused_window]
+    MOV EBX, [adam_key_events]
     TEST EBX, EBX
     JZ .e
-    MOV ECX, [EBX + WINDOW_TASK]
-    MOV DWORD [ECX + TASK_WAIT], FALSE
+    MOV DWORD [ADAM + TASK_WAIT], FALSE
     PUSH EAX
-    ADD EBX, WINDOW_KEY_EVENTS
     PUSH EBX
     CALL vec_push1
     ADD ESP, 8
 .e:
-    MOV AL, 0x20
-    OUT 0x20, AL
+    MOV AL, PIC_EOI
+    OUT PIC1, AL
     POP ESI
     POP EDI
     POP EBX
@@ -124,8 +123,55 @@ timer_handler:
     MOV ES, AX
     MOV FS, AX
     MOV GS, AX
-    MOV AL, 0x20
-    OUT 0x20, AL
+    MOV AL, PIC_EOI
+    OUT PIC1, AL
+    POP ESI
+    POP EDI
+    POP EBX
+    POP EDX
+    POP ECX
+    POP EAX
+    IRET
+
+global mouse_state;
+global mouse_packet;
+
+mouse_handler:
+    PUSH EAX
+    PUSH ECX
+    PUSH EDX
+    PUSH EBX
+    PUSH EDI
+    PUSH ESI
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
+    IN AL, 0x60
+    MOV EBX, [mouse_state]
+    CMP AL, 0xFA
+    JNZ .na
+    CMP EBX, 0
+    JZ .e
+.na:
+    INC BYTE [mouse_state]
+    MOV [EBX + mouse_packet], AL
+    CMP EBX, 2
+    JNZ .e
+    MOV BYTE [mouse_state], 0
+    MOV EBX, [adam_mouse_events]
+    TEST EBX, EBX
+    JZ .e
+    MOV DWORD [ADAM + TASK_WAIT], FALSE
+    PUSH DWORD mouse_packet
+    PUSH EBX
+    CALL vec_push
+    ADD ESP, 8
+.e:
+    MOV AL, PIC_EOI
+    OUT PIC2, AL
+    OUT PIC1, AL
     POP ESI
     POP EDI
     POP EBX

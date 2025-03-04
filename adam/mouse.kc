@@ -1,0 +1,51 @@
+init_mouse:
+    CLI
+    mouse_waits();
+    MOV AL, 0xA8
+    OUT 0x64, AL
+    mouse_waits();
+    MOV AL, 0x20
+    OUT 0x64, AL
+    mouse_waitd();
+    IN AL, 0x60
+    OR AL, 2
+    PUSH EAX
+    mouse_waits();
+    MOV AL, 0x60
+    OUT 0x64, AL
+    mouse_waits();
+    POP EAX
+    OUT 0x60, AL
+    mouse_write(0xF6);
+    mouse_read();
+    mouse_write(0xF4);
+    mouse_read();
+    STI
+    RET
+
+mouse_waits:
+    IN AL, 0x64
+    TEST AL, 2
+    JNZ mouse_waits
+    RET
+
+mouse_waitd:
+    IN AL, 0x64
+    TEST AL, 1
+    JZ mouse_waitd
+    RET
+
+function mouse_write(b)
+{
+    mouse_waits();
+    MOV AL, 0xD4
+    OUT 0x64, AL
+    mouse_waits();
+    MOV AL, [b]
+    OUT 0x60, AL
+}
+
+mouse_read:
+    mouse_waitd();
+    IN AL, 0x60
+    RET

@@ -10,14 +10,20 @@ include "adam/vbe.kc"
 include "adam/font.kc"
 include "adam/window.kc"
 include "adam/keyboard.kc"
+include "adam/mouse.kc"
 
 global ans;
 
 function eve(compiler)
-(v{VEC}, x)
+(c{3}, mx, my, cb{8 *! 8 *! 4})
 {
+    adam_key_events = malloc(VEC);
+    adam_mouse_events = malloc(VEC);
+    vec_init(adam_key_events, 64, 1);
+    vec_init(adam_mouse_events, 64, 3);
     set_resolution(1024, 768);
     screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
+    init_mouse();
     create_window();
 
     print("
@@ -32,6 +38,48 @@ I  \\ `+' /  I         #     #  #  #      # ## # #    # #    #
 Welcome to TalmudOS (Formerly ChucksOS)
 ");
 
+    new_task(seth, 0);
+
+    mx = 0;
+    my = 0;
+    backbuffer_read_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), cb);
+    screen_fill_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), 0xFF0000);
+    while (TRUE)
+    {
+        if (adam_key_events.[VEC_LEN] == 0 and adam_mouse_events.[VEC_LEN] == 0)
+        {
+            wait();
+        }
+        else if (adam_key_events.[VEC_LEN])
+        {
+            CLI
+            vec_shift(adam_key_events, c);
+            STI
+            vec_push1(&focused_window{WINDOW_KEY_EVENTS}, c{0});
+            focused_window.[WINDOW_TASK].[TASK_WAIT] = FALSE;
+        }
+        else
+        {
+            CLI
+            vec_shift(adam_mouse_events, c);
+            STI
+            screen_write_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), cb);
+            mx += (c{0} & 16) ? -0x100 + c{1} : c{1};
+            if (mx <$ 0) mx = 0;
+            if (mx >=$ fb_width) mx = fb_width - 1;
+            my -= (c{0} & 32) ? -0x100 + c{2} : c{2};
+            if (my <$ 0) my = 0;
+            if (my >=$ fb_height) my = fb_height - 1;
+            backbuffer_read_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), cb);
+            screen_fill_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), 0xFF0000);
+        }
+    }
+}
+
+function seth(u)
+(v{VEC}, x)
+{
+    create_window();
     vec_init(v, 128, 1);
     while (TRUE)
     {
