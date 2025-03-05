@@ -1,30 +1,23 @@
 const TASK_STACK_SIZE = 64 *! 1024;
-struct TASK = [TASK_NEXT], [TASK_PREV], [TASK_WAIT], [TASK_EAX], [TASK_ECX], [TASK_EDX], [TASK_EBX], [TASK_EDI], [TASK_ESI], [TASK_EBP], [TASK_ESP], [TASK_EIP], [TASK_WINDOW], FILE{TASK_CWD}, COMPILER{TASK_COMPILER}, TASK_STACK_SIZE{TASK_STACK};
+struct TASK = [TASK_NEXT], [TASK_PREV], [TASK_WAIT], [TASK_ESP], [TASK_EIP], [TASK_WINDOW], FILE{TASK_CWD}, COMPILER{TASK_COMPILER}, TASK_STACK_SIZE{TASK_STACK};
 
 function switch_task2(t)
 {
     MOV EAX, [t]
     MOV [task], EAX
-    MOV ECX, [EAX + TASK_ECX]
-    MOV EDX, [EAX + TASK_EDX]
-    MOV EBX, [EAX + TASK_EBX]
-    MOV EDI, [EAX + TASK_EDI]
-    MOV ESI, [EAX + TASK_ESI]
-    MOV EBP, [EAX + TASK_EBP]
     MOV ESP, [EAX + TASK_ESP]
-    PUSH DWORD [EAX + TASK_EIP]
-    MOV EAX, [EAX + TASK_EAX]
-    RET
+    JMP [EAX + TASK_EIP]
 }
 
 function switch_task(t)
 {
     MOV EAX, [task]
     MOV [EAX + TASK_ESP], ESP
-    MOV [EAX + TASK_EBP], EBP
     MOV DWORD [EAX + TASK_EIP], .ret
+    PUSH EBP
     switch_task2(t);
 .ret:
+    POP EBP
 }
 
 function next_task()
