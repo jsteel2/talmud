@@ -42,7 +42,7 @@ function new_task(entry, arg)
 (t)
 {
     t = malloc(TASK);
-    t.[TASK_WINDOW] = NULL;
+    t.[TASK_WINDOW] = task.[TASK_WINDOW];
     t.[TASK_NEXT] = task.[TASK_NEXT];
     t.[TASK_PREV] = task;
     compiler_init(&t{TASK_COMPILER});

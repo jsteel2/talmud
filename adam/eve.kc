@@ -8,8 +8,8 @@ include "compiler/compiler.kc"
 include "adam/task.kc"
 include "adam/vbe.kc"
 include "adam/font.kc"
-include "adam/window.kc"
 include "adam/keyboard.kc"
+include "adam/window.kc"
 include "adam/mouse.kc"
 
 global ans;
@@ -24,7 +24,7 @@ function eve(compiler)
     set_resolution(1024, 768);
     screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
     init_mouse();
-    create_window();
+    create_window(8, 8, 512, 128);
 
     print("
 i i i i i i i      mmmmmmm   mm   m      m    m m    m mmmm  
@@ -52,6 +52,8 @@ Welcome to TalmudOS (Formerly ChucksOS)
             CLI
             vec_shift(adam_key_events, c);
             STI
+            if (c{0} == 0x2A or c{0} == 0x36) shift_pressed = TRUE;
+            else if (c{0} == 0xAA or c{0} == 0xB6) shift_pressed = FALSE;
             vec_push1(&focused_window{WINDOW_KEY_EVENTS}, c{0});
             focused_window.[WINDOW_TASK].[TASK_WAIT] = FALSE;
         }
@@ -67,6 +69,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
             if (cursor_y <$ 0) cursor_y = 0;
             if (cursor_y >=$ fb_height) cursor_y = fb_height - 1;
             draw_cursor();
+            format(print, "mouse: %dx%dy               \r", cursor_x, cursor_y);
         }
     }
 }
@@ -74,7 +77,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
 function seth(u)
 (v{VEC}, x)
 {
-    create_window();
+    create_window(200, 200, 640, 480);
     vec_init(v, 128, 1);
     while (TRUE)
     {
@@ -91,73 +94,4 @@ function seth(u)
             if (task.[TASK_COMPILER + CCUR + TOKEN_TYPE] != TEND) v.[VEC_LEN] = 0;
         }
     }
-}
-
-global print_x, print_y;
-function print(s)
-(i)
-{
-    i = 0;
-    while (i <! s.[STRINGLEN])
-    {
-        if (s.[STRINGPTR]{i} == '\n')
-        {
-            print_x = 0;
-            print_y += 8;
-        }
-        else if (s.[STRINGPTR]{i} == '\b')
-        {
-            print_x -= 8;
-            screen_fill_rect(print_x, print_y, 8, 8, 0xFFFFFF);
-        }
-        else
-        {
-            screen_draw_char(s.[STRINGPTR]{i}, print_x, print_y, 0x000000);
-            print_x += 8;
-            if (print_x + 8 >! fb_width)
-            {
-                print_x = 0;
-                print_y += 8;
-            }
-        }
-        if (print_y + 8 >! fb_height)
-        {
-            screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
-            print_x = 0;
-            print_y = 0;
-        }
-        i += 1;
-    }
-}
-
-global shift_pressed;
-function input(vec)
-(c)
-{
-    c = 0;
-    while (TRUE)
-    {
-.l:
-        if (task.[TASK_WINDOW].[WINDOW_KEY_EVENTS + VEC_LEN] == 0)
-        {
-            wait();
-        }
-        else
-        {
-            if (!vec_shift(&task.[TASK_WINDOW]{WINDOW_KEY_EVENTS}, &c)) break;
-            if (c == 0x2A or c == 0x36) { shift_pressed = TRUE; JMP .l }
-            else if (c == 0xAA or c == 0xB6) shift_pressed = FALSE;
-            if (c & 0x80) JMP .l
-            c = shift_pressed ? qwerty_upper{c} : qwerty{c};
-            format(print, "%c", c);
-            if (c == '\n') break;
-            if (c == '\b')
-            {
-                if (vec.[VEC_LEN] != 0) vec.[VEC_LEN] -= 1;
-                JMP .l
-            }
-            vec_push1(vec, c);
-        }
-    }
-    return vec;
 }

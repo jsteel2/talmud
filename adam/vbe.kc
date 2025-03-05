@@ -84,7 +84,7 @@ function screen_fill_rect(x, y, w, h, color)
     framebuffer_refresh(x, y, w, h);
 }
 
-function backbuffer_draw_char(c, x, y, color)
+function backbuffer_draw_char(c, x, y, color, bg)
 (p, i, j)
 {
     p = backbuffer + y *! fb_width *! 4 + x *! 4;
@@ -94,7 +94,7 @@ function backbuffer_draw_char(c, x, y, color)
         j = 0;
         while (j <! 8)
         {
-            if (FONT{c *! 8 + i} & (1 << j)) p[7 - j] = color;
+            p[7 - j] = FONT{c *! 8 + i} & (1 << j) ? color : bg;
             j += 1;
         }
         i += 1;
@@ -102,9 +102,9 @@ function backbuffer_draw_char(c, x, y, color)
     }
 }
 
-function screen_draw_char(c, x, y, color)
+function screen_draw_char(c, x, y, color, bg)
 {
-    backbuffer_draw_char(c, x, y, color);
+    backbuffer_draw_char(c, x, y, color, bg);
     framebuffer_refresh(x, y, 8, 8);
 }
 
