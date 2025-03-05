@@ -42,6 +42,7 @@ function new_task(entry, arg)
 (t)
 {
     t = malloc(TASK);
+    memcpy(&t{TASK_CWD}, &task{TASK_CWD}, FILE);
     t.[TASK_WINDOW] = task.[TASK_WINDOW];
     t.[TASK_NEXT] = task.[TASK_NEXT];
     t.[TASK_PREV] = task;
