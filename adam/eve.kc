@@ -15,7 +15,7 @@ include "adam/mouse.kc"
 global ans;
 
 function eve(compiler)
-(c{3}, mx, my, cb{8 *! 8 *! 4})
+(c{3})
 {
     adam_key_events = malloc(VEC);
     adam_mouse_events = malloc(VEC);
@@ -40,10 +40,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
 
     new_task(seth, 0);
 
-    mx = 0;
-    my = 0;
-    backbuffer_read_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), cb);
-    screen_fill_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), 0xFF0000);
+    draw_cursor();
     while (TRUE)
     {
         if (adam_key_events.[VEC_LEN] == 0 and adam_mouse_events.[VEC_LEN] == 0)
@@ -63,15 +60,13 @@ Welcome to TalmudOS (Formerly ChucksOS)
             CLI
             vec_shift(adam_mouse_events, c);
             STI
-            screen_write_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), cb);
-            mx += (c{0} & 16) ? -0x100 + c{1} : c{1};
-            if (mx <$ 0) mx = 0;
-            if (mx >=$ fb_width) mx = fb_width - 1;
-            my -= (c{0} & 32) ? -0x100 + c{2} : c{2};
-            if (my <$ 0) my = 0;
-            if (my >=$ fb_height) my = fb_height - 1;
-            backbuffer_read_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), cb);
-            screen_fill_rect(mx, my, minu(8, fb_width - mx), minu(8, fb_height - my), 0xFF0000);
+            cursor_x += (c{0} & 16) ? -0x100 + c{1} : c{1};
+            if (cursor_x <$ 0) cursor_x = 0;
+            if (cursor_x >=$ fb_width) cursor_x = fb_width - 1;
+            cursor_y -= (c{0} & 32) ? -0x100 + c{2} : c{2};
+            if (cursor_y <$ 0) cursor_y = 0;
+            if (cursor_y >=$ fb_height) cursor_y = fb_height - 1;
+            draw_cursor();
         }
     }
 }

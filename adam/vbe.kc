@@ -1,6 +1,8 @@
 const VBE_MODE_PTR = 0xE, VBE_ATTRIBUTES = 0x0, VBE_PITCH = 0x10, VBE_WIDTH = 0x12, VBE_HEIGHT = 0x14, VBE_BPP = 0x19, VBE_MEMORY_MODEL = 0x1B, VBE_FRAMEBUFFER = 0x28;
 
 global framebuffer, backbuffer, fb_pitch, fb_width, fb_height;
+global cursor_x, cursor_y, ocursor_x, ocursor_y;
+const CURSOR_W = 4, CURSOR_H = 4;
 
 function set_resolution(x, y)
 (ctrl, inf, modes, i, eax, ecx, ebx, edi, unused)
@@ -42,7 +44,7 @@ function set_resolution(x, y)
     }
 }
 
-function framebuffer_refresh(x, y, w, h)
+function _framebuffer_refresh(x, y, w, h)
 (pf, pb, i)
 {
     pf = framebuffer + y *! fb_pitch + x *! 4;
@@ -55,6 +57,12 @@ function framebuffer_refresh(x, y, w, h)
         pf += fb_pitch;
         pb += fb_width *! 4;
     }
+}
+
+function framebuffer_refresh(x, y, w, h)
+{
+    _framebuffer_refresh(x, y, w, h);
+    if (x <! cursor_x + CURSOR_W and cursor_x <! x + w and y <! cursor_y + CURSOR_H and cursor_y <! y + h) draw_cursor();
 }
 
 function backbuffer_fill_rect(x, y, w, h, color)
@@ -100,36 +108,19 @@ function screen_draw_char(c, x, y, color)
     framebuffer_refresh(x, y, 8, 8);
 }
 
-function backbuffer_write_rect(x, y, w, h, b)
-(pb, i)
+function draw_cursor()
+(p)
 {
-    pb = backbuffer + y *! fb_width *! 4 + x *! 4;
-    i = 0;
-    while (i <! h)
-    {
-        memcpyd(pb, b, w);
-        i += 1;
-        pb += fb_width *! 4;
-        b += fb_width *! 4;
-    }
-}
-
-function backbuffer_read_rect(x, y, w, h, b)
-(pb, i)
-{
-    pb = backbuffer + y *! fb_width *! 4 + x *! 4;
-    i = 0;
-    while (i <! h)
-    {
-        memcpyd(b, pb, w);
-        i += 1;
-        pb += fb_width *! 4;
-        b += fb_width *! 4;
-    }
-}
-
-function screen_write_rect(x, y, w, h, b)
-{
-    backbuffer_write_rect(x, y, w, h, b);
-    framebuffer_refresh(x, y, w, h);
+    p = framebuffer + cursor_y *! fb_pitch;
+    _framebuffer_refresh(ocursor_x, ocursor_y, 4, 4);
+    p[cursor_x] = 0xFF0000;
+    if (cursor_x + 1 <! fb_width) p[cursor_x + 1] = 0xFF0000;
+    if (cursor_x + 2 <! fb_width) p[cursor_x + 2] = 0xFF0000;
+    if (cursor_y + 1 <! fb_height) (p + fb_pitch)[cursor_x] = 0xFF0000;
+    if (cursor_y + 2 <! fb_height) (p + fb_pitch *! 2)[cursor_x] = 0xFF0000;
+    if (cursor_y + 1 <! fb_height and cursor_x + 1 <! fb_width) (p + fb_pitch)[cursor_x + 1] = 0xFF0000;
+    if (cursor_y + 2 <! fb_height and cursor_x + 2 <! fb_width) (p + fb_pitch *! 2)[cursor_x + 2] = 0xFF0000;
+    if (cursor_y + 3 <! fb_height and cursor_x + 3 <! fb_width) (p + fb_pitch *! 3)[cursor_x + 3] = 0xFF0000;
+    ocursor_x = cursor_x;
+    ocursor_y = cursor_y;
 }

@@ -113,11 +113,6 @@ keyboard_handler:
 
 timer_handler:
     PUSH EAX
-    PUSH ECX
-    PUSH EDX
-    PUSH EBX
-    PUSH EDI
-    PUSH ESI
     MOV AX, 0x10
     MOV DS, AX
     MOV ES, AX
@@ -125,11 +120,6 @@ timer_handler:
     MOV GS, AX
     MOV AL, PIC_EOI
     OUT PIC1, AL
-    POP ESI
-    POP EDI
-    POP EBX
-    POP EDX
-    POP ECX
     POP EAX
     IRET
 

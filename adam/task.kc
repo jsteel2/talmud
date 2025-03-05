@@ -45,11 +45,6 @@ function wait()
     next_task();
 }
 
-function preempt(ctx)
-{
-
-}
-
 function new_task(entry, arg)
 (t)
 {
