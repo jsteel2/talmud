@@ -58,7 +58,7 @@ function draw_char(c, x, y, color, bg) window_draw_char(task.[TASK_WINDOW], c, x
 function print(s)
 (i, w)
 {
-    w = task.[TASK_WINDOW] or &ADAM{TASK_WINDOW};
+    w = task.[TASK_WINDOW] or ADAM.[TASK_WINDOW];
     i = 0;
     while (i <! s.[STRINGLEN])
     {
