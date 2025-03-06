@@ -3,7 +3,7 @@ struct FAT_BS = 3{BS_BOOTJMP}, 8{BS_OEM_NAME}, <BS_BYTES_PER_SECTOR>, {BS_SECTOR
 const PARTITION_TABLE = 0x1BE;
 struct PARTITION = {PARTITION_ATTRIBUTES}, 3{PARTITION_CHS}, {PARTITION_TYPE}, 3{PARTITION_CHS_END}, [PARTITION_LBA], [PARTITION_LBA_SECTORS];
 
-struct FILE = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_CLUSTER}, [FILE_DATA_SECTOR], [FILE_FAT_SECTOR], [FILE_CLUSTER_CUR], [FILE_SEEK], [FILE_SIZE];
+struct FILE = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_CLUSTER}, [FILE_DATA_SECTOR], [FILE_FAT_SECTOR], [FILE_CLUSTER_CUR], [FILE_CLUSTER], [FILE_SEEK], [FILE_SIZE];
 
 struct DIR_ENTRY = 11{DIR_ENTRY_83NAME}, {DIR_ENTRY_ATTR}, {DIR_ENTRY_RESERVED}, {DIR_ENTRY_CREATE_HUNDRETHS}, <DIR_ENTRY_CREATE_TIME>, <DIR_ENTRY_CREATE_DATE>, <DIR_ENTRY_ACCESSED_DATE>, <DIR_ENTRY_CLUSTER_HI>, <DIR_ENTRY_MODIFICATION_TIME>, <DIR_ENTRY_MODIFICATION_DATE>, <DIR_ENTRY_CLUSTER_LO>, [DIR_ENTRY_FILE_SIZE];
 
@@ -13,8 +13,11 @@ function open(path, file, create)
 }
 
 function cd(path)
+(f{FILE})
 {
-    return openat(NULL, path, &task{TASK_CWD}, FALSE);
+    if (open(path, f, FALSE)) memcpy(&task{TASK_CWD}, f, FILE);
+    else return FALSE;
+    return TRUE;
 }
 
 function openat(cwd, path, file, create)
@@ -43,13 +46,14 @@ function openat(cwd, path, file, create)
 
         if (!read and s.[STRINGLEN] == 0)
         {
+.r:
             if (!lba_read(file{FILE_DRIVE}, 1, 0, file)) return FALSE;
             if (!lba_read(file{FILE_DRIVE}, 1, file.[PARTITION_TABLE + file{FILE_PARTITION} *! 16 + PARTITION_LBA], file)) return FALSE;
 
             file{FILE_SECTORS_PER_CLUSTER} = file{BS_SECTORS_PER_CLUSTER};
             file.[FILE_FAT_SECTOR] = file.<BS_RESERVED_SECTOR_COUNT> + file.[BS_HIDDEN_SECTOR_COUNT];
             file.[FILE_DATA_SECTOR] = file.[FILE_FAT_SECTOR] + file{BS_TABLE_COUNT} *! file.[BS_TABLE_SIZE_32];
-            file.[FILE_CLUSTER_CUR] = file.[BS_ROOT_CLUSTER];
+            file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER] = file.[BS_ROOT_CLUSTER];
             file.[FILE_SEEK] = 0;
             read = TRUE;
         }
@@ -60,8 +64,9 @@ function openat(cwd, path, file, create)
                 if (fnamecmp(s, d))
                 {
                     file.[FILE_SIZE] = d.[DIR_ENTRY_FILE_SIZE];
-                    file.[FILE_CLUSTER_CUR] = d.<DIR_ENTRY_CLUSTER_HI> << 16 | d.<DIR_ENTRY_CLUSTER_LO>;
+                    file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER] = d.<DIR_ENTRY_CLUSTER_HI> << 16 | d.<DIR_ENTRY_CLUSTER_LO>;
                     file.[FILE_SEEK] = 0;
+                    if (file.[FILE_CLUSTER] == 0) JMP .r
                     JMP .e
                 }
             }
@@ -150,6 +155,13 @@ function read(file, n, buf)
     return TRUE;
 }
 
+# stub for dir2path, wont work for w > cluster size
+function seek(file, w)
+{
+    file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER];
+    file.[FILE_SEEK] = w;
+}
+
 # This is just a stub for the bootstrapping for now
 function write(file, n, buf)
 (sectors_read, x)
@@ -189,3 +201,57 @@ function write(file, n, buf)
 }
 
 function cluster2sector(file, cluster) return ((cluster - 2) *! file{FILE_SECTORS_PER_CLUSTER}) + file.[FILE_DATA_SECTOR];
+
+function dir2path(v, p)
+(s{STRING}, st{VEC}, f{FILE}, d{DIR_ENTRY}, c, l)
+{
+    if (!vec_resize(v, 19)) return FALSE;
+    v.[VEC_LEN] = 1;
+    v.[VEC_PTR]{0} = ':';
+    s.[STRINGPTR] = &v.[VEC_PTR]{1};
+    int2str(s, p{FILE_DRIVE}, 16, FALSE);
+    v.[VEC_LEN] += s.[STRINGLEN] + 1;
+    v.[VEC_PTR]{v.[VEC_LEN] - 1} = ';';
+    s.[STRINGPTR] = &v.[VEC_PTR]{v.[VEC_LEN]};
+    int2str(s, p{FILE_PARTITION}, 16, FALSE);
+    v.[VEC_LEN] += s.[STRINGLEN] + 1;
+    v.[VEC_PTR]{v.[VEC_LEN] - 1} = '/';
+
+    c = p.[FILE_CLUSTER];
+    memcpy(f, p, FILE);
+    if (!vec_init(st, 8, 4)) return FALSE;
+    while (openat(NULL, "..", f, FALSE))
+    {
+        while (dir_next(f, d))
+        {
+            if ((d.<DIR_ENTRY_CLUSTER_HI> << 16) | d.<DIR_ENTRY_CLUSTER_LO> == c)
+            {
+                c = malloc(11);
+                memcpy(c, &d{DIR_ENTRY_83NAME}, 11);
+                vec_push4(st, c);
+                break;
+            }
+        }
+        seek(f, 0);
+        c = f.[FILE_CLUSTER];
+    }
+
+    s.[STRINGLEN] = 11;
+    while (vec_pop(st, &c))
+    {
+        s.[STRINGPTR] = c;
+        l = strchr(s, ' ');
+        if (!vec_resize(v, v.[VEC_LEN] + 1 + l))
+        {
+            vec_free(st);
+            return FALSE;
+        }
+        memcpy(&v.[VEC_PTR]{v.[VEC_LEN]}, c, l);
+        v.[VEC_PTR]{v.[VEC_LEN] + l} = '/';
+        v.[VEC_LEN] += 1 + l;
+        free(c);
+    }
+
+    vec_free(st);
+    return TRUE;
+}

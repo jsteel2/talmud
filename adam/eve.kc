@@ -75,13 +75,15 @@ Welcome to TalmudOS (Formerly ChucksOS)
 }
 
 function seth(u)
-(v{VEC}, x)
+(v{VEC}, p{VEC}, x)
 {
     create_window(200, 200, 640, 480);
     vec_init(v, 128, 1);
+    vec_init(p, 128, 1);
     while (TRUE)
     {
-        print("> ");
+        dir2path(p, &task{TASK_CWD});
+        format(print, "%s> ", p);
         x = compile(&task{TASK_COMPILER}, "stdin", input(v));
         if (x)
         {
@@ -93,5 +95,17 @@ function seth(u)
         {
             if (task.[TASK_COMPILER + CCUR + TOKEN_TYPE] != TEND) v.[VEC_LEN] = 0;
         }
+    }
+}
+
+function dir(p)
+(f{FILE}, d{DIR_ENTRY}, s{STRING})
+{
+    if (!open(p, f, FALSE)) return format(print, "Could not open path \"%s\"\n", p);
+    s.[STRINGLEN] = 11;
+    s.[STRINGPTR] = &d{DIR_ENTRY_83NAME};
+    while (dir_next(f, d))
+    {
+        format(print, "%s\n", s);
     }
 }
