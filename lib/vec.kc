@@ -66,13 +66,18 @@ function vec_push4(v, x)
     return TRUE;
 }
 
+function vec_remove(v, p, i)
+{
+    if (v.[VEC_LEN] <=! i) return FALSE;
+    memcpy(p, v.[VEC_PTR] + i *! v.[VEC_ENTRY_SIZE], v.[VEC_ENTRY_SIZE]);
+    v.[VEC_LEN] -= 1;
+    memcpy(v.[VEC_PTR] + i *! v.[VEC_ENTRY_SIZE], v.[VEC_PTR] + (i + 1) *! v.[VEC_ENTRY_SIZE], (v.[VEC_LEN] - i) *! v.[VEC_ENTRY_SIZE]);
+    return TRUE;
+}
+
 function vec_shift(v, p)
 {
-    if (v.[VEC_LEN] == 0) return FALSE;
-    memcpy(p, v.[VEC_PTR], v.[VEC_ENTRY_SIZE]);
-    v.[VEC_LEN] -= 1;
-    memcpy(v.[VEC_PTR], v.[VEC_PTR] + v.[VEC_ENTRY_SIZE], v.[VEC_LEN] *! v.[VEC_ENTRY_SIZE]);
-    return TRUE;
+    vec_remove(v, p, 0);
 }
 
 function vec_pop(v, p)

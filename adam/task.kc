@@ -1,6 +1,3 @@
-const TASK_STACK_SIZE = 64 *! 1024;
-struct TASK = [TASK_NEXT], [TASK_PREV], [TASK_WAIT], [TASK_ESP], [TASK_EIP], [TASK_WINDOW], FILE{TASK_CWD}, COMPILER{TASK_COMPILER}, TASK_STACK_SIZE{TASK_STACK};
-
 function switch_task2(t)
 {
     MOV EAX, [t]
@@ -43,7 +40,7 @@ function new_task(entry, arg)
 {
     t = malloc(TASK);
     memcpy(&t{TASK_CWD}, &task{TASK_CWD}, FILE);
-    t.[TASK_WINDOW] = task.[TASK_WINDOW];
+    t.[TASK_WINDOW] = NULL;
     t.[TASK_NEXT] = task.[TASK_NEXT];
     t.[TASK_PREV] = task;
     compiler_init(&t{TASK_COMPILER});
@@ -62,6 +59,7 @@ function kill(t)
     t.[TASK_NEXT].[TASK_PREV] = t.[TASK_PREV];
     t.[TASK_PREV].[TASK_NEXT] = t.[TASK_NEXT];
     compiler_free(&t{TASK_COMPILER});
+    if (t.[TASK_WINDOW]) delete_window(t.[TASK_WINDOW]);
     free(t);
 }
 

@@ -1,7 +1,7 @@
-struct WINDOW = VEC{WINDOW_KEY_EVENTS}, [WINDOW_TASK], [WINDOW_X], [WINDOW_Y], [WINDOW_W], [WINDOW_H], [WINDOW_PRINT_X], [WINDOW_PRINT_Y];
+struct WINDOW = VEC{WINDOW_KEY_EVENTS}, [WINDOW_TASK], [WINDOW_X], [WINDOW_Y], [WINDOW_W], [WINDOW_H], [WINDOW_PRINT_X], [WINDOW_PRINT_Y], [WINDOW_BELOW], [WINDOW_ABOVE];
 const BORDER_SIZE = 4;
 
-global focused_window;
+global windows;
 
 function create_window(x, y, w, h)
 (win)
@@ -15,37 +15,50 @@ function create_window(x, y, w, h)
     win.[WINDOW_H] = h;
     win.[WINDOW_PRINT_X] = 0;
     win.[WINDOW_PRINT_Y] = 0;
+    win.[WINDOW_ABOVE] = NULL;
     window_draw_border(win);
-    focused_window = task.[TASK_WINDOW] = win;
+    screen_fill_rect(win.[WINDOW_X] + BORDER_SIZE, win.[WINDOW_Y] + BORDER_SIZE, win.[WINDOW_W], win.[WINDOW_H], 0xFFFFFF);
+    win.[WINDOW_BELOW] = windows;
+    windows = task.[TASK_WINDOW] = win;
     return win;
+}
+
+function delete_window(w)
+{
+    if (windows == w)
+    {
+        windows = windows.[WINDOW_BELOW];
+    }
+    if (w.[WINDOW_ABOVE]) w.[WINDOW_ABOVE].[WINDOW_BELOW] = w.[WINDOW_BELOW];
+    if (w.[WINDOW_BELOW]) w.[WINDOW_BELOW].[WINDOW_ABOVE] = w.[WINDOW_ABOVE];
+    free(w);
 }
 
 function window_draw_border(w)
 {
-    screen_fill_rect(w.[WINDOW_X], w.[WINDOW_Y], w.[WINDOW_W] + BORDER_SIZE, BORDER_SIZE, 0xFF);
-    screen_fill_rect(w.[WINDOW_X], w.[WINDOW_Y] + BORDER_SIZE, BORDER_SIZE, w.[WINDOW_H] + BORDER_SIZE, 0xFF);
-    screen_fill_rect(w.[WINDOW_X], w.[WINDOW_Y] + w.[WINDOW_H] + BORDER_SIZE, w.[WINDOW_W] + BORDER_SIZE, BORDER_SIZE, 0xFF);
-    screen_fill_rect(w.[WINDOW_X] + w.[WINDOW_W] + BORDER_SIZE, w.[WINDOW_Y], BORDER_SIZE, w.[WINDOW_H] + BORDER_SIZE *! 2, 0xFF);
+    screen_fill_rect(w.[WINDOW_X], w.[WINDOW_Y], w.[WINDOW_W] + BORDER_SIZE, BORDER_SIZE, 0xFABA62);
+    screen_fill_rect(w.[WINDOW_X], w.[WINDOW_Y] + BORDER_SIZE, BORDER_SIZE, w.[WINDOW_H] + BORDER_SIZE, 0xFABA62);
+    screen_fill_rect(w.[WINDOW_X], w.[WINDOW_Y] + w.[WINDOW_H] + BORDER_SIZE, w.[WINDOW_W] + BORDER_SIZE, BORDER_SIZE, 0xFABA62);
+    screen_fill_rect(w.[WINDOW_X] + w.[WINDOW_W] + BORDER_SIZE, w.[WINDOW_Y], BORDER_SIZE, w.[WINDOW_H] + BORDER_SIZE *! 2, 0xFABA62);
 }
 
-function fill_rect(x, y, w, h, c)
-(win)
+function window_fill_rect(win, x, y, w, h, c)
 {
-    win = task.[TASK_WINDOW];
     screen_fill_rect(win.[WINDOW_X] + BORDER_SIZE + x, win.[WINDOW_Y] + BORDER_SIZE + y, w, h, c);
 }
 
-function draw_char(c, x, y, color, bg)
-(win)
+function window_draw_char(win, c, x, y, color, bg)
 {
-    win = task.[TASK_WINDOW];
     screen_draw_char(c, win.[WINDOW_X] + BORDER_SIZE + x, win.[WINDOW_Y] + BORDER_SIZE + y, color, bg);
 }
+
+function fill_rect(x, y, w, h, c) window_fill_rect(task.[TASK_WINDOW], x, y, w, h, c);
+function draw_char(c, x, y, color, bg) window_draw_char(task.[TASK_WINDOW], c, x, y, color, bg);
 
 function print(s)
 (i, w)
 {
-    w = task.[TASK_WINDOW];
+    w = task.[TASK_WINDOW] or &ADAM{TASK_WINDOW};
     i = 0;
     while (i <! s.[STRINGLEN])
     {
@@ -64,7 +77,7 @@ function print(s)
         }
         else
         {
-            draw_char(s.[STRINGPTR]{i}, w.[WINDOW_PRINT_X], w.[WINDOW_PRINT_Y], 0x000000, 0xFFFFFF);
+            window_draw_char(w, s.[STRINGPTR]{i}, w.[WINDOW_PRINT_X], w.[WINDOW_PRINT_Y], 0x000000, 0xFFFFFF);
             w.[WINDOW_PRINT_X] += 8;
             if (w.[WINDOW_PRINT_X] + 8 >! w.[WINDOW_W])
             {
@@ -74,7 +87,7 @@ function print(s)
         }
         if (w.[WINDOW_PRINT_Y] + 8 >! w.[WINDOW_H])
         {
-            fill_rect(0, 0, w.[WINDOW_W], w.[WINDOW_H], 0xFFFFFF);
+            window_fill_rect(w, 0, 0, w.[WINDOW_W], w.[WINDOW_H], 0xFFFFFF);
             w.[WINDOW_PRINT_X] = 0;
             w.[WINDOW_PRINT_Y] = 0;
         }
@@ -96,7 +109,7 @@ function input(vec)
         else
         {
             if (!vec_shift(&task.[TASK_WINDOW]{WINDOW_KEY_EVENTS}, &c)) break;
-            if (c & 0x80 or c == 0x2A or c == 0x36) JMP .l
+            if (c & 0x80 or c == 0x2A or c == 0x36 or c == 0x1D or c == 0x38) JMP .l
             c = shift_pressed ? qwerty_upper{c} : qwerty{c};
             if (c == '\b')
             {

@@ -12,4 +12,4 @@ DB 0, 0, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
    0, '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0,
    0, 0, ' '
 
-global shift_pressed;
+global shift_pressed, ctrl_pressed, alt_pressed;

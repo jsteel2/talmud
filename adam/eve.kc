@@ -5,6 +5,7 @@ include "lib/malloc.kc"
 include "lib/map.kc"
 include "lib/vec.kc"
 include "compiler/compiler.kc"
+include "boot/task.kc"
 include "adam/task.kc"
 include "adam/vbe.kc"
 include "adam/font.kc"
@@ -22,7 +23,7 @@ function eve(compiler)
     vec_init(adam_key_events, 64, 1);
     vec_init(adam_mouse_events, 64, 3);
     set_resolution(1024, 768);
-    screen_fill_rect(0, 0, 1024, 768, 0xFFFFFF);
+    screen_fill_rect(0, 0, fb_width, fb_height, 0x5C96C9);
     init_mouse();
     create_window(8, 8, 512, 128);
 
@@ -54,8 +55,20 @@ Welcome to TalmudOS (Formerly ChucksOS)
             STI
             if (c{0} == 0x2A or c{0} == 0x36) shift_pressed = TRUE;
             else if (c{0} == 0xAA or c{0} == 0xB6) shift_pressed = FALSE;
-            vec_push1(&focused_window{WINDOW_KEY_EVENTS}, c{0});
-            focused_window.[WINDOW_TASK].[TASK_WAIT] = FALSE;
+            if (c{0} == 0x1D) ctrl_pressed = TRUE;
+            else if (c{0} == 0x9D) ctrl_pressed = FALSE;
+            if (c{0} == 0x38) alt_pressed = TRUE;
+            else if (c{0} == 0xB8) alt_pressed = TRUE;
+
+            if (c{0} == 0x14 and ctrl_pressed and alt_pressed)
+            {
+                new_task(seth, 0);
+            }
+            else
+            {
+                vec_push1(&windows{WINDOW_KEY_EVENTS}, c{0});
+                windows.[WINDOW_TASK].[TASK_WAIT] = FALSE;
+            }
         }
         else
         {
