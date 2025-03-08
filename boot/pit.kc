@@ -1,0 +1,8 @@
+init_pit:
+    MOV AL, 0x34
+    OUT 0x43, AL
+    MOV AX, 4772 # 250hz
+    OUT 0x40, AL
+    MOV AL, AH
+    OUT 0x40, AL
+    RET

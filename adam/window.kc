@@ -52,8 +52,14 @@ function window_draw_char(win, c, x, y, color, bg)
     screen_draw_char(c, win.[WINDOW_X] + BORDER_SIZE + x, win.[WINDOW_Y] + BORDER_SIZE + y, color, bg);
 }
 
+function window_write_rect(win, x, y, w, h, p)
+{
+    screen_write_rect(win.[WINDOW_X] + BORDER_SIZE + x, win.[WINDOW_Y] + BORDER_SIZE + y, w, h, p);
+}
+
 function fill_rect(x, y, w, h, c) window_fill_rect(task.[TASK_WINDOW], x, y, w, h, c);
 function draw_char(c, x, y, color, bg) window_draw_char(task.[TASK_WINDOW], c, x, y, color, bg);
+function write_rect(x, y, w, h, p) window_write_rect(task.[TASK_WINDOW], x, y, w, h, p);
 
 function print(s)
 (i, w)

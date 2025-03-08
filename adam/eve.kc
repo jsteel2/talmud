@@ -16,7 +16,7 @@ include "adam/mouse.kc"
 global ans;
 
 function eve(compiler)
-(c{3})
+(c{3}, olm, orm, omm, w)
 {
     adam_key_events = malloc(VEC);
     adam_mouse_events = malloc(VEC);
@@ -39,7 +39,7 @@ I  \\ `+' /  I         #     #  #  #      # ## # #    # #    #
 Welcome to TalmudOS (Formerly ChucksOS)
 ");
 
-    new_task(seth, 0);
+    new_task("Seth", seth, 0);
 
     draw_cursor();
     while (TRUE)
@@ -62,7 +62,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
 
             if (c{0} == 0x14 and ctrl_pressed and alt_pressed)
             {
-                new_task(seth, 0);
+                new_task("Seth", seth, 0);
             }
             else
             {
@@ -83,6 +83,21 @@ Welcome to TalmudOS (Formerly ChucksOS)
             if (cursor_y >=$ fb_height) cursor_y = fb_height - 1;
             draw_cursor();
             format(print, "mouse: %dx%dy               \r", cursor_x, cursor_y);
+
+            w = windows;
+            while (w and !(w.[WINDOW_X] <! cursor_x + CURSOR_W and cursor_x <! w.[WINDOW_X] + w.[WINDOW_W] + BORDER_SIZE *! 2 and w.[WINDOW_Y] <! cursor_y + CURSOR_H and cursor_y <! w.[WINDOW_Y] + w.[WINDOW_H] + BORDER_SIZE *! 2))
+            {
+                w = w.[WINDOW_BELOW];
+            }
+            if (w)
+            {
+                if (c{0} & 1 and !olm) format(print, "lmb down on window %s\n", &w.[WINDOW_TASK]{TASK_NAME});
+                else if (!(c{0} & 1) and olm) format(print, "lmb up on window %s\n", &w.[WINDOW_TASK]{TASK_NAME});
+            }
+            
+            olm = c{0} & 1;
+            orm = c{0} & 2;
+            omm = c{0} & 4;
         }
     }
 }

@@ -439,9 +439,9 @@ function compiler_function(c)
         {
             compiler_consume(c, TIDENT);
             memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
-            if (t = compiler_match(c, TLEFTBRACE)) x = 1 *! compiler_const_expression(c);
-            else if (t = compiler_match(c, TLEFTCHEVRON)) x = 2 *! compiler_const_expression(c);
-            else if (t = compiler_match(c, TLEFTBRACKET)) x = 4 *! compiler_const_expression(c);
+            if (t = compiler_match(c, TLEFTBRACE)) x = compiler_const_expression(c) *! 1;
+            else if (t = compiler_match(c, TLEFTCHEVRON)) x = compiler_const_expression(c) *! 2;
+            else if (t = compiler_match(c, TLEFTBRACKET)) x = compiler_const_expression(c) *! 4;
             else x = 4;
             compiler_local_set(c, s, i -= x, t ? IDENT_FLAG_ADDRESS : 0);
             if (t) compiler_consume(c, t + 1);
@@ -537,9 +537,9 @@ function compiler_global(c)
         if (c.[CIS_FIRST_PASS])
         {
             ident.[COMPILER_IDENT_ADDR] = c.[CGLOBAL_OFFSET];
-            if (t = compiler_match(c, TLEFTBRACE)) a = 1 *! compiler_const_expression(c);
-            else if (t = compiler_match(c, TLEFTCHEVRON)) a = 2 *! compiler_const_expression(c);
-            else if (t = compiler_match(c, TLEFTBRACKET)) a = 4 *! compiler_const_expression(c);
+            if (t = compiler_match(c, TLEFTBRACE)) a = compiler_const_expression(c) *! 1;
+            else if (t = compiler_match(c, TLEFTCHEVRON)) a = compiler_const_expression(c) *! 2;
+            else if (t = compiler_match(c, TLEFTBRACKET)) a = compiler_const_expression(c) *! 4;
             else a = 4;
             c.[CGLOBAL_OFFSET] += a;
             if (t) compiler_consume(c, t + 1);

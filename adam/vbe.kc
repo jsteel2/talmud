@@ -108,6 +108,26 @@ function screen_draw_char(c, x, y, color, bg)
     framebuffer_refresh(x, y, 8, 8);
 }
 
+function backbuffer_write_rect(x, y, w, h, p)
+(pb, i)
+{
+    pb = backbuffer + y *! fb_width *! 4 + x *! 4;
+    i = 0;
+    while (i <! h)
+    {
+        memcpyd(pb, p, w);
+        i += 1;
+        pb += fb_width *! 4;
+        p += w *! 4;
+    }
+}
+
+function screen_write_rect(x, y, w, h, p)
+{
+    backbuffer_write_rect(x, y, w, h, p);
+    framebuffer_refresh(x, y, w, h);
+}
+
 function draw_cursor()
 (p)
 {

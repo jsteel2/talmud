@@ -15,6 +15,8 @@ function idt_init()
         v += 1;
     }
 
+    init_pit();
+
     idt_set_entry(0x20, timer_handler, 0x8E);
     idt_set_entry(0x21, keyboard_handler, 0x8E);
     idt_set_entry(0x2C, mouse_handler, 0x8E);
@@ -98,7 +100,7 @@ keyboard_handler:
     MOV DWORD [ADAM + TASK_WAIT], FALSE
     PUSH EAX
     PUSH EBX
-    CALL vec_push1
+    CALL vec_push1_circ
     ADD ESP, 8
 .e:
     MOV AL, PIC_EOI
@@ -118,6 +120,7 @@ timer_handler:
     MOV ES, AX
     MOV FS, AX
     MOV GS, AX
+    ADD DWORD [timer_ms], 4
     MOV AL, PIC_EOI
     OUT PIC1, AL
     POP EAX
@@ -156,7 +159,7 @@ mouse_handler:
     MOV DWORD [ADAM + TASK_WAIT], FALSE
     PUSH DWORD mouse_packet
     PUSH EBX
-    CALL vec_push
+    CALL vec_push_circ
     ADD ESP, 8
 .e:
     MOV AL, PIC_EOI

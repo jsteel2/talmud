@@ -113,22 +113,23 @@ function cur_sector(file)
 }
 
 function read(file, n, buf)
-(sectors_read, x)
+(sectors_read, x, i)
 {
+    i = n;
     while (n)
     {
         if (file.[FILE_SEEK] & 511 == 0)
         {
-            if (file.[FILE_SEEK] %! file{FILE_SECTORS_PER_CLUSTER} == 0 and file.[FILE_SEEK] != 0)
+            if (file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER} == 0 and file.[FILE_SEEK] != 0)
             {
-                if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512, file)) return FALSE;
+                if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512, file)) return i - n;
                 file.[FILE_CLUSTER_CUR] = file.[file.[FILE_CLUSTER_CUR] *! 4 %! 512] & 0x0FFFFFFF;
-                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return FALSE;
+                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return i - n;
             }
             if (n >=! 512)
             {
                 sectors_read = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER});
-                if (!lba_read(file{FILE_DRIVE}, sectors_read, cur_sector(file), buf)) return FALSE;
+                if (!lba_read(file{FILE_DRIVE}, sectors_read, cur_sector(file), buf)) return i - n;
                 x = sectors_read *! 512;
                 file.[FILE_SEEK] += x;
                 n -= x;
@@ -136,10 +137,10 @@ function read(file, n, buf)
             }
             else
             {
-                if (!lba_read(file{FILE_DRIVE}, 1, cur_sector(file), file)) return FALSE;
+                if (!lba_read(file{FILE_DRIVE}, 1, cur_sector(file), file)) return i - n;
                 memcpy(buf, file, n);
                 file.[FILE_SEEK] += n;
-                return TRUE;
+                return i;
             }
         }
         else
@@ -152,35 +153,42 @@ function read(file, n, buf)
         }
     }
 
-    return TRUE;
+    return i;
 }
 
-# stub for dir2path, wont work for w > cluster size
+# ...ew.
+# i dont care enough to implement this properly... for now
 function seek(file, w)
+(x)
 {
     file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER];
-    file.[FILE_SEEK] = w;
+    file.[FILE_SEEK] = 0;
+    x = malloc(w);
+    read(file, w, x);
+    free(x);
+    return TRUE;
 }
 
 # This is just a stub for the bootstrapping for now
 function write(file, n, buf)
-(sectors_read, x)
+(sectors_read, x, i)
 {
+    i = n;
     while (n)
     {
         if (file.[FILE_SEEK] & 511 == 0)
         {
-            if (file.[FILE_SEEK] %! file{FILE_SECTORS_PER_CLUSTER} == 0 and file.[FILE_SEEK] != 0)
+            if (file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER} == 0 and file.[FILE_SEEK] != 0)
             {
-                if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512, file)) return FALSE;
+                if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512, file)) return i - n;
                 file.[FILE_CLUSTER_CUR] = file.[file.[FILE_CLUSTER_CUR] *! 4 %! 512] & 0x0FFFFFFF;
-                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return FALSE;
+                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return i - n;
             }
             if (TRUE)
             {
                 sectors_read = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER});
                 if (sectors_read == 0) sectors_read = 1;
-                if (!lba_write(file{FILE_DRIVE}, sectors_read, cur_sector(file), buf)) return FALSE;
+                if (!lba_write(file{FILE_DRIVE}, sectors_read, cur_sector(file), buf)) return i - n;
                 x = sectors_read *! 512;
                 file.[FILE_SEEK] += x;
                 if (n <! x) n = 0;
@@ -189,15 +197,15 @@ function write(file, n, buf)
             }
             else
             {
-                if (!lba_write(file{FILE_DRIVE}, 1, cur_sector(file), file)) return FALSE;
+                if (!lba_write(file{FILE_DRIVE}, 1, cur_sector(file), file)) return i - n;
                 memcpy(buf, file, n);
                 file.[FILE_SEEK] += n;
-                return TRUE;
+                return i;
             }
         }
     }
 
-    return TRUE;
+    return i;
 }
 
 function cluster2sector(file, cluster) return ((cluster - 2) *! file{FILE_SECTORS_PER_CLUSTER}) + file.[FILE_DATA_SECTOR];

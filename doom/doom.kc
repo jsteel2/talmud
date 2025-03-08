@@ -1,0 +1,316 @@
+struct ELF_EHDR = 16{E_IDENT}, <E_TYPE>, <E_MACHINE>, [E_VERSION], [E_ENTRY], [E_PHOFF], [E_SHOFF], [E_FLAGS], <E_EHSIZE>, <E_PHENTSIZE>, <E_PHNUM>, <E_SHENTSIZE>, <E_SHNUM>, <E_SHSTRNDX>;
+struct ELF_SHDR = [SH_NAME], [SH_TYPE], [SH_FLAGS], [SH_ADDR], [SH_OFFSET], [SH_SIZE], [SH_LINK], [SH_INFO], [SH_ADDRALIGN], [SH_ENTSIZE];
+struct ELF_SYM = [ST_NAME], [ST_VALUE], [ST_SIZE], {ST_INFO}, {ST_OTHER}, <ST_SHNDX>;
+struct ELF_PHDR = [P_TYPE], [P_OFFSET], [P_VADDR], [P_PADDR], [P_FILESZ], [P_MEMSZ], [P_FLAGS], [P_ALIGN];
+struct ELF_REL = [R_OFFSET], [R_INFO];
+const SHT_PROGBITS = 1, SHT_SYMTAB = 2, SHT_STRTAB = 3, SHT_REL = 9;
+const PT_LOAD = 1;
+struct CFILE = [CFILE_SEEK], [CFILE_DATA], FILE{CFILE_FILE};
+
+function cstrcmp(x, y)
+(i)
+{
+    if (x{y.[STRINGLEN]} != 0) return FALSE;
+    i = 0;
+    while (i <! y.[STRINGLEN])
+    {
+        if (x{i} != y.[STRINGPTR]{i}) return FALSE;
+        i += 1;
+    }
+    return TRUE;
+}
+
+function cmalloc(x)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    x = malloc(x + 8);
+    POP EDI
+    POP ESI
+    POP EBX
+    return x;
+}
+
+function cfree(x)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    free(x);
+    POP EDI
+    POP ESI
+    POP EBX
+}
+
+global reip, resp, rebp;
+function cexit(x)
+{
+    MOV ESP, [resp]
+    MOV EBP, [rebp]
+    JMP [reip]
+}
+
+function cprint(fmt)
+(s{STRING})
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    s.[STRINGPTR] = fmt;
+    s.[STRINGLEN] = 0;
+    while (fmt{s.[STRINGLEN]}) s.[STRINGLEN] += 1;
+    print(s);
+    POP EDI
+    POP ESI
+    POP EBX
+}
+
+function cgetenv(s)
+(x)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    x = NULL;
+    if (cstrcmp(s, "HOME")) x = ".\0".[STRINGPTR];
+    POP EDI
+    POP ESI
+    POP EBX
+    return x;
+}
+
+function copen(p, m)
+(cf, s{STRING})
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    s.[STRINGLEN] = 0;
+    s.[STRINGPTR] = p;
+    while (p{s.[STRINGLEN]}) s.[STRINGLEN] += 1;
+    cf = malloc(CFILE);
+    cf.[CFILE_DATA] = NULL;
+    cf.[CFILE_SEEK] = 0;
+    if (!open(s, &cf{CFILE_FILE}, FALSE))
+    {
+        free(cf);
+        cf = NULL;
+    }
+    POP EDI
+    POP ESI
+    POP EBX
+    return cf;
+}
+
+function cclose(f)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    free(f.[CFILE_DATA]);
+    free(f);
+    POP EDI
+    POP ESI
+    POP EBX
+    return 0;
+}
+
+function cread(f, p, n)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    if (!f.[CFILE_DATA])
+    {
+        f.[CFILE_DATA] = malloc(f.[CFILE_FILE + FILE_SIZE]);
+        read(&f{CFILE_FILE}, f.[CFILE_FILE + FILE_SIZE], f.[CFILE_DATA]);
+    }
+    memcpy(p, f.[CFILE_DATA] + f.[CFILE_SEEK], n);
+    f.[CFILE_SEEK] += n;
+    POP EDI
+    POP ESI
+    POP EBX
+    return n;
+}
+
+function cwrite(f, p, n)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    POP EDI
+    POP ESI
+    POP EBX
+    return NULL;
+}
+
+function cseek(f, o, w)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    f.[CFILE_SEEK] = (w == 0 ? 0 : w == 1 ? f.[CFILE_SEEK] : f.[CFILE_FILE + FILE_SIZE]) + o;
+    POP EDI
+    POP ESI
+    POP EBX
+    return 0;
+}
+
+function ctell(f)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    f = f.[CFILE_SEEK];
+    POP EDI
+    POP ESI
+    POP EBX
+    return f;
+}
+
+function ceof(f)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    f = f.[CFILE_SEEK] >=! f.[CFILE_FILE + FILE_SIZE];
+    POP EDI
+    POP ESI
+    POP EBX
+    return f;
+}
+
+function cgettime(osec, ousec)
+{
+    PUSH EBX
+    PUSH ESI
+    PUSH EDI
+    *osec = timer_ms /! 1000;
+    *ousec = (timer_ms %! 1000) *! 1000;
+    POP EDI
+    POP ESI
+    POP EBX
+}
+
+function load_elf(path, osymtab, ostrtab, osyms)
+(f{FILE}, ehdr{ELF_EHDR}, phdrs, shdrs, total_size, i, e, j, mem)
+{
+    if (!open(path, f, FALSE)) return NULL;
+    read(f, ELF_EHDR, ehdr);
+    total_size = 0;
+    phdrs = malloc(ehdr.<E_PHNUM> *! ELF_PHDR);
+    seek(f, ehdr.[E_PHOFF]);
+    read(f, ehdr.<E_PHNUM> *! ELF_PHDR, phdrs);
+    i = 0;
+    while (i <! ehdr.<E_PHNUM>)
+    {
+        if (phdrs.[i *! ELF_PHDR + P_TYPE] == PT_LOAD)
+        {
+            e = phdrs.[i *! ELF_PHDR + P_VADDR] + phdrs.[i *! ELF_PHDR + P_MEMSZ];
+            if (e >! total_size) total_size = e;
+        }
+        i += 1;
+    }
+    mem = malloc(total_size);
+    i = 0;
+    while (i <! ehdr.<E_PHNUM>)
+    {
+        if (phdrs.[i *! ELF_PHDR + P_TYPE] == PT_LOAD)
+        {
+            seek(f, phdrs.[i *! ELF_PHDR + P_OFFSET]);
+            read(f, phdrs.[i *! ELF_PHDR + P_FILESZ], mem + phdrs.[i *! ELF_PHDR + P_VADDR]);
+            memset(mem + phdrs.[i *! ELF_PHDR + P_VADDR] + phdrs.[i *! ELF_PHDR + P_FILESZ], 0, phdrs.[i *! ELF_PHDR + P_MEMSZ] - phdrs.[i *! ELF_PHDR + P_FILESZ]);
+        }
+        i += 1;
+    }
+    free(phdrs);
+    shdrs = malloc(ehdr.<E_SHNUM> *! ELF_SHDR);
+    seek(f, ehdr.[E_SHOFF]);
+    read(f, ehdr.<E_SHNUM> *! ELF_SHDR, shdrs);
+    i = 0;
+    while (i <! ehdr.<E_SHNUM>)
+    {
+        if (shdrs.[i *! ELF_SHDR + SH_TYPE] == SHT_SYMTAB)
+        {
+            *osymtab = malloc(shdrs.[i *! ELF_SHDR + SH_SIZE]);
+            *osyms = shdrs.[i *! ELF_SHDR + SH_SIZE] /! shdrs.[i *! ELF_SHDR + SH_ENTSIZE];
+            seek(f, shdrs.[i *! ELF_SHDR + SH_OFFSET]);
+            read(f, shdrs.[i *! ELF_SHDR + SH_SIZE], *osymtab);
+        }
+        else if (shdrs.[i *! ELF_SHDR + SH_TYPE] == SHT_STRTAB and i != ehdr.<E_SHSTRNDX>)
+        {
+            *ostrtab = malloc(shdrs.[i *! ELF_SHDR + SH_SIZE]);
+            seek(f, shdrs.[i *! ELF_SHDR + SH_OFFSET]);
+            read(f, shdrs.[i *! ELF_SHDR + SH_SIZE], *ostrtab);
+        }
+        else if (shdrs.[i *! ELF_SHDR + SH_TYPE] == SHT_REL)
+        {
+            e = mem + shdrs.[i *! ELF_SHDR + SH_OFFSET];
+            j = 0;
+            while (j <! shdrs.[i *! ELF_SHDR + SH_SIZE] /! ELF_REL)
+            {
+                mem.[e.[j *! ELF_REL + R_OFFSET]] += mem;
+                j += 1;
+            }
+        }
+        i += 1;
+    }
+    free(shdrs);
+    return mem;
+}
+
+function doom()
+(mem, symtab, strtab, syms, i, p, doom_init, doom_set_malloc, doom_set_print, doom_set_exit, doom_set_getenv, doom_set_file_io, doom_set_gettime, doom_update, doom_get_framebuffer)
+{
+    mem = load_elf("doom.elf", &symtab, &strtab, &syms);
+    if (!mem) return print("Could not load ELF\n");
+    
+    i = 0;
+    while (i <! syms)
+    {
+        p = strtab + symtab.[i *! ELF_SYM + ST_NAME];
+        if (cstrcmp(p, "doom_set_malloc")) doom_set_malloc = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_set_print")) doom_set_print = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_set_getenv")) doom_set_getenv = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_set_file_io")) doom_set_file_io = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_set_exit")) doom_set_exit = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_set_gettime")) doom_set_gettime = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_init")) doom_init = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_update")) doom_update = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_get_framebuffer")) doom_get_framebuffer = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        i += 1;
+    }
+
+    free(symtab);
+    free(strtab);
+
+    MOV EAX, CR0
+    AND EAX, 0xFFFFFFF3
+    OR EAX, 0x22
+    MOV CR0, EAX
+    DB 0xDB, 0xE3 # FNINIT
+    
+    AND ESP, 0xFFFFFFF0
+    doom_set_malloc(cmalloc, cfree);
+    doom_set_print(cprint);
+    doom_set_exit(cexit);
+    doom_set_getenv(cgetenv);
+    doom_set_file_io(copen, cclose, cread, cwrite, cseek, ctell, ceof);
+    doom_set_gettime(cgettime);
+    MOV [resp], ESP
+    MOV [rebp], EBP
+    MOV DWORD [reip], .end
+    doom_init(0, 0, 0);
+    while (TRUE)
+    {
+        i = timer_ms;
+        doom_update();
+        write_rect(0, 0, 320, 200, doom_get_framebuffer(4));
+        sleep(maxs(0, 16 - (timer_ms - i)));
+    }
+.end:
+    free(mem);
+}
+
+doom();

@@ -13,6 +13,8 @@ global first_free;
 global task;
 global adam_key_events;
 global adam_mouse_events;
+global next_task;
+global timer_ms;
 
 IN AL, 0x92
 OR AL, 2
@@ -36,6 +38,7 @@ function eden()
     ADAM.[TASK_WAIT] = FALSE;
     ADAM.[TASK_NEXT] = ADAM;
     ADAM.[TASK_PREV] = ADAM;
+    memcpy(&ADAM{TASK_NAME}, "Adam", STRING);
     task = ADAM;
     compiler = &ADAM{TASK_COMPILER};
 
@@ -84,6 +87,7 @@ function eden()
     if (!compiler_global_set(compiler, "task", &task)) JMP .hlt
     if (!compiler_global_set(compiler, "adam_key_events", &adam_key_events)) JMP .hlt
     if (!compiler_global_set(compiler, "adam_mouse_events", &adam_mouse_events)) JMP .hlt
+    if (!compiler_global_set(compiler, "timer_ms", &timer_ms)) JMP .hlt
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)
@@ -92,6 +96,7 @@ function eden()
         JMP .hlt
     }
 
+    compiler_ident_get(compiler, "next_task", &next_task);
     compiler_ident_get(compiler, "eve", &eve);
     eve(compiler);
 .hlt:
@@ -227,13 +232,16 @@ function lba_do(ax, dl, sectors, lba)
 function lba_write(dl, sectors, lba, buf)
 {
     memcpy(DISK_BUF, buf, sectors *! 512);
-    return lba_do(0x4300, dl, sectors, lba);
+    lba = lba_do(0x4300, dl, sectors, lba);
+    if (next_task) next_task();
+    return lba;
 }
 
 function lba_read(dl, sectors, lba, buf)
 {
     if (!lba_do(0x4200, dl, sectors, lba)) return FALSE;
     memcpy(buf, DISK_BUF, sectors *! 512);
+    if (next_task) next_task();
     return TRUE;
 }
 
@@ -260,3 +268,4 @@ include "boot/idt.kc"
 include "boot/v86.kc"
 include "boot/pic.kc"
 include "boot/task.kc"
+include "boot/pit.kc"

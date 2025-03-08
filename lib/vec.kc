@@ -15,7 +15,7 @@ function vec_free(v)
 
 function vec_resize(v, new_len)
 {
-    if (new_len >=! v.[VEC_SIZE])
+    if (new_len >! v.[VEC_SIZE])
     {
         v.[VEC_SIZE] *!= 2;
         v.[VEC_PTR] = realloc(v.[VEC_PTR], v.[VEC_SIZE] *! v.[VEC_ENTRY_SIZE]);
@@ -66,10 +66,22 @@ function vec_push4(v, x)
     return TRUE;
 }
 
+function vec_push_circ(v, p)
+{
+    while (v.[VEC_LEN] >=! v.[VEC_SIZE]) vec_shift(v, NULL);
+    vec_push(v, p);
+}
+
+function vec_push1_circ(v, x)
+{
+    while (v.[VEC_LEN] >=! v.[VEC_SIZE]) vec_shift(v, NULL);
+    vec_push1(v, x);
+}
+
 function vec_remove(v, p, i)
 {
     if (v.[VEC_LEN] <=! i) return FALSE;
-    memcpy(p, v.[VEC_PTR] + i *! v.[VEC_ENTRY_SIZE], v.[VEC_ENTRY_SIZE]);
+    if (p) memcpy(p, v.[VEC_PTR] + i *! v.[VEC_ENTRY_SIZE], v.[VEC_ENTRY_SIZE]);
     v.[VEC_LEN] -= 1;
     memcpy(v.[VEC_PTR] + i *! v.[VEC_ENTRY_SIZE], v.[VEC_PTR] + (i + 1) *! v.[VEC_ENTRY_SIZE], (v.[VEC_LEN] - i) *! v.[VEC_ENTRY_SIZE]);
     return TRUE;
@@ -77,7 +89,7 @@ function vec_remove(v, p, i)
 
 function vec_shift(v, p)
 {
-    vec_remove(v, p, 0);
+    return vec_remove(v, p, 0);
 }
 
 function vec_pop(v, p)

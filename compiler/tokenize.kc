@@ -79,6 +79,7 @@ function tokenizer_ident_token(t, out)
             if (strcmp(s, "ADD")) out.[TOKEN_TYPE] = TADD;
             else if (strcmp(s, "AND")) out.[TOKEN_TYPE] = TAND;
             else if (strcmp(s, "AL")) out.[TOKEN_TYPE] = TAL;
+            else if (strcmp(s, "AH")) out.[TOKEN_TYPE] = TAH;
             else if (strcmp(s, "AX")) out.[TOKEN_TYPE] = TAX;
             else break;
             return TRUE;
@@ -405,6 +406,7 @@ function tokenizer_string_token(t, out, type)
                 case '"': vec_push1(v, '"'); break;
                 case '\'': vec_push1(v, '\''); break;
                 case '\\': vec_push1(v, '\\'); break;
+                case '0': vec_push1(v, 0); break;
                 default: format(print, "Unknown escape %c", p{t.[TPOS]}); return FALSE;
             }
         }
