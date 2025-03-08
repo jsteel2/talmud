@@ -25,7 +25,7 @@ function cmalloc(x)
     PUSH EBX
     PUSH ESI
     PUSH EDI
-    x = malloc(x + 8);
+    x = malloc(x);
     POP EDI
     POP ESI
     POP EBX

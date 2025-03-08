@@ -68,13 +68,13 @@ function vec_push4(v, x)
 
 function vec_push_circ(v, p)
 {
-    while (v.[VEC_LEN] >=! v.[VEC_SIZE]) vec_shift(v, NULL);
+    if (v.[VEC_LEN] == v.[VEC_SIZE]) vec_shift(v, NULL);
     vec_push(v, p);
 }
 
 function vec_push1_circ(v, x)
 {
-    while (v.[VEC_LEN] >=! v.[VEC_SIZE]) vec_shift(v, NULL);
+    if (v.[VEC_LEN] == v.[VEC_SIZE]) vec_shift(v, NULL);
     vec_push1(v, x);
 }
 
