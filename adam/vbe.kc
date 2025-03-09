@@ -38,10 +38,12 @@ function set_resolution(x, y)
             fb_height = inf.<VBE_HEIGHT>;
             free(backbuffer);
             backbuffer = malloc_task(fb_width *! fb_height *! 4, ADAM);
+            break;
         }
         i += 1;
 .x:
     }
+    screen_fill_rect(0, 0, fb_width, fb_height, 0x5C96C9);
 }
 
 function _framebuffer_refresh(x, y, w, h)

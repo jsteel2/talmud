@@ -23,7 +23,6 @@ function eve(compiler)
     vec_init(adam_key_events, 64, 1);
     vec_init(adam_mouse_events, 64, 3);
     set_resolution(1024, 768);
-    screen_fill_rect(0, 0, fb_width, fb_height, 0x5C96C9);
     init_mouse();
     create_window(8, 8, 512, 128);
 
