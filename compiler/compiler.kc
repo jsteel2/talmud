@@ -1266,18 +1266,16 @@ function compiler_binary(c, prec, econst, iconst)
                     r = compiler_binary(c, prec + PREC, &rconst, iconst);
                     if (rconst)
                     {
-                        print("todo and\n");
+                        compiler_emit8(c, OMOVRIMMW + REAX);
+                        compiler_emit32(c, r);
                     }
-                    else
-                    {
-                        i = compiler_getlater(c);
-                        compiler_emit8(c, OJMPW);
-                        compiler_emit32(c, compiler_relative(c, i + c.[CORG], 4));
-                        compiler_setlater(c, l, c.[CIP]);
-                        compiler_emit8(c, OXORMRW);
-                        compiler_emit8(c, modrm(MODREG, REAX, REAX));
-                        compiler_setlater(c, i, c.[CIP]);
-                    }
+                    i = compiler_getlater(c);
+                    compiler_emit8(c, OJMPW);
+                    compiler_emit32(c, compiler_relative(c, i + c.[CORG], 4));
+                    compiler_setlater(c, l, c.[CIP]);
+                    compiler_emit8(c, OXORMRW);
+                    compiler_emit8(c, modrm(MODREG, REAX, REAX));
+                    compiler_setlater(c, i, c.[CIP]);
                 }
                 break;
             case TLOGICALOR:

@@ -258,7 +258,7 @@ function load_elf(path, osymtab, ostrtab, osyms)
 }
 
 function doom()
-(mem, symtab, strtab, syms, i, p, k, doom_init, doom_set_malloc, doom_set_print, doom_set_exit, doom_set_getenv, doom_set_file_io, doom_set_gettime, doom_update, doom_get_framebuffer, doom_key_down, doom_key_up, doom_set_default_int)
+(mem, symtab, strtab, syms, i, p, k, doom_init, doom_set_malloc, doom_set_print, doom_set_exit, doom_set_getenv, doom_set_file_io, doom_set_gettime, doom_update, doom_get_framebuffer, doom_key_down, doom_key_up, doom_button_down, doom_button_up, doom_mouse_move, doom_set_default_int, m{MOUSE_EVENT}, mx, my)
 {
     create_window(100, 100, 320, 200);
     mem = load_elf("doom.elf", &symtab, &strtab, &syms);
@@ -279,6 +279,9 @@ function doom()
         else if (cstrcmp(p, "doom_get_framebuffer")) doom_get_framebuffer = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         else if (cstrcmp(p, "doom_key_down")) doom_key_down = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         else if (cstrcmp(p, "doom_key_up")) doom_key_up = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_button_down")) doom_button_down = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_button_up")) doom_button_up = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_mouse_move")) doom_mouse_move = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         else if (cstrcmp(p, "doom_set_default_int")) doom_set_default_int = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         i += 1;
     }
@@ -299,10 +302,19 @@ function doom()
     doom_set_getenv(cgetenv);
     doom_set_file_io(copen, cclose, cread, cwrite, cseek, ctell, ceof);
     doom_set_gettime(cgettime);
+    doom_set_default_int("key_up\0".[STRINGPTR], 'w');
+    doom_set_default_int("key_down\0".[STRINGPTR], 's');
+    doom_set_default_int("key_strafeleft\0".[STRINGPTR], 'a');
+    doom_set_default_int("key_straferight\0".[STRINGPTR], 'd');
+    doom_set_default_int("key_use\0".[STRINGPTR], 'e');
+    doom_set_default_int("mouse_move\0".[STRINGPTR], 0);
     doom_init(0, 0, 0);
+    task.[TASK_WINDOW]{WINDOW_FLAGS} = WINDOW_FGET_KEY_EVENTS | WINDOW_FGET_MOUSE_EVENTS;
     while (TRUE)
     {
         i = timer_ms;
+        mx = 0;
+        my = 0;
         while (task.[TASK_WINDOW].[WINDOW_KEY_EVENTS + VEC_LEN])
         {
             p = 0;
@@ -312,7 +324,7 @@ function doom()
             {
                 case K_TAB: k = 9; break;
                 case K_ENTER: k = 13; break;
-                case K_ESC: k = 27; break;
+                case K_ESC: k = 27; release_mouse(); break;
                 case K_SPACE: k = 32; break;
                 case K_QUOTE: k = '\''; break;
                 case K_KSTAR: k = '*'; break;
@@ -385,6 +397,26 @@ function doom()
             if (p & K_RELEASED) doom_key_up(k);
             else doom_key_down(k);
         }
+        while (task.[TASK_WINDOW].[WINDOW_MOUSE_EVENTS + VEC_LEN])
+        {
+            vec_shift(&task.[TASK_WINDOW]{WINDOW_MOUSE_EVENTS}, m);
+            if (!mouse_captured)
+            {
+                if (m{MOUSE_FLAGS} & MOUSE_LMB_DOWN) capture_mouse();
+            }
+            else
+            {
+                if (m{MOUSE_FLAGS} & MOUSE_LMB_DOWN) doom_button_down(0);
+                if (m{MOUSE_FLAGS} & MOUSE_RMB_DOWN) doom_button_down(1);
+                if (m{MOUSE_FLAGS} & MOUSE_MMB_DOWN) doom_button_down(2);
+                if (m{MOUSE_FLAGS} & MOUSE_LMB_UP) doom_button_up(0);
+                if (m{MOUSE_FLAGS} & MOUSE_RMB_UP) doom_button_up(1);
+                if (m{MOUSE_FLAGS} & MOUSE_MMB_UP) doom_button_up(2);
+                mx += m.[MOUSE_X];
+                my += m.[MOUSE_Y];
+            }
+        }
+        if (mx or my) doom_mouse_move(mx *$ 4, my *$ 4);
         doom_update();
         write_rect(0, 0, 320, 200, doom_get_framebuffer(4));
         sleep(maxs(0, 16 - (timer_ms - i)));

@@ -16,7 +16,7 @@ include "adam/mouse.kc"
 global ans;
 
 function eve(compiler)
-(c{3}, olm, orm, omm, w, k)
+(c{3}, olm, orm, omm, w, k, m{MOUSE_EVENT})
 {
     adam_key_events = malloc(VEC);
     adam_mouse_events = malloc(VEC);
@@ -74,7 +74,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
             {
                 new_task("Seth", seth, 0);
             }
-            else
+            else if (windows{WINDOW_FLAGS} & WINDOW_FGET_KEY_EVENTS)
             {
                 vec_push2(&windows{WINDOW_KEY_EVENTS}, k);
                 windows.[WINDOW_TASK].[TASK_WAIT] = FALSE;
@@ -85,30 +85,45 @@ Welcome to TalmudOS (Formerly ChucksOS)
             CLI
             vec_shift(adam_mouse_events, c);
             STI
-            cursor_x += (c{0} & 16) ? -0x100 + c{1} : c{1};
+            m.[MOUSE_X] = (c{0} & 16) ? ~0xFF | c{1} : c{1};
+            if (!mouse_captured) cursor_x += m.[MOUSE_X];
             if (cursor_x <$ 0) cursor_x = 0;
             if (cursor_x >=$ fb_width) cursor_x = fb_width - 1;
-            cursor_y -= (c{0} & 32) ? -0x100 + c{2} : c{2};
+            m.[MOUSE_Y] = -((c{0} & 32) ? ~0xFF | c{2} : c{2});
+            if (!mouse_captured) cursor_y += m.[MOUSE_Y];
             if (cursor_y <$ 0) cursor_y = 0;
             if (cursor_y >=$ fb_height) cursor_y = fb_height - 1;
             draw_cursor();
-            format(print, "mouse: %dx%dy               \r", cursor_x, cursor_y);
 
-            w = windows;
-            while (w and !(w.[WINDOW_X] <! cursor_x + CURSOR_W and cursor_x <! w.[WINDOW_X] + w.[WINDOW_W] + BORDER_SIZE *! 2 and w.[WINDOW_Y] <! cursor_y + CURSOR_H and cursor_y <! w.[WINDOW_Y] + w.[WINDOW_H] + BORDER_SIZE *! 2))
+            if (mouse_captured)
             {
-                w = w.[WINDOW_BELOW];
+                w = mouse_captured;
+            }
+            else
+            {
+                w = windows;
+                while (w and !(w.[WINDOW_X] <! cursor_x + CURSOR_W and cursor_x <! w.[WINDOW_X] + w.[WINDOW_W] + BORDER_SIZE *! 2 and w.[WINDOW_Y] <! cursor_y + CURSOR_H and cursor_y <! w.[WINDOW_Y] + w.[WINDOW_H] + BORDER_SIZE *! 2))
+                {
+                    w = w.[WINDOW_BELOW];
+                }
             }
             if (w)
             {
-                if (c{0} & 1 and !olm)
+                m{MOUSE_FLAGS} = c{0} & 1 and !olm and MOUSE_LMB_DOWN;
+                m{MOUSE_FLAGS} |= c{0} & 2 and !orm and MOUSE_RMB_DOWN;
+                m{MOUSE_FLAGS} |= c{0} & 4 and !omm and MOUSE_MMB_DOWN;
+                m{MOUSE_FLAGS} |= !(c{0} & 1) and olm and MOUSE_LMB_UP;
+                m{MOUSE_FLAGS} |= !(c{0} & 2) and orm and MOUSE_RMB_UP;
+                m{MOUSE_FLAGS} |= !(c{0} & 4) and omm and MOUSE_MMB_UP;
+                if (m{MOUSE_FLAGS} & (MOUSE_LMB_DOWN | MOUSE_RMB_DOWN | MOUSE_MMB_DOWN)) focus_window(w);
+                if (w{WINDOW_FLAGS} & WINDOW_FGET_MOUSE_EVENTS and (mouse_captured or (w.[WINDOW_X] + BORDER_SIZE <! cursor_x + CURSOR_W and cursor_x <! w.[WINDOW_X] + w.[WINDOW_W] + BORDER_SIZE and w.[WINDOW_Y] + BORDER_SIZE <! cursor_y + CURSOR_H and cursor_y <! w.[WINDOW_Y] + w.[WINDOW_H] + BORDER_SIZE)))
                 {
-                    format(print, "lmb down on window %s\n", &w.[WINDOW_TASK]{TASK_NAME});
-                    focus_window(w);
-                }
-                else if (!(c{0} & 1) and olm)
-                {
-                    format(print, "lmb up on window %s\n", &w.[WINDOW_TASK]{TASK_NAME});
+                    if (!mouse_captured)
+                    {
+                        m.[MOUSE_X] = cursor_x - w.[WINDOW_X] - BORDER_SIZE;
+                        m.[MOUSE_Y] = cursor_y - w.[WINDOW_Y] - BORDER_SIZE;
+                    }
+                    vec_push(&w{WINDOW_MOUSE_EVENTS}, m);
                 }
             }
             
@@ -122,7 +137,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
 function seth(u)
 (v{VEC}, p{VEC}, x)
 {
-    create_window(200, 200, 640, 480);
+    create_window(200, 200, 640, 480){WINDOW_FLAGS} = WINDOW_FGET_KEY_EVENTS;
     vec_init(v, 128, 1);
     vec_init(p, 128, 1);
     while (TRUE)

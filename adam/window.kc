@@ -1,4 +1,6 @@
-struct WINDOW = VEC{WINDOW_KEY_EVENTS}, [WINDOW_TASK], [WINDOW_X], [WINDOW_Y], [WINDOW_W], [WINDOW_H], [WINDOW_PRINT_X], [WINDOW_PRINT_Y], [WINDOW_BELOW], [WINDOW_ABOVE];
+struct WINDOW = VEC{WINDOW_KEY_EVENTS}, VEC{WINDOW_MOUSE_EVENTS}, [WINDOW_TASK], [WINDOW_X], [WINDOW_Y], [WINDOW_W], [WINDOW_H], [WINDOW_PRINT_X], [WINDOW_PRINT_Y], [WINDOW_BELOW], [WINDOW_ABOVE], {WINDOW_FLAGS};
+const WINDOW_FGET_KEY_EVENTS = 1;
+const WINDOW_FGET_MOUSE_EVENTS = 2;
 const BORDER_SIZE = 4;
 
 global windows;
@@ -8,6 +10,7 @@ function create_window(x, y, w, h)
 {
     win = malloc(WINDOW);
     vec_init(&win{WINDOW_KEY_EVENTS}, 32, 2);
+    vec_init(&win{WINDOW_MOUSE_EVENTS}, 32, MOUSE_EVENT);
     win.[WINDOW_TASK] = task;
     win.[WINDOW_X] = x;
     win.[WINDOW_Y] = y;
@@ -16,6 +19,7 @@ function create_window(x, y, w, h)
     win.[WINDOW_PRINT_X] = 0;
     win.[WINDOW_PRINT_Y] = 0;
     win.[WINDOW_ABOVE] = NULL;
+    win{WINDOW_FLAGS} = 0;
     window_draw_border(win);
     screen_fill_rect(win.[WINDOW_X] + BORDER_SIZE, win.[WINDOW_Y] + BORDER_SIZE, win.[WINDOW_W], win.[WINDOW_H], 0xFFFFFF);
     win.[WINDOW_BELOW] = windows;
@@ -26,6 +30,7 @@ function create_window(x, y, w, h)
 
 function delete_window(w)
 {
+    if (mouse_captured == w) mouse_captured = NULL;
     if (windows == w)
     {
         windows = windows.[WINDOW_BELOW];
@@ -147,4 +152,15 @@ function input(vec)
         }
     }
     return vec;
+}
+
+function capture_mouse()
+{
+    mouse_captured = task.[TASK_WINDOW];
+}
+
+function release_mouse()
+{
+    mouse_captured = NULL;
+    draw_cursor();
 }

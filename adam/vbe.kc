@@ -1,7 +1,7 @@
 const VBE_MODE_PTR = 0xE, VBE_ATTRIBUTES = 0x0, VBE_PITCH = 0x10, VBE_WIDTH = 0x12, VBE_HEIGHT = 0x14, VBE_BPP = 0x19, VBE_MEMORY_MODEL = 0x1B, VBE_FRAMEBUFFER = 0x28;
 
 global framebuffer, backbuffer, fb_pitch, fb_width, fb_height;
-global cursor_x, cursor_y, ocursor_x, ocursor_y;
+global cursor_x, cursor_y, ocursor_x, ocursor_y, mouse_captured;
 const CURSOR_W = 4, CURSOR_H = 4;
 
 function set_resolution(x, y)
@@ -133,6 +133,13 @@ function screen_write_rect(x, y, w, h, p)
 function draw_cursor()
 (p)
 {
+    if (mouse_captured)
+    {
+        if (ocursor_x != cursor_x or ocursor_y != cursor_y) _framebuffer_refresh(ocursor_x, ocursor_y, 4, 4);
+        ocursor_x = cursor_x;
+        ocursor_y = cursor_y;
+        return;
+    }
     p = framebuffer + cursor_y *! fb_pitch;
     _framebuffer_refresh(ocursor_x, ocursor_y, 4, 4);
     p[cursor_x] = 0xFF0000;

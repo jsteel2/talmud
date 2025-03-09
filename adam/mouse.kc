@@ -49,3 +49,11 @@ mouse_read:
     mouse_waitd();
     IN AL, 0x60
     RET
+
+struct MOUSE_EVENT = [MOUSE_X], [MOUSE_Y], {MOUSE_FLAGS};
+const MOUSE_LMB_DOWN = 1;
+const MOUSE_RMB_DOWN = 2;
+const MOUSE_MMB_DOWN = 4;
+const MOUSE_LMB_UP = 8;
+const MOUSE_RMB_UP = 16;
+const MOUSE_MMB_UP = 32;
