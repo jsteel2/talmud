@@ -54,7 +54,7 @@ function sleep(ms)
 function new_task(name, entry, arg)
 (t)
 {
-    t = malloc(TASK);
+    t = malloc_task(TASK, ADAM);
     strdup(name, &t{TASK_NAME});
     memcpy(&t{TASK_CWD}, &task{TASK_CWD}, FILE);
     t.[TASK_WINDOW] = NULL;
@@ -72,12 +72,19 @@ function new_task(name, entry, arg)
 }
 
 function kill(t)
+(m)
 {
     t.[TASK_NEXT].[TASK_PREV] = t.[TASK_PREV];
     t.[TASK_PREV].[TASK_NEXT] = t.[TASK_NEXT];
     compiler_free(&t{TASK_COMPILER});
     if (t.[TASK_WINDOW]) delete_window(t.[TASK_WINDOW]);
     free(t.[TASK_NAME + STRINGPTR]);
+    m = first_free;
+    while (m)
+    {
+        if (m.[MEM_HEADER_TASK] == t) free(m + MEM_HEADER);
+        m = m.[MEM_HEADER_NEXT];
+    }
     free(t);
 }
 

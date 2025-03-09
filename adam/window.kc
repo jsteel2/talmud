@@ -7,7 +7,7 @@ function create_window(x, y, w, h)
 (win)
 {
     win = malloc(WINDOW);
-    vec_init(&win{WINDOW_KEY_EVENTS}, 32, 1);
+    vec_init(&win{WINDOW_KEY_EVENTS}, 32, 2);
     win.[WINDOW_TASK] = task;
     win.[WINDOW_X] = x;
     win.[WINDOW_Y] = y;
@@ -19,6 +19,7 @@ function create_window(x, y, w, h)
     window_draw_border(win);
     screen_fill_rect(win.[WINDOW_X] + BORDER_SIZE, win.[WINDOW_Y] + BORDER_SIZE, win.[WINDOW_W], win.[WINDOW_H], 0xFFFFFF);
     win.[WINDOW_BELOW] = windows;
+    windows.[WINDOW_ABOVE] = win;
     windows = task.[TASK_WINDOW] = win;
     return win;
 }
@@ -32,6 +33,18 @@ function delete_window(w)
     if (w.[WINDOW_ABOVE]) w.[WINDOW_ABOVE].[WINDOW_BELOW] = w.[WINDOW_BELOW];
     if (w.[WINDOW_BELOW]) w.[WINDOW_BELOW].[WINDOW_ABOVE] = w.[WINDOW_ABOVE];
     free(w);
+}
+
+function focus_window(w)
+{
+    if (windows == w) return;
+    w.[WINDOW_ABOVE].[WINDOW_BELOW] = w.[WINDOW_BELOW];
+    if (w.[WINDOW_BELOW]) w.[WINDOW_BELOW].[WINDOW_ABOVE] = w.[WINDOW_ABOVE];
+    w.[WINDOW_ABOVE] = NULL;
+    w.[WINDOW_BELOW] = windows;
+    windows.[WINDOW_ABOVE] = w;
+    windows = w;
+    window_draw_border(w);
 }
 
 function window_draw_border(w)
@@ -61,10 +74,9 @@ function fill_rect(x, y, w, h, c) window_fill_rect(task.[TASK_WINDOW], x, y, w, 
 function draw_char(c, x, y, color, bg) window_draw_char(task.[TASK_WINDOW], c, x, y, color, bg);
 function write_rect(x, y, w, h, p) window_write_rect(task.[TASK_WINDOW], x, y, w, h, p);
 
-function print(s)
-(i, w)
+function window_print(w, s)
+(i)
 {
-    w = task.[TASK_WINDOW] or ADAM.[TASK_WINDOW];
     i = 0;
     while (i <! s.[STRINGLEN])
     {
@@ -76,6 +88,7 @@ function print(s)
         else if (s.[STRINGPTR]{i} == '\b')
         {
             w.[WINDOW_PRINT_X] -= 8;
+            if (w.[WINDOW_PRINT_X] <$ 0) w.[WINDOW_PRINT_X] = 0;
         }
         else if (s.[STRINGPTR]{i} == '\r')
         {
@@ -83,6 +96,12 @@ function print(s)
         }
         else
         {
+            if (w.[WINDOW_PRINT_Y] + 8 >! w.[WINDOW_H])
+            {
+                window_fill_rect(w, 0, 0, w.[WINDOW_W], w.[WINDOW_H], 0xFFFFFF);
+                w.[WINDOW_PRINT_X] = 0;
+                w.[WINDOW_PRINT_Y] = 0;
+            }
             window_draw_char(w, s.[STRINGPTR]{i}, w.[WINDOW_PRINT_X], w.[WINDOW_PRINT_Y], 0x000000, 0xFFFFFF);
             w.[WINDOW_PRINT_X] += 8;
             if (w.[WINDOW_PRINT_X] + 8 >! w.[WINDOW_W])
@@ -91,15 +110,11 @@ function print(s)
                 w.[WINDOW_PRINT_Y] += 8;
             }
         }
-        if (w.[WINDOW_PRINT_Y] + 8 >! w.[WINDOW_H])
-        {
-            window_fill_rect(w, 0, 0, w.[WINDOW_W], w.[WINDOW_H], 0xFFFFFF);
-            w.[WINDOW_PRINT_X] = 0;
-            w.[WINDOW_PRINT_Y] = 0;
-        }
         i += 1;
     }
 }
+
+function print(s) return window_print(task.[TASK_WINDOW] or ADAM.[TASK_WINDOW], s);
 
 function input(vec)
 (c)
@@ -115,7 +130,7 @@ function input(vec)
         else
         {
             if (!vec_shift(&task.[TASK_WINDOW]{WINDOW_KEY_EVENTS}, &c)) break;
-            if (c & 0x80 or c == 0x2A or c == 0x36 or c == 0x1D or c == 0x38) JMP .l
+            if (c & K_RELEASED or c == K_LSHIFT or c == K_RSHIFT or c == K_LCTRL or c == K_LALT) JMP .l
             c = shift_pressed ? qwerty_upper{c} : qwerty{c};
             if (c == '\b')
             {

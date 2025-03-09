@@ -38,6 +38,13 @@ function vec_set1(v, i, x)
     return TRUE;
 }
 
+function vec_set2(v, i, x)
+{
+    if (!vec_resize(v, i + 1)) return FALSE;
+    v.[VEC_PTR]<i> = x;
+    return TRUE;
+}
+
 function vec_set4(v, i, x)
 {
     if (!vec_resize(v, i + 1)) return FALSE;
@@ -55,6 +62,13 @@ function vec_push(v, p)
 function vec_push1(v, x)
 {
     if (!vec_set1(v, v.[VEC_LEN], x)) return FALSE;
+    v.[VEC_LEN] += 1;
+    return TRUE;
+}
+
+function vec_push2(v, x)
+{
+    if (!vec_set2(v, v.[VEC_LEN], x)) return FALSE;
     v.[VEC_LEN] += 1;
     return TRUE;
 }

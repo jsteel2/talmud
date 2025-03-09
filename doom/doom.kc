@@ -43,12 +43,9 @@ function cfree(x)
     POP EBX
 }
 
-global reip, resp, rebp;
 function cexit(x)
 {
-    MOV ESP, [resp]
-    MOV EBP, [rebp]
-    JMP [reip]
+    exit();
 }
 
 function cprint(fmt)
@@ -261,8 +258,9 @@ function load_elf(path, osymtab, ostrtab, osyms)
 }
 
 function doom()
-(mem, symtab, strtab, syms, i, p, doom_init, doom_set_malloc, doom_set_print, doom_set_exit, doom_set_getenv, doom_set_file_io, doom_set_gettime, doom_update, doom_get_framebuffer)
+(mem, symtab, strtab, syms, i, p, k, doom_init, doom_set_malloc, doom_set_print, doom_set_exit, doom_set_getenv, doom_set_file_io, doom_set_gettime, doom_update, doom_get_framebuffer, doom_key_down, doom_key_up, doom_set_default_int)
 {
+    create_window(100, 100, 320, 200);
     mem = load_elf("doom.elf", &symtab, &strtab, &syms);
     if (!mem) return print("Could not load ELF\n");
     
@@ -279,6 +277,9 @@ function doom()
         else if (cstrcmp(p, "doom_init")) doom_init = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         else if (cstrcmp(p, "doom_update")) doom_update = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         else if (cstrcmp(p, "doom_get_framebuffer")) doom_get_framebuffer = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_key_down")) doom_key_down = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_key_up")) doom_key_up = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_set_default_int")) doom_set_default_int = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         i += 1;
     }
 
@@ -298,13 +299,92 @@ function doom()
     doom_set_getenv(cgetenv);
     doom_set_file_io(copen, cclose, cread, cwrite, cseek, ctell, ceof);
     doom_set_gettime(cgettime);
-    MOV [resp], ESP
-    MOV [rebp], EBP
-    MOV DWORD [reip], .end
     doom_init(0, 0, 0);
     while (TRUE)
     {
         i = timer_ms;
+        while (task.[TASK_WINDOW].[WINDOW_KEY_EVENTS + VEC_LEN])
+        {
+            p = 0;
+            vec_shift(&task.[TASK_WINDOW]{WINDOW_KEY_EVENTS}, &p);
+            k = -1;
+            switch (p & ~K_RELEASED)
+            {
+                case K_TAB: k = 9; break;
+                case K_ENTER: k = 13; break;
+                case K_ESC: k = 27; break;
+                case K_SPACE: k = 32; break;
+                case K_QUOTE: k = '\''; break;
+                case K_KSTAR: k = '*'; break;
+                case K_COMMA: k = ','; break;
+                case K_DASH: k = 0x2d; break;
+                case K_DOT: k = '.'; break;
+                case K_SLASH: k = '/'; break;
+                case K_0: k = '0'; break;
+                case K_1: k = '1'; break;
+                case K_2: k = '2'; break;
+                case K_3: k = '3'; break;
+                case K_4: k = '4'; break;
+                case K_5: k = '5'; break;
+                case K_6: k = '6'; break;
+                case K_7: k = '7'; break;
+                case K_8: k = '8'; break;
+                case K_9: k = '9'; break;
+                case K_SEMICOLON: k = ';'; break;
+                case K_EQUALS: k = 0x3d; break;
+                case K_LBRACKET: k = '['; break;
+                case K_RBRACKET: k = ']'; break;
+                case K_A: k = 'a'; break;
+                case K_B: k = 'b'; break;
+                case K_C: k = 'c'; break;
+                case K_D: k = 'd'; break;
+                case K_E: k = 'e'; break;
+                case K_F: k = 'f'; break;
+                case K_G: k = 'g'; break;
+                case K_H: k = 'h'; break;
+                case K_I: k = 'i'; break;
+                case K_J: k = 'j'; break;
+                case K_K: k = 'k'; break;
+                case K_L: k = 'l'; break;
+                case K_M: k = 'm'; break;
+                case K_N: k = 'n'; break;
+                case K_O: k = 'o'; break;
+                case K_P: k = 'p'; break;
+                case K_Q: k = 'q'; break;
+                case K_R: k = 'r'; break;
+                case K_S: k = 's'; break;
+                case K_T: k = 't'; break;
+                case K_U: k = 'u'; break;
+                case K_V: k = 'v'; break;
+                case K_W: k = 'w'; break;
+                case K_X: k = 'x'; break;
+                case K_Y: k = 'y'; break;
+                case K_Z: k = 'z'; break;
+                case K_BACKSPACE: k = 127; break;
+                case K_LCTRL: case K_RCTRL: k = 0x80 + 0x1d; break;
+                case K_LEFT: k = 0xac; break;
+                case K_UP: k = 0xad; break;
+                case K_RIGHT: k = 0xae; break;
+                case K_DOWN: k = 0xaf; break;
+                case K_LSHIFT: case K_RSHIFT: k = 0x80 + 0x36; break;
+                case K_LALT: case K_RALT: k = 0x80 + 0x36; break;
+                case K_F1: k = 0x80 + 0x3b; break;
+                case K_F2: k = 0x80 + 0x3c; break;
+                case K_F3: k = 0x80 + 0x3d; break;
+                case K_F4: k = 0x80 + 0x3e; break;
+                case K_F5: k = 0x80 + 0x3f; break;
+                case K_F6: k = 0x80 + 0x40; break;
+                case K_F7: k = 0x80 + 0x41; break;
+                case K_F8: k = 0x80 + 0x42; break;
+                case K_F9: k = 0x80 + 0x43; break;
+                case K_F10: k = 0x80 + 0x44; break;
+                case K_F11: k = 0x80 + 0x57; break;
+                case K_F12: k = 0x80 + 0x58; break;
+                case K_PAUSE: k = 0xff; break;
+            }
+            if (p & K_RELEASED) doom_key_up(k);
+            else doom_key_down(k);
+        }
         doom_update();
         write_rect(0, 0, 320, 200, doom_get_framebuffer(4));
         sleep(maxs(0, 16 - (timer_ms - i)));
@@ -313,4 +393,4 @@ function doom()
     free(mem);
 }
 
-doom();
+new_task("DOOM", doom, 0);

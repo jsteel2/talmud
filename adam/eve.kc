@@ -16,7 +16,7 @@ include "adam/mouse.kc"
 global ans;
 
 function eve(compiler)
-(c{3}, olm, orm, omm, w)
+(c{3}, olm, orm, omm, w, k)
 {
     adam_key_events = malloc(VEC);
     adam_mouse_events = malloc(VEC);
@@ -53,20 +53,31 @@ Welcome to TalmudOS (Formerly ChucksOS)
             CLI
             vec_shift(adam_key_events, c);
             STI
-            if (c{0} == 0x2A or c{0} == 0x36) shift_pressed = TRUE;
-            else if (c{0} == 0xAA or c{0} == 0xB6) shift_pressed = FALSE;
-            if (c{0} == 0x1D) ctrl_pressed = TRUE;
-            else if (c{0} == 0x9D) ctrl_pressed = FALSE;
-            if (c{0} == 0x38) alt_pressed = TRUE;
-            else if (c{0} == 0xB8) alt_pressed = TRUE;
+            k = 0;
+            if (c{0} == 0xE0)
+            {
+                while (adam_key_events.[VEC_LEN] == 0) wait();
+                CLI
+                vec_shift(adam_key_events, c);
+                STI
+                k = 0x100;
+            }
+            k |= c{0};
+            if (k & 0x80) k ^= K_RELEASED | (c{0} & 0x80);
+            if (k == K_LSHIFT or k == K_RSHIFT) shift_pressed = TRUE;
+            else if (k == (K_LSHIFT | K_RELEASED) or k == (K_RSHIFT | K_RELEASED)) shift_pressed = FALSE;
+            if (k == K_LCTRL) ctrl_pressed = TRUE;
+            else if (k == (K_LCTRL | K_RELEASED)) ctrl_pressed = FALSE;
+            if (k == K_LALT) alt_pressed = TRUE;
+            else if (k == (K_LALT | K_RELEASED)) alt_pressed = TRUE;
 
-            if (c{0} == 0x14 and ctrl_pressed and alt_pressed)
+            if (k == K_T and ctrl_pressed and alt_pressed)
             {
                 new_task("Seth", seth, 0);
             }
             else
             {
-                vec_push1(&windows{WINDOW_KEY_EVENTS}, c{0});
+                vec_push2(&windows{WINDOW_KEY_EVENTS}, k);
                 windows.[WINDOW_TASK].[TASK_WAIT] = FALSE;
             }
         }
@@ -91,8 +102,15 @@ Welcome to TalmudOS (Formerly ChucksOS)
             }
             if (w)
             {
-                if (c{0} & 1 and !olm) format(print, "lmb down on window %s\n", &w.[WINDOW_TASK]{TASK_NAME});
-                else if (!(c{0} & 1) and olm) format(print, "lmb up on window %s\n", &w.[WINDOW_TASK]{TASK_NAME});
+                if (c{0} & 1 and !olm)
+                {
+                    format(print, "lmb down on window %s\n", &w.[WINDOW_TASK]{TASK_NAME});
+                    focus_window(w);
+                }
+                else if (!(c{0} & 1) and olm)
+                {
+                    format(print, "lmb up on window %s\n", &w.[WINDOW_TASK]{TASK_NAME});
+                }
             }
             
             olm = c{0} & 1;
@@ -136,4 +154,43 @@ function dir(p)
     {
         format(print, "%s\n", s);
     }
+}
+
+function intcmp(x, y) return x[0] == y[0];
+function hashint(x) return *x;
+function memrep()
+(m{MAP}, i, freemem, usedmem, n)
+{
+    map_init(m, 8, 4, 4, intcmp, hashint, NULL);
+    i = first_free;
+    freemem = 0;
+    usedmem = 0;
+    while (i)
+    {
+        if (!(i{MEM_HEADER_FLAGS} & MEM_HEADER_FUSED))
+        {
+            freemem += i.[MEM_HEADER_SIZE];
+        }
+        else
+        {
+            usedmem += i.[MEM_HEADER_SIZE];
+            if (map_get(m, &i{MEM_HEADER_TASK}, &n))
+            {
+                n += i.[MEM_HEADER_SIZE];
+                map_set(m, &i{MEM_HEADER_TASK}, &n);
+            }
+            else
+            {
+                map_set(m, &i{MEM_HEADER_TASK}, &i.[MEM_HEADER_SIZE]);
+            }
+        }
+        i = i.[MEM_HEADER_NEXT];
+    }
+    format(print, "%dM free, %dK used, %dK reserved for YHWH\n", freemem /! 1024 /! 1024, usedmem /! 1024, (first_free - 0x500) /! 1024);
+    n = 0;
+    while (map_iter(m, &n))
+    {
+        format(print, "%dK used by task %s\n", n[1] /! 1024, &n[0]{TASK_NAME});
+    }
+    map_free(m);
 }

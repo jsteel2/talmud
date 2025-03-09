@@ -37,7 +37,7 @@ function set_resolution(x, y)
             fb_width = inf.<VBE_WIDTH>;
             fb_height = inf.<VBE_HEIGHT>;
             free(backbuffer);
-            backbuffer = malloc(fb_width *! fb_height *! 4);
+            backbuffer = malloc_task(fb_width *! fb_height *! 4, ADAM);
         }
         i += 1;
 .x:
