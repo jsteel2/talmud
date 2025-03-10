@@ -1,8 +1,10 @@
 const VBE_MODE_PTR = 0xE, VBE_ATTRIBUTES = 0x0, VBE_PITCH = 0x10, VBE_WIDTH = 0x12, VBE_HEIGHT = 0x14, VBE_BPP = 0x19, VBE_MEMORY_MODEL = 0x1B, VBE_FRAMEBUFFER = 0x28;
 
-global framebuffer, backbuffer, fb_pitch, fb_width, fb_height;
+global framebuffer, fb_pitch, fb_width, fb_height;
 global cursor_x, cursor_y, ocursor_x, ocursor_y, mouse_captured;
+global windows;
 const CURSOR_W = 4, CURSOR_H = 4;
+const BACKGROUND_COLOR = 0x5C96C9;
 
 function set_resolution(x, y)
 (ctrl, inf, modes, i, eax, ecx, ebx, edi, unused)
@@ -36,98 +38,95 @@ function set_resolution(x, y)
             fb_pitch = inf.<VBE_PITCH>;
             fb_width = inf.<VBE_WIDTH>;
             fb_height = inf.<VBE_HEIGHT>;
-            free(backbuffer);
-            backbuffer = malloc_task(fb_width *! fb_height *! 4, ADAM);
             break;
         }
         i += 1;
 .x:
     }
-    screen_fill_rect(0, 0, fb_width, fb_height, 0x5C96C9);
+    framebuffer_refresh(0, 0, fb_width, fb_height, NULL);
 }
 
-function _framebuffer_refresh(x, y, w, h)
-(pf, pb, i)
+function _framebuffer_refresh(x, y, w, h, win)
+(buf, pb, pw, ow, oh, i)
 {
-    pf = framebuffer + y *! fb_pitch + x *! 4;
-    pb = backbuffer + y *! fb_width *! 4 + x *! 4;
-    i = 0;
-    while (i <! h)
+    if (!windows)
     {
-        memcpyd(pf, pb, w);
-        i += 1;
-        pf += fb_pitch;
-        pb += fb_width *! 4;
+        return screen_fill_rect(x, y, w, h, BACKGROUND_COLOR);
+    }
+    if (x >=$ fb_width or y >=$ fb_height) return;
+    if (x + w >$ fb_width) w -= (x + w) - fb_width;
+    if (y + h >$ fb_height) h -= (y + h) - fb_height;
+    if (x <$ 0) { w += x; x = 0; }
+    if (y <$ 0) { h += y; y = 0; }
+    if (win and win == windows)
+    {
+        screen_write_rect(x, y, w, h, win.[WINDOW_BUFFER] + (y - win.[WINDOW_Y]) *! win.[WINDOW_W] *! 4 + (x - win.[WINDOW_X]) *! 4, win.[WINDOW_W] *! 4);
+    }
+    else
+    {
+        buf = malloc(h *! w *! 4);
+        if (!buf) return;
+        if (!win)
+        {
+            memsetd(buf, BACKGROUND_COLOR, h *! w);
+            win = windows;
+            while (win.[WINDOW_BELOW]) win = win.[WINDOW_BELOW];
+        }
+        do
+        {
+            ow = maxs(0, mins(x + w, win.[WINDOW_X] + win.[WINDOW_W]) - maxs(x, win.[WINDOW_X]));
+            oh = maxs(0, mins(y + h, win.[WINDOW_Y] + win.[WINDOW_H] + TITLEBAR_SIZE) - maxs(y, win.[WINDOW_Y]));
+            if (ow and oh)
+            {
+                pb = buf + (maxs(y, win.[WINDOW_Y]) - y) *! w *! 4 + (maxs(x, win.[WINDOW_X]) - x) *! 4;
+                pw = win.[WINDOW_BUFFER] + (maxs(y, win.[WINDOW_Y]) - win.[WINDOW_Y]) *! win.[WINDOW_W] *! 4 + (maxs(x, win.[WINDOW_X]) - win.[WINDOW_X]) *! 4;
+                i = 0;
+                while (i <! oh)
+                {
+                    memcpyd(pb, pw, ow);
+                    pb += w *! 4;
+                    pw += win.[WINDOW_W] *! 4;
+                    i += 1;
+                }
+            }
+            win = win.[WINDOW_ABOVE];
+        } while (win);
+        screen_write_rect(x, y, w, h, buf, w *! 4);
+        free(buf);
     }
 }
 
-function framebuffer_refresh(x, y, w, h)
+function framebuffer_refresh(x, y, w, h, win)
 {
-    _framebuffer_refresh(x, y, w, h);
-    if (x <! cursor_x + CURSOR_W and cursor_x <! x + w and y <! cursor_y + CURSOR_H and cursor_y <! y + h) draw_cursor();
+    _framebuffer_refresh(x, y, w, h, win);
+    if (x <$ cursor_x + CURSOR_W and cursor_x <$ x + w and y <$ cursor_y + CURSOR_H and cursor_y <$ y + h) draw_cursor();
 }
 
-function backbuffer_fill_rect(x, y, w, h, color)
+function screen_fill_rect(x, y, w, h, color)
 (p, i)
 {
-    p = backbuffer + y *! fb_width *! 4 + x *! 4;
+    p = framebuffer + y *! fb_pitch + x *! 4;
     i = 0;
     while (i <! h)
     {
         memsetd(p, color, w);
         i += 1;
-        p += fb_width *! 4;
+        p += fb_pitch;
     }
 }
 
-function screen_fill_rect(x, y, w, h, color)
+function screen_write_rect(x, y, w, h, p, ppitch)
+(pf, i)
 {
-    backbuffer_fill_rect(x, y, w, h, color);
-    framebuffer_refresh(x, y, w, h);
-}
-
-function backbuffer_draw_char(c, x, y, color, bg)
-(p, i, j)
-{
-    p = backbuffer + y *! fb_width *! 4 + x *! 4;
-    i = 0;
-    while (i <! 8)
-    {
-        j = 0;
-        while (j <! 8)
-        {
-            p[7 - j] = FONT{c *! 8 + i} & (1 << j) ? color : bg;
-            j += 1;
-        }
-        i += 1;
-        p += fb_width *! 4;
-    }
-}
-
-function screen_draw_char(c, x, y, color, bg)
-{
-    backbuffer_draw_char(c, x, y, color, bg);
-    framebuffer_refresh(x, y, 8, 8);
-}
-
-function backbuffer_write_rect(x, y, w, h, p)
-(pb, i)
-{
-    pb = backbuffer + y *! fb_width *! 4 + x *! 4;
+    pf = framebuffer + y *! fb_pitch + x *! 4;
     i = 0;
     while (i <! h)
     {
-        memcpyd(pb, p, w);
+        memcpyd(pf, p, w);
         i += 1;
-        pb += fb_width *! 4;
-        p += w *! 4;
+        pf += fb_pitch;
+        p += ppitch;
     }
-}
-
-function screen_write_rect(x, y, w, h, p)
-{
-    backbuffer_write_rect(x, y, w, h, p);
-    framebuffer_refresh(x, y, w, h);
 }
 
 function draw_cursor()
@@ -135,13 +134,13 @@ function draw_cursor()
 {
     if (mouse_captured)
     {
-        if (ocursor_x != cursor_x or ocursor_y != cursor_y) _framebuffer_refresh(ocursor_x, ocursor_y, 4, 4);
+        if (ocursor_x != cursor_x or ocursor_y != cursor_y) _framebuffer_refresh(ocursor_x, ocursor_y, 4, 4, NULL);
         ocursor_x = cursor_x;
         ocursor_y = cursor_y;
         return;
     }
     p = framebuffer + cursor_y *! fb_pitch;
-    _framebuffer_refresh(ocursor_x, ocursor_y, 4, 4);
+    if (ocursor_x != cursor_x or ocursor_y != cursor_y) _framebuffer_refresh(ocursor_x, ocursor_y, 4, 4, NULL);
     p[cursor_x] = 0xFF0000;
     if (cursor_x + 1 <! fb_width) p[cursor_x + 1] = 0xFF0000;
     if (cursor_x + 2 <! fb_width) p[cursor_x + 2] = 0xFF0000;

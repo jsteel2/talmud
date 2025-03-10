@@ -1,9 +1,8 @@
-struct WINDOW = VEC{WINDOW_KEY_EVENTS}, VEC{WINDOW_MOUSE_EVENTS}, [WINDOW_TASK], [WINDOW_X], [WINDOW_Y], [WINDOW_W], [WINDOW_H], [WINDOW_PRINT_X], [WINDOW_PRINT_Y], [WINDOW_BELOW], [WINDOW_ABOVE], {WINDOW_FLAGS};
+struct WINDOW = VEC{WINDOW_KEY_EVENTS}, VEC{WINDOW_MOUSE_EVENTS}, [WINDOW_TASK], [WINDOW_X], [WINDOW_Y], [WINDOW_W], [WINDOW_H], [WINDOW_PRINT_X], [WINDOW_PRINT_Y], [WINDOW_BELOW], [WINDOW_ABOVE], [WINDOW_BUFFER], {WINDOW_FLAGS};
 const WINDOW_FGET_KEY_EVENTS = 1;
 const WINDOW_FGET_MOUSE_EVENTS = 2;
-const BORDER_SIZE = 4;
-
-global windows;
+const TITLEBAR_SIZE = 16;
+const TITLEBAR_COLOR = 0xFABA62;
 
 function create_window(x, y, w, h)
 (win)
@@ -20,11 +19,12 @@ function create_window(x, y, w, h)
     win.[WINDOW_PRINT_Y] = 0;
     win.[WINDOW_ABOVE] = NULL;
     win{WINDOW_FLAGS} = 0;
-    window_draw_border(win);
-    screen_fill_rect(win.[WINDOW_X] + BORDER_SIZE, win.[WINDOW_Y] + BORDER_SIZE, win.[WINDOW_W], win.[WINDOW_H], 0xFFFFFF);
+    win.[WINDOW_BUFFER] = malloc(w *! (h + TITLEBAR_SIZE) *! 4);
     win.[WINDOW_BELOW] = windows;
-    windows.[WINDOW_ABOVE] = win;
+    if (windows) windows.[WINDOW_ABOVE] = win;
     windows = task.[TASK_WINDOW] = win;
+    window_set_titlebar(win, &task{TASK_NAME});
+    window_fill_rect(win, 0, 0, win.[WINDOW_W], win.[WINDOW_H], 0xFFFFFF);
     return win;
 }
 
@@ -37,10 +37,16 @@ function delete_window(w)
     }
     if (w.[WINDOW_ABOVE]) w.[WINDOW_ABOVE].[WINDOW_BELOW] = w.[WINDOW_BELOW];
     if (w.[WINDOW_BELOW]) w.[WINDOW_BELOW].[WINDOW_ABOVE] = w.[WINDOW_ABOVE];
+    vec_free(&w{WINDOW_KEY_EVENTS});
+    vec_free(&w{WINDOW_MOUSE_EVENTS});
+    free(w.[WINDOW_BUFFER]);
+    framebuffer_refresh(w.[WINDOW_X], w.[WINDOW_Y], w.[WINDOW_W], w.[WINDOW_H] + TITLEBAR_SIZE, NULL);
+    w.[WINDOW_TASK].[TASK_WINDOW] = NULL;
     free(w);
 }
 
 function focus_window(w)
+(r)
 {
     if (windows == w) return;
     w.[WINDOW_ABOVE].[WINDOW_BELOW] = w.[WINDOW_BELOW];
@@ -49,35 +55,80 @@ function focus_window(w)
     w.[WINDOW_BELOW] = windows;
     windows.[WINDOW_ABOVE] = w;
     windows = w;
-    window_draw_border(w);
+    framebuffer_refresh(w.[WINDOW_X], w.[WINDOW_Y], w.[WINDOW_W], w.[WINDOW_H] + TITLEBAR_SIZE, w);
 }
 
-function window_draw_border(w)
+function window_set_titlebar(win, s)
 {
-    screen_fill_rect(w.[WINDOW_X], w.[WINDOW_Y], w.[WINDOW_W] + BORDER_SIZE, BORDER_SIZE, 0xFABA62);
-    screen_fill_rect(w.[WINDOW_X], w.[WINDOW_Y] + BORDER_SIZE, BORDER_SIZE, w.[WINDOW_H] + BORDER_SIZE, 0xFABA62);
-    screen_fill_rect(w.[WINDOW_X], w.[WINDOW_Y] + w.[WINDOW_H] + BORDER_SIZE, w.[WINDOW_W] + BORDER_SIZE, BORDER_SIZE, 0xFABA62);
-    screen_fill_rect(w.[WINDOW_X] + w.[WINDOW_W] + BORDER_SIZE, w.[WINDOW_Y], BORDER_SIZE, w.[WINDOW_H] + BORDER_SIZE *! 2, 0xFABA62);
+    window_fill_rect(win, 0, -TITLEBAR_SIZE, win.[WINDOW_W], TITLEBAR_SIZE, TITLEBAR_COLOR);
+    window_draw_text(win, s, win.[WINDOW_W] /! 2 - s.[STRINGLEN] *! 4, -TITLEBAR_SIZE /$ 2 - 4, 0, TITLEBAR_COLOR);
 }
 
 function window_fill_rect(win, x, y, w, h, c)
+(p, i)
 {
-    screen_fill_rect(win.[WINDOW_X] + BORDER_SIZE + x, win.[WINDOW_Y] + BORDER_SIZE + y, w, h, c);
+    p = win.[WINDOW_BUFFER] + (y + TITLEBAR_SIZE) *! win.[WINDOW_W] *! 4 + x *! 4;
+    i = 0;
+    while (i <! h)
+    {
+        memsetd(p, c, w);
+        i += 1;
+        p += win.[WINDOW_W] *! 4;
+    }
+    framebuffer_refresh(win.[WINDOW_X] + x, win.[WINDOW_Y] + y + TITLEBAR_SIZE, w, h, win);
 }
 
 function window_draw_char(win, c, x, y, color, bg)
+(p, i, j)
 {
-    screen_draw_char(c, win.[WINDOW_X] + BORDER_SIZE + x, win.[WINDOW_Y] + BORDER_SIZE + y, color, bg);
+    p = win.[WINDOW_BUFFER] + (y + TITLEBAR_SIZE) *! win.[WINDOW_W] *! 4 + x *! 4;
+    i = 0;
+    while (i <! 8)
+    {
+        j = 0;
+        while (j <! 8)
+        {
+            p[7 - j] = FONT{c *! 8 + i} & (1 << j) ? color : bg;
+            j += 1;
+        }
+        i += 1;
+        p += win.[WINDOW_W] *! 4;
+    }
+    framebuffer_refresh(win.[WINDOW_X] + x, win.[WINDOW_Y] + y + TITLEBAR_SIZE, 8, 8, win);
+}
+
+function window_draw_text(win, s, x, y, color, bg)
+(i)
+{
+    i = 0;
+    while (i <! s.[STRINGLEN])
+    {
+        window_draw_char(win, s.[STRINGPTR]{i}, x, y, color, bg);
+        x += 8;
+        i += 1;
+    }
 }
 
 function window_write_rect(win, x, y, w, h, p)
+(pw, i)
 {
-    screen_write_rect(win.[WINDOW_X] + BORDER_SIZE + x, win.[WINDOW_Y] + BORDER_SIZE + y, w, h, p);
+    pw = win.[WINDOW_BUFFER] + (y + TITLEBAR_SIZE) *! win.[WINDOW_W] *! 4 + x *! 4;
+    i = 0;
+    while (i <! h)
+    {
+        memcpyd(pw, p, w);
+        i += 1;
+        p += w *! 4;
+        pw += win.[WINDOW_W] *! 4;
+    }
+    framebuffer_refresh(win.[WINDOW_X] + x, win.[WINDOW_Y] + y + TITLEBAR_SIZE, w, h, win);
 }
 
 function fill_rect(x, y, w, h, c) window_fill_rect(task.[TASK_WINDOW], x, y, w, h, c);
 function draw_char(c, x, y, color, bg) window_draw_char(task.[TASK_WINDOW], c, x, y, color, bg);
+function draw_text(s, x, y, color, bg) window_draw_text(task.[TASK_WINDOW], s, x, y, color, bg);
 function write_rect(x, y, w, h, p) window_write_rect(task.[TASK_WINDOW], x, y, w, h, p);
+function set_titlebar(s) window_set_titlebar(task.[TASK_WINDOW], s);
 
 function window_print(w, s)
 (i)
@@ -103,9 +154,11 @@ function window_print(w, s)
         {
             if (w.[WINDOW_PRINT_Y] + 8 >! w.[WINDOW_H])
             {
-                window_fill_rect(w, 0, 0, w.[WINDOW_W], w.[WINDOW_H], 0xFFFFFF);
+                memcpyd(w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! TITLEBAR_SIZE, w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + 8), (w.[WINDOW_H] - 8) *! w.[WINDOW_W]);
+                memsetd(w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + w.[WINDOW_H] - 8), 0xFFFFFF, w.[WINDOW_W] *! 8);
+                framebuffer_refresh(w.[WINDOW_X], w.[WINDOW_Y] + TITLEBAR_SIZE, w.[WINDOW_W], w.[WINDOW_H], w);
                 w.[WINDOW_PRINT_X] = 0;
-                w.[WINDOW_PRINT_Y] = 0;
+                w.[WINDOW_PRINT_Y] -= 8;
             }
             window_draw_char(w, s.[STRINGPTR]{i}, w.[WINDOW_PRINT_X], w.[WINDOW_PRINT_Y], 0x000000, 0xFFFFFF);
             w.[WINDOW_PRINT_X] += 8;

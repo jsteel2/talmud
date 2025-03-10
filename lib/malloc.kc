@@ -60,7 +60,7 @@ function malloc_task(n, task)
     left.[MEM_HEADER_SIZE] = n;
     left.[MEM_HEADER_NEXT] = right;
 
-    left{MEM_HEADER_FLAGS} |= MEM_HEADER_FUSED;
+    left{MEM_HEADER_FLAGS} = MEM_HEADER_FUSED;
 
     return left + MEM_HEADER;
 }

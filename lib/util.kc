@@ -2,6 +2,7 @@ function minu(x, y) return x <! y ? x : y;
 function mins(x, y) return x <$ y ? x : y;
 function maxu(x, y) return x >! y ? x : y;
 function maxs(x, y) return x >$ y ? x : y;
+function abs(x) return x <$ 0 ? -x : x;
 function upper(c) return islower(c) ? c + 'A' - 'a' : c;
 function islower(c) return c >=! 'a' and c <=! 'z';
 function isnum(c) return c >=! '0' and c <=! '9';

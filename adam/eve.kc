@@ -16,7 +16,7 @@ include "adam/mouse.kc"
 global ans;
 
 function eve(compiler)
-(c{3}, olm, orm, omm, w, k, m{MOUSE_EVENT})
+(c{3}, olm, orm, omm, w, k, m{MOUSE_EVENT}, dragging, startx, starty, ox, oy)
 {
     adam_key_events = malloc(VEC);
     adam_mouse_events = malloc(VEC);
@@ -41,6 +41,10 @@ Welcome to TalmudOS (Formerly ChucksOS)
     new_task("Seth", seth, 0);
 
     draw_cursor();
+    dragging = NULL;
+    olm = FALSE;
+    orm = FALSE;
+    omm = FALSE;
     while (TRUE)
     {
         if (adam_key_events.[VEC_LEN] == 0 and adam_mouse_events.[VEC_LEN] == 0)
@@ -99,10 +103,14 @@ Welcome to TalmudOS (Formerly ChucksOS)
             {
                 w = mouse_captured;
             }
+            else if (dragging)
+            {
+                w = dragging;
+            }
             else
             {
                 w = windows;
-                while (w and !(w.[WINDOW_X] <! cursor_x + CURSOR_W and cursor_x <! w.[WINDOW_X] + w.[WINDOW_W] + BORDER_SIZE *! 2 and w.[WINDOW_Y] <! cursor_y + CURSOR_H and cursor_y <! w.[WINDOW_Y] + w.[WINDOW_H] + BORDER_SIZE *! 2))
+                while (w and (w.[WINDOW_X] >$ cursor_x or cursor_x >$ w.[WINDOW_X] + w.[WINDOW_W] or w.[WINDOW_Y] >$ cursor_y or cursor_y >$ w.[WINDOW_Y] + w.[WINDOW_H] + TITLEBAR_SIZE))
                 {
                     w = w.[WINDOW_BELOW];
                 }
@@ -116,14 +124,38 @@ Welcome to TalmudOS (Formerly ChucksOS)
                 m{MOUSE_FLAGS} |= !(c{0} & 2) and orm and MOUSE_RMB_UP;
                 m{MOUSE_FLAGS} |= !(c{0} & 4) and omm and MOUSE_MMB_UP;
                 if (m{MOUSE_FLAGS} & (MOUSE_LMB_DOWN | MOUSE_RMB_DOWN | MOUSE_MMB_DOWN)) focus_window(w);
-                if (w{WINDOW_FLAGS} & WINDOW_FGET_MOUSE_EVENTS and (mouse_captured or (w.[WINDOW_X] + BORDER_SIZE <! cursor_x + CURSOR_W and cursor_x <! w.[WINDOW_X] + w.[WINDOW_W] + BORDER_SIZE and w.[WINDOW_Y] + BORDER_SIZE <! cursor_y + CURSOR_H and cursor_y <! w.[WINDOW_Y] + w.[WINDOW_H] + BORDER_SIZE)))
+                if (dragging or cursor_y <$ w.[WINDOW_Y] + TITLEBAR_SIZE)
+                {
+                    if (m{MOUSE_FLAGS} & MOUSE_LMB_DOWN)
+                    {
+                        dragging = w;
+                        startx = cursor_x;
+                        starty = cursor_y;
+                    }
+                    else if (m{MOUSE_FLAGS} & MOUSE_LMB_UP)
+                    {
+                        dragging = NULL;
+                    }
+                    else if (dragging)
+                    {
+                        ox = w.[WINDOW_X];
+                        oy = w.[WINDOW_Y];
+                        w.[WINDOW_X] += cursor_x - startx;
+                        w.[WINDOW_Y] += cursor_y - starty;
+                        framebuffer_refresh(mins(w.[WINDOW_X], ox), mins(w.[WINDOW_Y], oy), w.[WINDOW_W] + abs(ox - w.[WINDOW_X]), w.[WINDOW_H] + TITLEBAR_SIZE + abs(oy - w.[WINDOW_Y]), NULL);
+                        startx = cursor_x;
+                        starty = cursor_y;
+                    }
+                }
+                else if (w{WINDOW_FLAGS} & WINDOW_FGET_MOUSE_EVENTS and (mouse_captured or (w.[WINDOW_Y] + TITLEBAR_SIZE <$ cursor_y)))
                 {
                     if (!mouse_captured)
                     {
-                        m.[MOUSE_X] = cursor_x - w.[WINDOW_X] - BORDER_SIZE;
-                        m.[MOUSE_Y] = cursor_y - w.[WINDOW_Y] - BORDER_SIZE;
+                        m.[MOUSE_X] = cursor_x - w.[WINDOW_X];
+                        m.[MOUSE_Y] = cursor_y - w.[WINDOW_Y] - TITLEBAR_SIZE;
                     }
                     vec_push(&w{WINDOW_MOUSE_EVENTS}, m);
+                    windows.[WINDOW_TASK].[TASK_WAIT] = FALSE;
                 }
             }
             
