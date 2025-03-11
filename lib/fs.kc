@@ -208,6 +208,11 @@ function write(file, n, buf)
     return i;
 }
 
+function resize(f)
+{
+    # implement
+}
+
 function cluster2sector(file, cluster) return ((cluster - 2) *! file{FILE_SECTORS_PER_CLUSTER}) + file.[FILE_DATA_SECTOR];
 
 function dir2path(v, p)

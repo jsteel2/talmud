@@ -12,12 +12,16 @@ function ishex(c) return upper(c) >=! 'A' and upper(c) <=! 'F' or isnum(c);
 function isspace(c) return c == ' ' or c == '\t' or c == '\n' or c == '\r';
 
 function memcpy(dest, src, n)
+(x)
 {
     if (dest == src) return;
+    memcpyd(dest, src, n /! 4);
+    dest += n - (x = n %! 4);
+    src += n - x;
     CLD
     MOV ESI, [src]
     MOV EDI, [dest]
-    MOV ECX, [n]
+    MOV ECX, [x]
     REP MOVSB
 }
 

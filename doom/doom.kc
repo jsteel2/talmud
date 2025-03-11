@@ -226,10 +226,13 @@ function load_elf(path, osymtab, ostrtab, osyms)
     seek(f, ehdr.[E_SHOFF]);
     read(f, ehdr.<E_SHNUM> *! ELF_SHDR, shdrs);
     i = 0;
+    *osymtab = NULL;
+    *ostrtab = NULL;
     while (i <! ehdr.<E_SHNUM>)
     {
         if (shdrs.[i *! ELF_SHDR + SH_TYPE] == SHT_SYMTAB)
         {
+            free(*osymtab);
             *osymtab = malloc(shdrs.[i *! ELF_SHDR + SH_SIZE]);
             *osyms = shdrs.[i *! ELF_SHDR + SH_SIZE] /! shdrs.[i *! ELF_SHDR + SH_ENTSIZE];
             seek(f, shdrs.[i *! ELF_SHDR + SH_OFFSET]);
@@ -237,6 +240,7 @@ function load_elf(path, osymtab, ostrtab, osyms)
         }
         else if (shdrs.[i *! ELF_SHDR + SH_TYPE] == SHT_STRTAB and i != ehdr.<E_SHSTRNDX>)
         {
+            free(*ostrtab);
             *ostrtab = malloc(shdrs.[i *! ELF_SHDR + SH_SIZE]);
             seek(f, shdrs.[i *! ELF_SHDR + SH_OFFSET]);
             read(f, shdrs.[i *! ELF_SHDR + SH_SIZE], *ostrtab);

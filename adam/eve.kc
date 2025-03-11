@@ -78,6 +78,18 @@ Welcome to TalmudOS (Formerly ChucksOS)
             {
                 new_task("Seth", seth, 0);
             }
+            else if (k == K_PGUP and windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL)
+            {
+                window_print_scroll_up(windows);
+            }
+            else if (k == K_PGDOWN and windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL)
+            {
+                window_print_scroll_down(windows);
+            }
+            else if (windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL and (k == (K_PGUP & K_RELEASED) or k == (K_PGDOWN & K_RELEASED)))
+            {
+                # ignore
+            }
             else if (windows{WINDOW_FLAGS} & WINDOW_FGET_KEY_EVENTS)
             {
                 vec_push2(&windows{WINDOW_KEY_EVENTS}, k);
@@ -167,25 +179,36 @@ Welcome to TalmudOS (Formerly ChucksOS)
 }
 
 function seth(u)
-(v{VEC}, p{VEC}, x)
+(s{STRING}, p{VEC}, x, t, i)
 {
-    create_window(200, 200, 640, 480){WINDOW_FLAGS} = WINDOW_FGET_KEY_EVENTS;
-    vec_init(v, 128, 1);
+    create_window(200, 200, 640, 480){WINDOW_FLAGS} = WINDOW_FGET_KEY_EVENTS | WINDOW_FPRINT_SCROLL;
     vec_init(p, 128, 1);
+    s.[STRINGLEN] = 0;
     while (TRUE)
     {
-        dir2path(p, &task{TASK_CWD});
-        format(print, "%s> ", p);
-        x = compile(&task{TASK_COMPILER}, "stdin", input(v));
+.l:
+        if (s.[STRINGLEN] == 0)
+        {
+            dir2path(p, &task{TASK_CWD});
+            format(print, "%s> ", p);
+            t = task.[TASK_WINDOW].[WINDOW_PRINT_BUFFER + VEC_LEN];
+        }
+        i = input(s, t, TRUE);
+        if (!i)
+        {
+            clear();
+            JMP .l
+        }
+        x = compile(&task{TASK_COMPILER}, "stdin", i);
         if (x)
         {
-            v.[VEC_LEN] = 0;
+            s.[STRINGLEN] = 0;
             ans = x();
             format(print, "ans=%d (%x)\n", ans, ans);
         }
         else
         {
-            if (task.[TASK_COMPILER + CCUR + TOKEN_TYPE] != TEND) v.[VEC_LEN] = 0;
+            if (task.[TASK_COMPILER + CCUR + TOKEN_TYPE] != TEND) s.[STRINGLEN] = 0;
         }
     }
 }
@@ -240,3 +263,41 @@ function memrep()
     }
     map_free(m);
 }
+
+function clear()
+{
+    task.[TASK_WINDOW].[WINDOW_PRINT_X] = 0;
+    task.[TASK_WINDOW].[WINDOW_PRINT_Y] = 0;
+    task.[TASK_WINDOW].[WINDOW_PRINT_CURSOR] = 0;
+    task.[TASK_WINDOW].[WINDOW_PRINT_SCROLLTOP] = 0;
+    vec_free(&task.[TASK_WINDOW]{WINDOW_PRINT_BUFFER});
+    vec_init(&task.[TASK_WINDOW]{WINDOW_PRINT_BUFFER}, 128, 1);
+    fill_rect(0, 0, task.[TASK_WINDOW].[WINDOW_W], task.[TASK_WINDOW].[WINDOW_H], 0xFFFFFF);
+}
+
+function edit(p)
+(f{FILE}, s{STRING})
+{
+    clear();
+    if (!open(p, f, TRUE)) return print("Could not open file\n");
+    if (!vec_resize(&task.[TASK_WINDOW]{WINDOW_PRINT_BUFFER}, f.[FILE_SIZE]) or !read(f, f.[FILE_SIZE], task.[TASK_WINDOW].[WINDOW_PRINT_BUFFER + VEC_PTR])) return print("Could not read file\n");
+    task.[TASK_WINDOW].[WINDOW_PRINT_BUFFER + VEC_LEN] = f.[FILE_SIZE];
+    window_print_redraw(task.[TASK_WINDOW]);
+    while (input(s, 0, TRUE));
+    seek(f, 0);
+    write(f, s.[STRINGLEN], s.[STRINGPTR]);
+    resize(f);
+    clear();
+}
+
+reboot:
+    MOV EAX, 2
+.r:
+    IN AL, 0x64
+    TEST AL, 2
+    JNZ .r
+    MOV AL, 0xFE
+    OUT 0x64, AL
+    CLI
+.h: HLT
+    JMP .h

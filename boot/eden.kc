@@ -231,7 +231,7 @@ function lba_do(ax, dl, sectors, lba)
 
 function lba_write(dl, sectors, lba, buf)
 {
-    memcpy(DISK_BUF, buf, sectors *! 512);
+    memcpyd(DISK_BUF, buf, sectors *! 128);
     lba = lba_do(0x4300, dl, sectors, lba);
     if (next_task) next_task();
     return lba;
@@ -240,7 +240,7 @@ function lba_write(dl, sectors, lba, buf)
 function lba_read(dl, sectors, lba, buf)
 {
     if (!lba_do(0x4200, dl, sectors, lba)) return FALSE;
-    memcpy(buf, DISK_BUF, sectors *! 512);
+    memcpyd(buf, DISK_BUF, sectors *! 128);
     if (next_task) next_task();
     return TRUE;
 }

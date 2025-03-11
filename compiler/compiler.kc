@@ -567,11 +567,12 @@ function compiler_include(c)
     compiler_consume(c, TSTRING);
 
     ocur_file = c.[CCUR_FILE];
+    memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
+    c.[CCUR + TOKEN_VALUE + STRINGPTR] = NULL;
     memcpy(otok, &c{CTOK}, TOKENIZER);
     memcpy(ocur, &c{CCUR}, TOKEN);
     memcpy(onext, &c{CNEXT}, TOKEN);
 
-    memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
     c.[CCUR_FILE] = s;
 
     src.[STRINGPTR] = NULL;
@@ -594,7 +595,6 @@ function compiler_include(c)
 
     free(src.[STRINGPTR]);
     free(s.[STRINGPTR]);
-    s.[STRINGPTR] = NULL;
 
     c.[CCUR_FILE] = ocur_file;
     memcpy(&c{CTOK}, otok, TOKENIZER);
@@ -605,7 +605,6 @@ function compiler_include(c)
 .catch:
     free(src.[STRINGPTR]);
     free(s.[STRINGPTR]);
-    s.[STRINGPTR] = NULL;
     compiler_throw(c, NULL, NULL);
 }
 
@@ -1745,7 +1744,14 @@ function compiler_string_get(c, s, should_free)
 
     x = c.[CSTRING_OFFSET];
     c.[CSTRING_OFFSET] += 8 + s.[STRINGLEN];
-    if (!map_set(&c{CSTRINGS}, should_free ? s : strdup(s, y), &x)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, x));
+    # bandaid fix for some memory corruption... because i dont know where its coming from
+    # i dont know if this is a fix or just a coincidence, but its working!
+    if (!map_set(&c{CSTRINGS}, strdup(s, y), &x)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, x));
+    if (should_free)
+    {
+        free(s.[STRINGPTR]);
+        s.[STRINGPTR] = NULL;
+    }
 
     return 0;
 }

@@ -17,7 +17,7 @@ function vec_resize(v, new_len)
 {
     if (new_len >! v.[VEC_SIZE])
     {
-        v.[VEC_SIZE] *!= 2;
+        v.[VEC_SIZE] = maxu(new_len, v.[VEC_SIZE] *! 2);
         v.[VEC_PTR] = realloc(v.[VEC_PTR], v.[VEC_SIZE] *! v.[VEC_ENTRY_SIZE]);
         if (!v.[VEC_PTR]) return FALSE;
     }
@@ -27,6 +27,7 @@ function vec_resize(v, new_len)
 function vec_set(v, i, p)
 {
     if (!vec_resize(v, i + 1)) return FALSE;
+    if (i >=! v.[VEC_LEN]) v.[VEC_LEN] = i + 1;
     memcpy(&v.[VEC_PTR]{i *! v.[VEC_ENTRY_SIZE]}, p, v.[VEC_ENTRY_SIZE]);
     return TRUE;
 }
@@ -34,6 +35,7 @@ function vec_set(v, i, p)
 function vec_set1(v, i, x)
 {
     if (!vec_resize(v, i + 1)) return FALSE;
+    if (i >=! v.[VEC_LEN]) v.[VEC_LEN] = i + 1;
     v.[VEC_PTR]{i} = x;
     return TRUE;
 }
@@ -41,6 +43,7 @@ function vec_set1(v, i, x)
 function vec_set2(v, i, x)
 {
     if (!vec_resize(v, i + 1)) return FALSE;
+    if (i >=! v.[VEC_LEN]) v.[VEC_LEN] = i + 1;
     v.[VEC_PTR]<i> = x;
     return TRUE;
 }
@@ -48,36 +51,38 @@ function vec_set2(v, i, x)
 function vec_set4(v, i, x)
 {
     if (!vec_resize(v, i + 1)) return FALSE;
+    if (i >=! v.[VEC_LEN]) v.[VEC_LEN] = i + 1;
     v.[VEC_PTR][i] = x;
+    return TRUE;
+}
+
+function vec_insert1(v, i, x)
+{
+    if (!vec_resize(v, maxu(i + 1, v.[VEC_LEN] + 1))) return FALSE;
+    memmove(&v.[VEC_PTR]{i + 1}, &v.[VEC_PTR]{i}, v.[VEC_LEN] - i);
+    v.[VEC_PTR]{i} = x;
+    v.[VEC_LEN] += 1;
     return TRUE;
 }
 
 function vec_push(v, p)
 {
-    if (!vec_set(v, v.[VEC_LEN], p)) return FALSE;
-    v.[VEC_LEN] += 1;
-    return TRUE;
+    return vec_set(v, v.[VEC_LEN], p);
 }
 
 function vec_push1(v, x)
 {
-    if (!vec_set1(v, v.[VEC_LEN], x)) return FALSE;
-    v.[VEC_LEN] += 1;
-    return TRUE;
+    return vec_set1(v, v.[VEC_LEN], x);
 }
 
 function vec_push2(v, x)
 {
-    if (!vec_set2(v, v.[VEC_LEN], x)) return FALSE;
-    v.[VEC_LEN] += 1;
-    return TRUE;
+    return vec_set2(v, v.[VEC_LEN], x);
 }
 
 function vec_push4(v, x)
 {
-    if (!vec_set4(v, v.[VEC_LEN], x)) return FALSE;
-    v.[VEC_LEN] += 1;
-    return TRUE;
+    return vec_set4(v, v.[VEC_LEN], x);
 }
 
 function vec_push_circ(v, p)

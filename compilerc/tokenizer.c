@@ -309,7 +309,12 @@ TokenType tokenizer_symbol_token(Tokenizer *t, void *value)
             if (t->src[t->pos - 1] == '$') return TSLASHS;
             return die(t, "invalid symbol %c", t->src[t->pos - 1]);
         case '%':
-            if (t->src[t->pos++] == '!') return TMODULOU;
+            if (t->src[t->pos++] == '!')
+            {
+                if (t->src[t->pos++] == '=') return TMODULOUEQUALS;
+                t->pos--;
+                return TMODULOU;
+            }
             if (t->src[t->pos - 1] == '$') return TMODULOS;
             return die(t, "invalid symbol %c", t->src[t->pos - 1]);
         case '<':

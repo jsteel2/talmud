@@ -542,7 +542,7 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
 
     while ((t = compiler_matches(c, toks)))
     {
-        if (t != TLOGICALAND && t != TLOGICALOR && t != TSLASHU && t != TMODULOU && t != TSLASHUEQUALS && t != TSLASHS && t != TMODULOS)
+        if (t != TLOGICALAND && t != TLOGICALOR && t != TSLASHU && t != TMODULOU && t != TSLASHUEQUALS && t != TMODULOUEQUALS && t != TSLASHS && t != TMODULOS)
         {
             HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
             if (t >= TPLUSEQUALS && t <= TEQUALS) HANDLE(compiler_assign(c, NULL, (Token){0})); // Disgusting little hack, we shouldnt have done the while thing and instead have fn as the same level
@@ -840,6 +840,21 @@ bool compiler_binary(Compiler *c, size_t *res, Token t2, bool (*fn)(Compiler *c,
                 HANDLE(compiler_emit8(c, 0x89));
                 HANDLE(compiler_emit8(c, MODRM(0, 0, 1))); // MOV [ECX], EAX
                 break;
+            case TMODULOUEQUALS:
+                HANDLE(compiler_emit8(c, 0x50)); // PUSH EAX
+                HANDLE(fn(c, NULL, (Token){0}));
+                HANDLE(compiler_emit8(c, 0x59)); // POP ECX
+                HANDLE(compiler_emit8(c, 0x93)); // XCHG EAX, EBX
+                HANDLE(compiler_emit8(c, 0x8B));
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 1))); // MOV EAX, [ECX]
+                HANDLE(compiler_emit8(c, 0x33));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 2, 2))); // XOR EDX, EDX
+                HANDLE(compiler_emit8(c, 0xF7));
+                HANDLE(compiler_emit8(c, MODRM(0b11, 6, 3))); // DIV EBX
+                HANDLE(compiler_emit8(c, 0x92)); // XCHG EAX, EDX
+                HANDLE(compiler_emit8(c, 0x89));
+                HANDLE(compiler_emit8(c, MODRM(0, 0, 1))); // MOV [ECX], EAX
+                break;
             default: return die(&c->t, "compiler_binary: Unimplemented");
         }
     }
@@ -925,7 +940,7 @@ bool compiler_ternary(Compiler *c, size_t *res, Token t)
 
 bool compiler_assign(Compiler *c, size_t *res, Token t)
 {
-    return compiler_binary(c, res, t, compiler_ternary, (TokenType[]){TEQUALS, TPLUSEQUALS, TMINUSEQUALS, TSHIFTLEFTEQUALS, TSHIFTRIGHTEQUALS, TBITWISEOREQUALS, TBITWISEXOREQUALS, TBITWISEANDEQUALS, TSTARUEQUALS, TSLASHUEQUALS, 0});
+    return compiler_binary(c, res, t, compiler_ternary, (TokenType[]){TEQUALS, TPLUSEQUALS, TMINUSEQUALS, TSHIFTLEFTEQUALS, TSHIFTRIGHTEQUALS, TBITWISEOREQUALS, TBITWISEXOREQUALS, TBITWISEANDEQUALS, TSTARUEQUALS, TSLASHUEQUALS, TMODULOUEQUALS, 0});
 }
 
 bool compiler_expr(Compiler *c, size_t *res, Token t)
