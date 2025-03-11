@@ -347,7 +347,7 @@ function input(s, editable_start, multiline)
         }
     }
     w{WINDOW_FLAGS} = bf;
-    s.[STRINGLEN] = w.[WINDOW_PRINT_BUFFER + VEC_LEN] - editable_start;
+    s.[STRINGLEN] = w.[WINDOW_PRINT_BUFFER + VEC_LEN] - editable_start - (!multiline and c == '\n' ? 1 : 0);
     s.[STRINGPTR] = &w.[WINDOW_PRINT_BUFFER + VEC_PTR]{editable_start};
     return c != K_ESC and s;
 }

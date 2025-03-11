@@ -208,9 +208,11 @@ function write(file, n, buf)
     return i;
 }
 
-function resize(f)
+function resize(f, size)
 {
     # implement
+    f.[FILE_SIZE] = size;
+    return TRUE;
 }
 
 function cluster2sector(file, cluster) return ((cluster - 2) *! file{FILE_SECTORS_PER_CLUSTER}) + file.[FILE_DATA_SECTOR];

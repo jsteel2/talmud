@@ -88,6 +88,12 @@ function bstrap()
         JMP .hlt
     }
 
+    if (!resize(file, compiler.[CIP] - compiler.[CORG]))
+    {
+        print("Could not resize /eden.exe\n");
+        JMP .hlt
+    }
+
     MOV DX, 0x604
     MOV AX, 0x2000
     OUT DX, AX

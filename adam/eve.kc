@@ -286,7 +286,7 @@ function edit(p)
     while (input(s, 0, TRUE));
     seek(f, 0);
     write(f, s.[STRINGLEN], s.[STRINGPTR]);
-    resize(f);
+    resize(f, s.[STRINGLEN]);
     clear();
 }
 
