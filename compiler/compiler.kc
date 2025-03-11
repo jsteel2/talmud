@@ -1746,6 +1746,7 @@ function compiler_string_get(c, s, should_free)
     c.[CSTRING_OFFSET] += 8 + s.[STRINGLEN];
     # bandaid fix for some memory corruption... because i dont know where its coming from
     # i dont know if this is a fix or just a coincidence, but its working!
+    # it was infact, a coincidence, and its not working.
     if (!map_set(&c{CSTRINGS}, strdup(s, y), &x)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, x));
     if (should_free)
     {
