@@ -87,7 +87,8 @@ function free(p)
     {
         p.[MEM_HEADER_SIZE] += p.[MEM_HEADER_NEXT].[MEM_HEADER_SIZE] + MEM_HEADER;
         p.[MEM_HEADER_NEXT] = p.[MEM_HEADER_NEXT].[MEM_HEADER_NEXT];
-        p.[MEM_HEADER_NEXT].[MEM_HEADER_PREV] = p;
+        p{MEM_HEADER_FLAGS} = p.[MEM_HEADER_NEXT]{MEM_HEADER_FLAGS};
+        if (p.[MEM_HEADER_NEXT]) p.[MEM_HEADER_NEXT].[MEM_HEADER_PREV] = p;
     }
 }
 
