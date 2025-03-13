@@ -56,6 +56,7 @@ function malloc_task(n, task)
     right{MEM_HEADER_FLAGS} = left{MEM_HEADER_FLAGS} & MEM_HEADER_FNO_MERGE_NEXT;
     right.[MEM_HEADER_SIZE] = left.[MEM_HEADER_SIZE] - n - MEM_HEADER;
     right.[MEM_HEADER_NEXT] = left.[MEM_HEADER_NEXT];
+    if (right.[MEM_HEADER_NEXT]) right.[MEM_HEADER_NEXT].[MEM_HEADER_PREV] = right;
     right.[MEM_HEADER_PREV] = left;
     left.[MEM_HEADER_SIZE] = n;
     left.[MEM_HEADER_NEXT] = right;

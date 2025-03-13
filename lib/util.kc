@@ -125,6 +125,7 @@ function strtok(s, delim, out, state)
 function strdup(s, new)
 {
     new.[STRINGPTR] = malloc(s.[STRINGLEN]);
+    if (!new.[STRINGPTR]) return NULL;
     new.[STRINGLEN] = s.[STRINGLEN];
     memcpy(new.[STRINGPTR], s.[STRINGPTR], new.[STRINGLEN]);
     return new;
