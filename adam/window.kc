@@ -269,7 +269,7 @@ function window_print_cursor_down(w)
 (x)
 {
     window_print_scrollback(w);
-    x = TRUE;
+    x = w.[WINDOW_PRINT_CURSOR] >! w.[WINDOW_PRINT_EDITABLE_START] and (w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR] - 1} == '\n' or w.[WINDOW_PRINT_X]);
     while (w.[WINDOW_PRINT_CURSOR] <! w.[WINDOW_PRINT_BUFFER + VEC_LEN] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR]} != '\n')
     {
         w.[WINDOW_PRINT_CURSOR] += 1;
