@@ -18,10 +18,12 @@ global ans;
 function eve(compiler)
 (c{3}, olm, orm, omm, w, k, m{MOUSE_EVENT}, dragging, startx, starty, ox, oy)
 {
+    CLI
     adam_key_events = malloc(VEC);
     adam_mouse_events = malloc(VEC);
     vec_init(adam_key_events, 64, 1);
     vec_init(adam_mouse_events, 64, 3);
+    STI
     set_resolution(1024, 768);
     init_mouse();
     create_window(8, 8, 512, 128);

@@ -85,6 +85,10 @@ function tokenizer_ident_token(t, out)
             return TRUE;
         case 'B':
             if (strcmp(s, "BYTE")) out.[TOKEN_TYPE] = TBYTE;
+            else if (strcmp(s, "BL")) out.[TOKEN_TYPE] = TBL;
+            else if (strcmp(s, "BH")) out.[TOKEN_TYPE] = TBH;
+            else if (strcmp(s, "BX")) out.[TOKEN_TYPE] = TBX;
+            else if (strcmp(s, "BP")) out.[TOKEN_TYPE] = TBP;
             else break;
             return TRUE;
         case 'C':
@@ -102,6 +106,9 @@ function tokenizer_ident_token(t, out)
             else if (strcmp(s, "CR6")) out.[TOKEN_TYPE] = TCR6;
             else if (strcmp(s, "CR7")) out.[TOKEN_TYPE] = TCR7;
             else if (strcmp(s, "CS")) out.[TOKEN_TYPE] = TCS;
+            else if (strcmp(s, "CL")) out.[TOKEN_TYPE] = TCL;
+            else if (strcmp(s, "CH")) out.[TOKEN_TYPE] = TCH;
+            else if (strcmp(s, "CX")) out.[TOKEN_TYPE] = TCX;
             else break;
             return TRUE;
         case 'D':
@@ -112,6 +119,9 @@ function tokenizer_ident_token(t, out)
             else if (strcmp(s, "DD")) out.[TOKEN_TYPE] = TDD;
             else if (strcmp(s, "DS")) out.[TOKEN_TYPE] = TDS;
             else if (strcmp(s, "DX")) out.[TOKEN_TYPE] = TDX;
+            else if (strcmp(s, "DL")) out.[TOKEN_TYPE] = TDL;
+            else if (strcmp(s, "DH")) out.[TOKEN_TYPE] = TDH;
+            else if (strcmp(s, "DI")) out.[TOKEN_TYPE] = TDI;
             else break;
             return TRUE;
         case 'E':
@@ -191,7 +201,10 @@ function tokenizer_ident_token(t, out)
             else if (strcmp(s, "STD")) out.[TOKEN_TYPE] = TSTD;
             else if (strcmp(s, "STI")) out.[TOKEN_TYPE] = TSTI;
             else if (strcmp(s, "SUB")) out.[TOKEN_TYPE] = TSUB;
+            else if (strcmp(s, "SHL")) out.[TOKEN_TYPE] = TSHL;
             else if (strcmp(s, "SS")) out.[TOKEN_TYPE] = TSS;
+            else if (strcmp(s, "SI")) out.[TOKEN_TYPE] = TSI;
+            else if (strcmp(s, "SP")) out.[TOKEN_TYPE] = TSP;
             else break;
             return TRUE;
         case 'T':

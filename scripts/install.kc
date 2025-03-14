@@ -1,0 +1,65 @@
+global str{STRING}, installpath{STRING};
+
+function mbr()
+(c{COMPILER}, bin, s{STRING}, buf{512}, dl)
+{
+    if (!compiler_init(c)) return print("Could not initialize compiler\n");
+    bin = compile(c, "install", "include \"/boot/mbr.kc\"");
+    compiler_free(c);
+    if (!bin) return;
+    if (c.[CIP] - c.[CORG] >! 446) return print("MBR too large\n");
+    s.[STRINGLEN] = installpath.[STRINGLEN] - strchr(installpath, ':') - 1;
+    s.[STRINGPTR] = installpath.[STRINGPTR] + (installpath.[STRINGLEN] - s.[STRINGLEN]);
+    dl = str2int(s, 16, NULL);
+    if (!lba_read(dl, 1, 0, buf)) return print("Could not read MBR sector\n");
+    memcpy(buf, bin, c.[CIP] - c.[CORG]);
+    if (!lba_write(dl, 1, 0, buf)) return print("Could not write MBR sector\n");
+}
+
+function vbr()
+{
+    print("TODO\n");
+}
+
+function eden()
+(f{FILE}, fb{FILE}, c{COMPILER}, bin)
+{
+    memcpy(fb, &task{TASK_CWD}, FILE);
+    if (!cd("/")) return print("Could not cd to /\n");;
+    if (!compiler_init(c)) return print("Could not initialize compiler\n");
+    bin = compile(c, "install", "include \"boot/eden.kc\"");
+    compiler_free(c);
+    if (!bin) return;
+    if (!cd(installpath)) return format(print, "Could not cd to %s\n", installpath);
+    if (!open("/eden.exe", f, TRUE)) return format(print, "Could not open %s/EDEN.EXE\n", installpath);
+    if (!write(f, c.[CIP] - c.[CORG], bin)) return print("Could not write to file\n");
+    free(bin);
+    if (!resize(f, c.[CIP] - c.[CORG])) return print("Could not resize file\n");
+    memcpy(&task{TASK_CWD}, fb, FILE);
+}
+
+function formatpart()
+{
+    print("TODO\n");
+}
+
+function sys()
+{
+    print("TODO\n");
+}
+
+print("Enter installation path (ex. :80;1): ");
+if (!inputline(str)) RET;
+strdup(str, installpath);
+format(print, "Is %s correct? ", str);
+if (!inputline(str) or !str.[STRINGLEN] or upper(str.[STRINGPTR]{0}) != 'Y') { free(installpath.[STRINGPTR]); RET }
+print("Format partition to FAT32? ");
+if (inputline(str) and str.[STRINGLEN] and upper(str.[STRINGPTR]{0}) == 'Y') formatpart();
+eden();
+print("Install VBR? ");
+if (inputline(str) and str.[STRINGLEN] and upper(str.[STRINGPTR]{0}) == 'Y') vbr();
+print("Install MBR? ");
+if (inputline(str) and str.[STRINGLEN] and upper(str.[STRINGPTR]{0}) == 'Y') mbr();
+print("Install system files? ");
+if (inputline(str) and str.[STRINGLEN] and upper(str.[STRINGPTR]{0}) == 'Y') sys();
+free(installpath.[STRINGPTR]);

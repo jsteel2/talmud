@@ -1,4 +1,4 @@
-struct WINDOW = VEC{WINDOW_KEY_EVENTS}, VEC{WINDOW_MOUSE_EVENTS}, [WINDOW_TASK], [WINDOW_X], [WINDOW_Y], [WINDOW_W], [WINDOW_H], [WINDOW_PRINT_X], [WINDOW_PRINT_Y], [WINDOW_PRINT_CURSOR], [WINDOW_PRINT_SCROLLTOP], VEC{WINDOW_PRINT_BUFFER}, [WINDOW_BELOW], [WINDOW_ABOVE], [WINDOW_BUFFER], {WINDOW_FLAGS};
+struct WINDOW = VEC{WINDOW_KEY_EVENTS}, VEC{WINDOW_MOUSE_EVENTS}, [WINDOW_TASK], [WINDOW_X], [WINDOW_Y], [WINDOW_W], [WINDOW_H], [WINDOW_PRINT_X], [WINDOW_PRINT_Y], [WINDOW_PRINT_CURSOR], [WINDOW_PRINT_SCROLLTOP], [WINDOW_PRINT_EDITABLE_START], VEC{WINDOW_PRINT_BUFFER}, [WINDOW_BELOW], [WINDOW_ABOVE], [WINDOW_BUFFER], {WINDOW_FLAGS};
 const WINDOW_FGET_KEY_EVENTS = 1;
 const WINDOW_FGET_MOUSE_EVENTS = 2;
 const WINDOW_FPRINT_SCROLL = 4;
@@ -21,6 +21,7 @@ function create_window(x, y, w, h)
     win.[WINDOW_PRINT_Y] = 0;
     win.[WINDOW_PRINT_CURSOR] = 0;
     win.[WINDOW_PRINT_SCROLLTOP] = 0;
+    win.[WINDOW_PRINT_EDITABLE_START] = 0;
     win.[WINDOW_ABOVE] = NULL;
     win{WINDOW_FLAGS} = WINDOW_FPRINT_SCROLL;
     win.[WINDOW_BUFFER] = malloc(w *! (h + TITLEBAR_SIZE) *! 4);
@@ -63,6 +64,7 @@ function focus_window(w)
     w.[WINDOW_TASK].[TASK_WAIT] = FALSE;
     windows = w;
     framebuffer_refresh(w.[WINDOW_X], w.[WINDOW_Y], w.[WINDOW_W], w.[WINDOW_H] + TITLEBAR_SIZE, w);
+    release_mouse();
 }
 
 function window_set_titlebar(win, s)
@@ -188,13 +190,18 @@ function window_print(w, s)
             if (w.[WINDOW_PRINT_CURSOR] != w.[WINDOW_PRINT_BUFFER + VEC_LEN]) window_fill_rect(w, w.[WINDOW_PRINT_X], w.[WINDOW_PRINT_Y], w.[WINDOW_W] - w.[WINDOW_PRINT_X], 8, 0xFFFFFF);
             w.[WINDOW_PRINT_X] = 0;
             w.[WINDOW_PRINT_Y] += 8;
-            if (w.[WINDOW_PRINT_Y] + 8 >$ w.[WINDOW_H]) window_print_scroll_down(w);
+            if (w.[WINDOW_PRINT_Y] + 8 >$ w.[WINDOW_H]) window_print_scroll_down(w, 1);
             vec_insert1(&w{WINDOW_PRINT_BUFFER}, w.[WINDOW_PRINT_CURSOR], '\n');
             w.[WINDOW_PRINT_CURSOR] += 1;
             window_print_buffer(w);
         }
+        else if (s.[STRINGPTR]{i} == '\t')
+        {
+            window_print(w, "    ");
+        }
         else if (s.[STRINGPTR]{i} == '\b')
         {
+            if (w.[WINDOW_PRINT_CURSOR] <=! w.[WINDOW_PRINT_EDITABLE_START]) JMP .l
             # handle newline
             window_print_cursor_left(w);
             vec_remove(&w{WINDOW_PRINT_BUFFER}, NULL, w.[WINDOW_PRINT_CURSOR]);
@@ -208,13 +215,14 @@ function window_print(w, s)
             window_print_buffer(w);
             window_print_cursor_right(w);
         }
+.l:
         i += 1;
     }
 }
 
 function print(s) window_print(task.[TASK_WINDOW] or ADAM.[TASK_WINDOW], s);
 
-function window_print_scroll_down(w)
+function window_print_scroll_down(w, rows)
 {
     memcpyd(w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! TITLEBAR_SIZE, w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + 8), (w.[WINDOW_H] - 8) *! w.[WINDOW_W]);
     memsetd(w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + w.[WINDOW_H] - 8), 0xFFFFFF, w.[WINDOW_W] *! 8);
@@ -224,7 +232,7 @@ function window_print_scroll_down(w)
     # and draw new line if not out of bounds
 }
 
-function window_print_scroll_up(w)
+function window_print_scroll_up(w, rows)
 {
     # same as above
 }
@@ -232,14 +240,14 @@ function window_print_scroll_up(w)
 function window_print_cursor_left(w)
 {
     window_print_scrollback(w);
-    if (!w.[WINDOW_PRINT_CURSOR] or w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR] - 1} == '\n') return;
+    if (w.[WINDOW_PRINT_CURSOR] <=! w.[WINDOW_PRINT_EDITABLE_START] or w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR] - 1} == '\n') return;
     w.[WINDOW_PRINT_CURSOR] -= 1;
     w.[WINDOW_PRINT_X] -= 8;
     if (w.[WINDOW_PRINT_X] <$ 0)
     {
         w.[WINDOW_PRINT_Y] -= 8;
         w.[WINDOW_PRINT_X] = w.[WINDOW_W] - 8;
-        if (w.[WINDOW_PRINT_Y] <$ 0) window_print_scroll_up(w);
+        if (w.[WINDOW_PRINT_Y] <$ 0) window_print_scroll_up(w, 1);
     }
 }
 
@@ -249,48 +257,114 @@ function window_print_cursor_right(w)
     if (w.[WINDOW_PRINT_CURSOR] == w.[WINDOW_PRINT_BUFFER + VEC_LEN] or w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR]} == '\n') return;
     w.[WINDOW_PRINT_X] += 8;
     w.[WINDOW_PRINT_CURSOR] += 1;
-    if (w.[WINDOW_PRINT_X] + 8 >$ w.[WINDOW_W])
+    if (w.[WINDOW_PRINT_X] >=$ w.[WINDOW_W])
     {
-        w.[WINDOW_PRINT_X] = 0;
+        w.[WINDOW_PRINT_X] %!= w.[WINDOW_W];
         w.[WINDOW_PRINT_Y] += 8;
-        if (w.[WINDOW_PRINT_Y] + 8 >$ w.[WINDOW_H]) window_print_scroll_down(w);
+        if (w.[WINDOW_PRINT_Y] + 8 >$ w.[WINDOW_H]) window_print_scroll_down(w, 1);
     }
 }
 
 function window_print_cursor_down(w)
+(x)
 {
     window_print_scrollback(w);
-    while (w.[WINDOW_PRINT_CURSOR] <! w.[WINDOW_PRINT_BUFFER + VEC_LEN] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR]} != '\n' and w.[WINDOW_PRINT_X] + 8 <! w.[WINDOW_W])
+    x = TRUE;
+    while (w.[WINDOW_PRINT_CURSOR] <! w.[WINDOW_PRINT_BUFFER + VEC_LEN] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR]} != '\n')
     {
         w.[WINDOW_PRINT_CURSOR] += 1;
         w.[WINDOW_PRINT_X] += 8;
+        if (w.[WINDOW_PRINT_X] >=! w.[WINDOW_W])
+        {
+            x = FALSE;
+            w.[WINDOW_PRINT_X] %!= w.[WINDOW_W];
+            w.[WINDOW_PRINT_Y] += 8;
+        }
+        else
+        {
+            x = TRUE;
+        }
     }
     if (w.[WINDOW_PRINT_CURSOR] == w.[WINDOW_PRINT_BUFFER + VEC_LEN]) return;
-    w.[WINDOW_PRINT_CURSOR] += 1;
-    w.[WINDOW_PRINT_X] = 0;
-    w.[WINDOW_PRINT_Y] += 8;
-    if (w.[WINDOW_PRINT_Y] + 8 >$ w.[WINDOW_H]) window_print_scroll_down(w);
+    if (w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR]} == '\n')
+    {
+        w.[WINDOW_PRINT_CURSOR] += 1;
+        if (x)
+        {
+            w.[WINDOW_PRINT_Y] += 8;
+            w.[WINDOW_PRINT_X] = 0;
+        }
+    }
+    if (w.[WINDOW_PRINT_Y] + 8 >$ w.[WINDOW_H]) window_print_scroll_down(w, (w.[WINDOW_PRINT_Y] + 8 - w.[WINDOW_H]) /! 8);
 }
 
+# do the same x = TRUE shit as in down justidk how
 function window_print_cursor_up(w)
+(i)
 {
-
+    window_print_scrollback(w);
+    if (w.[WINDOW_PRINT_CURSOR] <=! w.[WINDOW_PRINT_EDITABLE_START]) return;
+    i = w.[WINDOW_PRINT_X];
+    do
+    {
+        w.[WINDOW_PRINT_CURSOR] -= 1;
+        if (i <$ 0)
+        {
+            i = w.[WINDOW_W];
+            w.[WINDOW_PRINT_Y] -= 8;
+        }
+        i -= 8;
+    } while (w.[WINDOW_PRINT_CURSOR] >! w.[WINDOW_PRINT_EDITABLE_START] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR]} != '\n')
+    if (w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR]} == '\n') 
+    {
+        w.[WINDOW_PRINT_Y] -= 8;
+        w.[WINDOW_PRINT_X] = 0;
+    }
+    i = 0;
+    while (w.[WINDOW_PRINT_CURSOR] >! w.[WINDOW_PRINT_EDITABLE_START] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR] - 1} != '\n')
+    {
+        w.[WINDOW_PRINT_CURSOR] -= 1;
+        i += 8;
+        if (i >=! w.[WINDOW_W])
+        {
+            i %!= w.[WINDOW_W];
+            w.[WINDOW_PRINT_Y] -= 8;
+        }
+    }
+    w.[WINDOW_PRINT_X] = 0;
+    if (w.[WINDOW_PRINT_CURSOR] == w.[WINDOW_PRINT_EDITABLE_START])
+    {
+        i = w.[WINDOW_PRINT_CURSOR];
+        while (i and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{i - 1} != '\n')
+        {
+            i -= 1;
+            w.[WINDOW_PRINT_X] += 8;
+            if (w.[WINDOW_PRINT_X] >=! w.[WINDOW_W])
+            {
+                w.[WINDOW_PRINT_X] %!= w.[WINDOW_W];
+                w.[WINDOW_PRINT_Y] += 8;
+            }
+        }
+    }
+    if (w.[WINDOW_PRINT_Y] <$ 0) window_print_scroll_up(w, -w.[WINDOW_PRINT_Y] /! 8);
 }
 
-function print_scroll_down() window_print_scroll_down(task.[TASK_WINDOW]);
-function print_scroll_up() window_print_scroll_up(task.[TASK_WINDOW]);
+function print_scroll_down(rows) window_print_scroll_down(task.[TASK_WINDOW], rows);
+function print_scroll_up(rows) window_print_scroll_up(task.[TASK_WINDOW], rows);
 function print_cursor_left() window_print_cursor_left(task.[TASK_WINDOW]);
 function print_cursor_right() window_print_cursor_right(task.[TASK_WINDOW]);
 function print_cursor_down() window_print_cursor_down(task.[TASK_WINDOW]);
 function print_cursor_up() window_print_cursor_up(task.[TASK_WINDOW]);
 
 function input(s, editable_start, multiline)
-(c, bf, w)
+(c, bf, be, w)
 {
     w = task.[TASK_WINDOW];
     if (!w) return;
     bf = w{WINDOW_FLAGS};
     w{WINDOW_FLAGS} |= WINDOW_FGET_KEY_EVENTS;
+    be = w.[WINDOW_PRINT_EDITABLE_START];
+    w.[WINDOW_PRINT_EDITABLE_START] = editable_start;
     c = 0;
     while (TRUE)
     {
@@ -314,7 +388,7 @@ function input(s, editable_start, multiline)
         {
             if (!vec_shift(&w{WINDOW_KEY_EVENTS}, &c)) break;
             if (c & K_RELEASED) JMP .l
-            if (c == K_LEFT and w.[WINDOW_PRINT_CURSOR] >! editable_start)
+            if (c == K_LEFT)
             {
                 print_cursor_left();
                 JMP .l
@@ -341,12 +415,12 @@ function input(s, editable_start, multiline)
             else if (c >=! QWERTY_SIZE) JMP .l
             c = shift_pressed ? qwerty_upper{c} : qwerty{c};
             if (!c) JMP .l
-            if (c == '\b' and w.[WINDOW_PRINT_CURSOR] <=! editable_start) JMP .l
             format(print, "%c", c);
             if (c == '\n' and (!multiline or w.[WINDOW_PRINT_CURSOR] == w.[WINDOW_PRINT_BUFFER + VEC_LEN])) break;
         }
     }
     w{WINDOW_FLAGS} = bf;
+    w.[WINDOW_PRINT_EDITABLE_START] = be;
     s.[STRINGLEN] = w.[WINDOW_PRINT_BUFFER + VEC_LEN] - editable_start - (!multiline and c == '\n' ? 1 : 0);
     s.[STRINGPTR] = &w.[WINDOW_PRINT_BUFFER + VEC_PTR]{editable_start};
     return c != K_ESC and s;
