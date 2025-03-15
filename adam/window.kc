@@ -112,6 +112,7 @@ function window_draw_text(win, s, x, y, color, bg)
     i = 0;
     while (i <! s.[STRINGLEN])
     {
+        if (y + 8 >$ win.[WINDOW_H]) return;
         if (s.[STRINGPTR]{i} == '\n')
         {
             window_fill_rect(win, x, y, win.[WINDOW_W] - x, 8, 0xFFFFFF);
@@ -154,7 +155,7 @@ function write_rect(x, y, w, h, p) window_write_rect(task.[TASK_WINDOW], x, y, w
 function set_titlebar(s) window_set_titlebar(task.[TASK_WINDOW], s);
 
 function window_print_redraw(w)
-(s{STRING})
+(s{STRING}, p)
 {
     window_fill_rect(w, 0, 0, w.[WINDOW_W], w.[WINDOW_H], 0xFFFFFF);
     s.[STRINGPTR] = &w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_SCROLLTOP]};
@@ -223,13 +224,27 @@ function window_print(w, s)
 function print(s) window_print(task.[TASK_WINDOW] or ADAM.[TASK_WINDOW], s);
 
 function window_print_scroll_down(w, rows)
+(i, o)
 {
-    memcpyd(w.[WINDOW_BUFFER] + rows *! w.[WINDOW_W] *! 4 *! TITLEBAR_SIZE, w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + rows *! 8), (w.[WINDOW_H] - rows *! 8) *! w.[WINDOW_W]);
-    memsetd(w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + w.[WINDOW_H] - rows *! 8), 0xFFFFFF, w.[WINDOW_W] *! rows *! 8);
-    framebuffer_refresh(w.[WINDOW_X], w.[WINDOW_Y] + TITLEBAR_SIZE, w.[WINDOW_W], w.[WINDOW_H], w);
-    w.[WINDOW_PRINT_Y] -= rows *! 8;
-    # adjust scrolltop to be cursor to next line/wrap
-    # and draw new line if not out of bounds
+    while (rows)
+    {
+        o = w.[WINDOW_PRINT_SCROLLTOP];
+        i = 0;
+        while (i <! w.[WINDOW_W] and w.[WINDOW_PRINT_SCROLLTOP] <! w.[WINDOW_PRINT_BUFFER + VEC_LEN] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_SCROLLTOP]} != '\n')
+        {
+            i += 8;
+            w.[WINDOW_PRINT_SCROLLTOP] += 1;
+        }
+        if (w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_SCROLLTOP]} == '\n') w.[WINDOW_PRINT_SCROLLTOP] += 1;
+        if (w.[WINDOW_PRINT_SCROLLTOP] >=! w.[WINDOW_PRINT_BUFFER + VEC_LEN])
+        {
+            w.[WINDOW_PRINT_SCROLLTOP] = o;
+            break;
+        }
+        w.[WINDOW_PRINT_Y] -= 8;
+        rows -= 1;
+    }
+    window_print_redraw(w);
 }
 
 function window_print_scroll_up(w, rows)

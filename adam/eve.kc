@@ -82,11 +82,11 @@ Welcome to TalmudOS (Formerly ChucksOS)
             }
             else if (k == K_PGUP and windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL)
             {
-                window_print_scroll_up(windows);
+                window_print_scroll_up(windows, windows.[WINDOW_H] /! 8);
             }
             else if (k == K_PGDOWN and windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL)
             {
-                window_print_scroll_down(windows);
+                window_print_scroll_down(windows, windows.[WINDOW_H] /! 8);
             }
             else if (windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL and (k == (K_PGUP & K_RELEASED) or k == (K_PGDOWN & K_RELEASED)))
             {
