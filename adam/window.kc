@@ -224,10 +224,10 @@ function print(s) window_print(task.[TASK_WINDOW] or ADAM.[TASK_WINDOW], s);
 
 function window_print_scroll_down(w, rows)
 {
-    memcpyd(w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! TITLEBAR_SIZE, w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + 8), (w.[WINDOW_H] - 8) *! w.[WINDOW_W]);
-    memsetd(w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + w.[WINDOW_H] - 8), 0xFFFFFF, w.[WINDOW_W] *! 8);
+    memcpyd(w.[WINDOW_BUFFER] + rows *! w.[WINDOW_W] *! 4 *! TITLEBAR_SIZE, w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + rows *! 8), (w.[WINDOW_H] - rows *! 8) *! w.[WINDOW_W]);
+    memsetd(w.[WINDOW_BUFFER] + w.[WINDOW_W] *! 4 *! (TITLEBAR_SIZE + w.[WINDOW_H] - rows *! 8), 0xFFFFFF, w.[WINDOW_W] *! rows *! 8);
     framebuffer_refresh(w.[WINDOW_X], w.[WINDOW_Y] + TITLEBAR_SIZE, w.[WINDOW_W], w.[WINDOW_H], w);
-    w.[WINDOW_PRINT_Y] -= 8;
+    w.[WINDOW_PRINT_Y] -= rows *! 8;
     # adjust scrolltop to be cursor to next line/wrap
     # and draw new line if not out of bounds
 }
@@ -259,7 +259,7 @@ function window_print_cursor_right(w)
     w.[WINDOW_PRINT_CURSOR] += 1;
     if (w.[WINDOW_PRINT_X] >=$ w.[WINDOW_W])
     {
-        w.[WINDOW_PRINT_X] %!= w.[WINDOW_W];
+        w.[WINDOW_PRINT_X] = 0;
         w.[WINDOW_PRINT_Y] += 8;
         if (w.[WINDOW_PRINT_Y] + 8 >$ w.[WINDOW_H]) window_print_scroll_down(w, 1);
     }
@@ -277,7 +277,7 @@ function window_print_cursor_down(w)
         if (w.[WINDOW_PRINT_X] >=! w.[WINDOW_W])
         {
             x = FALSE;
-            w.[WINDOW_PRINT_X] %!= w.[WINDOW_W];
+            w.[WINDOW_PRINT_X] = 0;
             w.[WINDOW_PRINT_Y] += 8;
         }
         else
@@ -298,7 +298,6 @@ function window_print_cursor_down(w)
     if (w.[WINDOW_PRINT_Y] + 8 >$ w.[WINDOW_H]) window_print_scroll_down(w, (w.[WINDOW_PRINT_Y] + 8 - w.[WINDOW_H]) /! 8);
 }
 
-# do the same x = TRUE shit as in down justidk how
 function window_print_cursor_up(w)
 (i)
 {
@@ -324,11 +323,14 @@ function window_print_cursor_up(w)
     while (w.[WINDOW_PRINT_CURSOR] >! w.[WINDOW_PRINT_EDITABLE_START] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR] - 1} != '\n')
     {
         w.[WINDOW_PRINT_CURSOR] -= 1;
-        i += 8;
         if (i >=! w.[WINDOW_W])
         {
-            i %!= w.[WINDOW_W];
+            i = 0;
             w.[WINDOW_PRINT_Y] -= 8;
+        }
+        else
+        {
+            i += 8;
         }
     }
     w.[WINDOW_PRINT_X] = 0;
@@ -341,7 +343,7 @@ function window_print_cursor_up(w)
             w.[WINDOW_PRINT_X] += 8;
             if (w.[WINDOW_PRINT_X] >=! w.[WINDOW_W])
             {
-                w.[WINDOW_PRINT_X] %!= w.[WINDOW_W];
+                w.[WINDOW_PRINT_X] = 0;
                 w.[WINDOW_PRINT_Y] += 8;
             }
         }
