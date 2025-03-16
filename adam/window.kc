@@ -222,6 +222,7 @@ function window_print(w, s)
 }
 
 function print(s) window_print(task.[TASK_WINDOW] or ADAM.[TASK_WINDOW], s);
+function adam_print(s) window_print(ADAM.[TASK_WINDOW], s);
 
 function window_print_scroll_down(w, rows)
 (i, o)
@@ -248,8 +249,34 @@ function window_print_scroll_down(w, rows)
 }
 
 function window_print_scroll_up(w, rows)
+(i, x)
 {
-    # same as above
+    while (rows)
+    {
+        if (!w.[WINDOW_PRINT_SCROLLTOP]) break;
+        i = 0;
+        while (i <! w.[WINDOW_W] and w.[WINDOW_PRINT_SCROLLTOP] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_SCROLLTOP] - 1} != '\n')
+        {
+            i += 8;
+            w.[WINDOW_PRINT_SCROLLTOP] -= 1;
+        }
+        if (i >=! w.[WINDOW_W] or !w.[WINDOW_PRINT_SCROLLTOP]) JMP .l
+        i = w.[WINDOW_PRINT_SCROLLTOP];
+        if (w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_SCROLLTOP] - 1} == '\n') w.[WINDOW_PRINT_SCROLLTOP] -= 1;
+        x = w.[WINDOW_PRINT_SCROLLTOP];
+        while (x >$ 0 and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{x - 1} != '\n') x -= 1;
+        if (x <$ 0)
+        {
+            w.[WINDOW_PRINT_SCROLLTOP] = i;
+            break;
+        }
+        if (w.[WINDOW_PRINT_SCROLLTOP] - x == w.[WINDOW_W] /! 8) w.[WINDOW_PRINT_SCROLLTOP] -= w.[WINDOW_W] /! 8;
+        else w.[WINDOW_PRINT_SCROLLTOP] -= (w.[WINDOW_PRINT_SCROLLTOP] - x) %! (w.[WINDOW_W] /! 8);
+.l:
+        w.[WINDOW_PRINT_Y] += 8;
+        rows -= 1;
+    }
+    window_print_redraw(w);
 }
 
 function window_print_cursor_left(w)
