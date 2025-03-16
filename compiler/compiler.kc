@@ -274,6 +274,7 @@ function compiler_statement(c)
         case TDB: return compiler_asm_dx(c, compiler_emit8, compiler_asm_immb);
         case TDW: return compiler_asm_dx(c, compiler_emit16, compiler_asm_imm16);
         case TDD: return compiler_asm_dx(c, compiler_emit32, compiler_const_expression);
+        case TRB: compiler_advance(c); return c.[CIP] += compiler_const_expression(c);
         case TCLD: return compiler_aemit8(c, OCLD);
         case TCLI: return compiler_aemit8(c, OCLI);
         case TSTD: return compiler_aemit8(c, OSTD);
@@ -290,6 +291,9 @@ function compiler_statement(c)
         case TSTOSB: return compiler_aemit8(c, OSTOSB);
         case TSTOSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OSTOSW);
         case TSTOSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OSTOSW);
+        case TLODSB: return compiler_aemit8(c, OLODSB);
+        case TLODSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OLODSW);
+        case TLODSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OLODSW);
         case TPUSHF: return compiler_aemit8(c, OPUSHF);
         case TINT: compiler_aemit8(c, OINT); return compiler_emit8(c, compiler_asm_immb(c));
         case TMOV: return compiler_asm_mov(c);
@@ -299,6 +303,13 @@ function compiler_statement(c)
         case TXOR: return compiler_asm_grp1(c, OXORMRB, OGRP1XOR);
         case TAND: return compiler_asm_grp1(c, OANDMRB, OGRP1AND);
         case TCMP: return compiler_asm_grp1(c, OCMPMRB, OGRP1CMP);
+        case TROL: return compiler_asm_grp2(c, OGRP2ROL);
+        case TROR: return compiler_asm_grp2(c, OGRP2ROR);
+        case TRCL: return compiler_asm_grp2(c, OGRP2RCL);
+        case TRCR: return compiler_asm_grp2(c, OGRP2RCR);
+        case TSHL: return compiler_asm_grp2(c, OGRP2SHL);
+        case TSHR: return compiler_asm_grp2(c, OGRP2SHR);
+        case TSAR: return compiler_asm_grp2(c, OGRP2SAR);
         case TINC: return compiler_asm_incdec(c, OINCR);
         case TDEC: return compiler_asm_incdec(c, ODECR);
         case TPUSH: return compiler_asm_pushpop(c, TRUE);
@@ -1470,6 +1481,9 @@ function compiler_primary(c, econst, ref, iconst)
             break;
         case TORIGIN:
             r = c.[CORG];
+            break;
+        case TIP:
+            r = c.[CIP];
             break;
         case TPROGEND:
             r = c.[CPROG_END];

@@ -7,12 +7,11 @@ function mbr()
     bin = compile(c, "install", "include \"/boot/mbr.kc\"");
     compiler_free(c);
     if (!bin) return;
-    if (c.[CIP] - c.[CORG] >! 446) return print("MBR too large\n");
     s.[STRINGLEN] = installpath.[STRINGLEN] - strchr(installpath, ':') - 1;
     s.[STRINGPTR] = installpath.[STRINGPTR] + (installpath.[STRINGLEN] - s.[STRINGLEN]);
     dl = str2int(s, 16, NULL);
     if (!lba_read(dl, 1, 0, buf)) return print("Could not read MBR sector\n");
-    memcpy(buf, bin, c.[CIP] - c.[CORG]);
+    memcpy(buf, bin, 440);
     if (!lba_write(dl, 1, 0, buf)) return print("Could not write MBR sector\n");
 }
 
