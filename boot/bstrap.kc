@@ -147,7 +147,7 @@ USE32
     MOV GS, AX
     JMP ESI
 
-function interrupt(int, eax, ecx, edx, ebx, esi, edi)
+function interrupt(int, eax, ecx, edx, ebx, esi, edi, ds, es)
 {
     MOV ESI, .unreal
     JMP switch_unreal

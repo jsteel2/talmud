@@ -14,7 +14,7 @@ function set_resolution(x, y)
     ctrl[0] = '2EBV';
     eax = 0x4F00;
     edi = ctrl %! 16;
-    interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &edi, ctrl /! 16);
+    interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &edi, 0, ctrl /! 16);
     modes = ctrl.<VBE_MODE_PTR> + ctrl.<VBE_MODE_PTR + 2> *! 16;
     i = 0;
     while (modes<i> != 0xFFFF)
@@ -22,7 +22,7 @@ function set_resolution(x, y)
         eax = 0x4F01;
         ecx = modes<i>;
         edi = inf %! 16;
-        interrupt(0x10, &eax, &ecx, &unused, &unused, &unused, &edi, inf /! 16);
+        interrupt(0x10, &eax, &ecx, &unused, &unused, &unused, &edi, 0, inf /! 16);
         if (eax != 0x4F or (inf.<VBE_ATTRIBUTES> & 0x90) != 0x90 or (inf{VBE_MEMORY_MODEL} != 4 and inf{VBE_MEMORY_MODEL} != 6) or inf{VBE_BPP} != 32)
         {
             i += 1;
@@ -33,7 +33,7 @@ function set_resolution(x, y)
             ebx = modes<i> | 0x4000;
             edi = 0;
             eax = 0x4F02;
-            interrupt(0x10, &eax, &unused, &unused, &ebx, &unused, &edi, 0);
+            interrupt(0x10, &eax, &unused, &unused, &ebx, &unused, &edi, 0, 0);
             framebuffer = inf.[VBE_FRAMEBUFFER];
             fb_pitch = inf.<VBE_PITCH>;
             fb_width = inf.<VBE_WIDTH>;

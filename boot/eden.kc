@@ -144,7 +144,7 @@ USE32
     LTR AX
     JMP ESI
 
-function interrupt(int, eax, ecx, edx, ebx, esi, edi, es)
+function interrupt(int, eax, ecx, edx, ebx, esi, edi, ds, es)
 {
     LOW_STACK[-1] = *eax;
     LOW_STACK[-2] = int;
@@ -153,14 +153,17 @@ function interrupt(int, eax, ecx, edx, ebx, esi, edi, es)
     LOW_STACK[-5] = *ebx;
     LOW_STACK[-6] = *esi;
     LOW_STACK[-7] = *edi;
-    LOW_STACK[-8] = es;
+    LOW_STACK[-8] = ds;
+    LOW_STACK[-9] = es;
     MOV ESI, .v86
-    MOV EDI, LOW_STACK - 32
+    MOV EDI, LOW_STACK - 36
     JMP switch_v86
 USE16
 .v86:
     POP EAX
     MOV ES, AX
+    POP EAX
+    MOV DS, AX
     POP EDI
     POP ESI
     POP EBX
@@ -213,7 +216,7 @@ function print(s)
     {
         if (s.[STRINGPTR]{i} == '\n') print("\r");
         eax = 0x0E00 | s.[STRINGPTR]{i};
-        interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &unused, 0);
+        interrupt(0x10, &eax, &unused, &unused, &unused, &unused, &unused, 0, 0);
         i += 1;
     }
 }
@@ -226,7 +229,7 @@ function lba_do(ax, dl, sectors, lba)
     MOV EAX, [lba]
     MOV [dap_lba], EAX
     _dap = dap;
-    return interrupt(0x13, &ax, &unused, &dl, &unused, &_dap, &unused, 0);
+    return interrupt(0x13, &ax, &unused, &dl, &unused, &_dap, &unused, 0, 0);
 }
 
 function lba_write(dl, sectors, lba, buf)

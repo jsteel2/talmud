@@ -4,6 +4,7 @@ print("Enter disk (ex. 81): ");
 if (!inputline(str)) RET
 dl = str2int(str, 16, NULL);
 if (!lba_read(dl, 1, 0, mbr)) { print("Could not read MBR from disk\n"); RET }
+format(print, "Disk sectors: %d\n", drive_sectors());
 do
 {
     print_partitions();
@@ -66,4 +67,15 @@ function lba2chs(lba, chs)
     chs{0} = h;
     chs{1} = s | ((c >> 2) & 0xC0);
     chs{2} = c & 0xFF;
+}
+
+function drive_sectors()
+(eax, edx, unused, esi)
+{
+    DISK_BUF{0} = 0x42;
+    eax = 0x4800;
+    edx = dl;
+    esi = DISK_BUF %! 16;
+    interrupt(0x13, &eax, &unused, &edx, &unused, &esi, &unused, DISK_BUF /! 16, 0);
+    return DISK_BUF.[0x10];
 }
