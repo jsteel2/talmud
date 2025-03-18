@@ -22,7 +22,7 @@ function vbr()
     if (!lba_read(installdir{FILE_DRIVE}, 1, 0, installdir)) return print("Could not read MBR sector\n");
     lba = installdir.[PARTITION_TABLE + installdir{FILE_PARTITION} *! 16 + PARTITION_LBA];
     if (!lba_read(installdir{FILE_DRIVE}, 1, lba, installdir)) return print("Could not read VBR sector\n");
-    memcpy(installdir + 90, bin + 90, 422);
+    memcpy(installdir + 90, bin + 90, 420);
     if (!lba_write(installdir{FILE_DRIVE}, 1, lba, installdir)) return print("Could not write VBR sector\n");
 }
 

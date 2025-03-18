@@ -281,6 +281,7 @@ function compiler_statement(c)
         case TSTI: return compiler_aemit8(c, OSTI);
         case TREP: return compiler_aemit8(c, OREP);
         case TRET: return compiler_aemit8(c, ORET);
+        case TRETF: return compiler_aemit8(c, ORETF);
         case TLEAVE: return compiler_aemit8(c, OLEAVE);
         case TIRET: return compiler_aemit8(c, OIRET);
         case THLT: return compiler_aemit8(c, OHLT);
@@ -295,8 +296,12 @@ function compiler_statement(c)
         case TLODSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OLODSW);
         case TLODSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OLODSW);
         case TPUSHF: return compiler_aemit8(c, OPUSHF);
+        case TPOPF: return compiler_aemit8(c, OPOPF);
+        case TCWDE: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OCWDE);
         case TINT: compiler_aemit8(c, OINT); return compiler_emit8(c, compiler_asm_immb(c));
         case TMOV: return compiler_asm_mov(c);
+        case TMOVZX: return compiler_asm_movzx(c, OMOVZXB);
+        case TMOVSX: return compiler_asm_movzx(c, OMOVSXB);
         case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
         case TSUB: return compiler_asm_grp1(c, OSUBMRB, OGRP1SUB);
         case TOR: return compiler_asm_grp1(c, OORMRB, OGRP1OR);
@@ -310,6 +315,12 @@ function compiler_statement(c)
         case TSHL: return compiler_asm_grp2(c, OGRP2SHL);
         case TSHR: return compiler_asm_grp2(c, OGRP2SHR);
         case TSAR: return compiler_asm_grp2(c, OGRP2SAR);
+        case TNOT: return compiler_asm_grp3(c, OGRP3NOT);
+        case TNEG: return compiler_asm_grp3(c, OGRP3NEG);
+        case TMUL: return compiler_asm_grp3(c, OGRP3MUL);
+        case TIMUL: return compiler_asm_grp3(c, OGRP3IMUL);
+        case TDIV: return compiler_asm_grp3(c, OGRP3DIV);
+        case TIDIV: return compiler_asm_grp3(c, OGRP3IDIV);
         case TINC: return compiler_asm_incdec(c, OINCR);
         case TDEC: return compiler_asm_incdec(c, ODECR);
         case TPUSH: return compiler_asm_pushpop(c, TRUE);
@@ -318,6 +329,8 @@ function compiler_statement(c)
         case TCALL: return compiler_asm_jmp(c, 0, OCALL, OCALLFAR, OGRP5CALL, OGRP5CALLFAR);
         case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
         case TJNZ: return compiler_asm_jcc(c, OJNZB, OJNZW);
+        case TJB: return compiler_asm_jcc(c, OJBB, OJBW);
+        case TJNB: return compiler_asm_jcc(c, OJNBB, OJNBW);
         case TSETZ: return compiler_asm_setcc(c, OSETZ);
         case TSETB: return compiler_asm_setcc(c, OSETB);
         case TIN: return compiler_asm_in(c);
@@ -325,6 +338,7 @@ function compiler_statement(c)
         case TLGDT: return compiler_asm_lxdt(c, OLXDTLGDT);
         case TLIDT: return compiler_asm_lxdt(c, OLXDTLIDT);
         case TLTR: return compiler_asm_ltr(c);
+        case TLEA: return compiler_asm_lea(c);
         case TTEST: return compiler_asm_test(c);
         case TDOT: local = TRUE; compiler_advance(c);
         case TIDENT: if (compiler_label(c, local)) break;
