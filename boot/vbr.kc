@@ -59,6 +59,7 @@ main:
     PUSH CS
     POP DS
 
+    MOV [bsreserved1], DH
     MOV [bsDriveNumber], DL
 
     PUSH 0x100
@@ -107,6 +108,7 @@ FileReadContinue:
     JB FileReadContinue
 
     MOV DL, [bsDriveNumber]
+    MOV DH, [bsreserved1]
 
     XOR AX, AX
     MOV ES, AX

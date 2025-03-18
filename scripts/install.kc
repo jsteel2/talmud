@@ -53,7 +53,7 @@ function sys()
 }
 
 print("Enter installation path (ex. :80;1): ");
-if (!inputline(str)) RET;
+if (!inputline(str)) RET
 strdup(str, installpath);
 format(print, "Is %s correct? ", str);
 if (!inputline(str) or !str.[STRINGLEN] or upper(str.[STRINGPTR]{0}) != 'Y') { free(installpath.[STRINGPTR]); RET }

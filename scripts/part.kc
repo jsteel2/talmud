@@ -1,0 +1,69 @@
+global mbr{512}, str{STRING}, dl, x, p;
+
+print("Enter disk (ex. 81): ");
+if (!inputline(str)) RET
+dl = str2int(str, 16, NULL);
+if (!lba_read(dl, 1, 0, mbr)) { print("Could not read MBR from disk\n"); RET }
+do
+{
+    print_partitions();
+    print("Select partition, or q to quit: ");
+    if (!inputline(str)) break;
+    if (upper(str.[STRINGPTR]{0}) == 'Q') break;
+    x = str2int(str, 16, NULL);
+    p = &mbr{PARTITION_TABLE + x *! PARTITION};
+    print("Partition active? Y/N: ");
+    if (!inputline(str)) break;
+    p{PARTITION_ATTRIBUTES} = upper(str.[STRINGPTR]{0}) == 'Y' ? 0x80 : 0;
+    print("Partition type (0 for unused): ");
+    if (!inputline(str)) break;
+    x = str2int(str, 16, NULL);
+    p{PARTITION_TYPE} = x;
+    print("Partition start sector: ");
+    if (!inputline(str)) break;
+    x = str2int(str, 10, NULL);
+    p.[PARTITION_LBA] = x;
+    print("Partition sectors: ");
+    if (!inputline(str)) break;
+    x = str2int(str, 10, NULL);
+    p.[PARTITION_LBA_SECTORS] = x;
+    lba2chs(p.[PARTITION_LBA], &p{PARTITION_CHS});
+    lba2chs(p.[PARTITION_LBA] + x, &p{PARTITION_CHS_END});
+} while (TRUE);
+
+print("Write changes to disk? Y/N: ");
+if (!inputline(str)) RET
+if (upper(str.[STRINGPTR]{0}) != 'Y') RET
+if (!lba_write(dl, 1, 0, mbr)) print("Could not write MBR to disk\n");
+
+function print_partitions()
+(i, p)
+{
+    i = 0;
+    print("Partitions:\n");
+    while (i <! 4)
+    {
+        p = &mbr{PARTITION_TABLE + i *! PARTITION};
+        if (p{PARTITION_TYPE}) format(print, "partition %d: type %x, start: %d, sectors: %d%s\n", i, p{PARTITION_TYPE}, p.[PARTITION_LBA], p.[PARTITION_LBA_SECTORS], p{PARTITION_ATTRIBUTES} & 0x80 ? ", active" : "");
+        else format(print, "partition %d: Unused\n", i);
+        i += 1;
+    }
+    print("\n");
+}
+
+function lba2chs(lba, chs)
+(t, eax, ecx, edx, st, nh, c, h, s)
+{
+    eax = 0x0800;
+    edx = dl;
+    interrupt(0x13, &eax, &ecx, &edx, &t, &t, &t, 0);
+    st = ecx & 0x3F;
+    nh = ((edx >> 8) & 0xff) + 1;
+    t = lba /! st;
+    s = (lba %! st) + 1;
+    h = t %! nh;
+    c = t /! nh;
+    chs{0} = h;
+    chs{1} = s | ((c >> 2) & 0xC0);
+    chs{2} = c & 0xFF;
+}

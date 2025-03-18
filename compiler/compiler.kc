@@ -679,9 +679,11 @@ function compiler_while(c)
 }
 
 function compiler_do(c)
-(loop, r, econst)
+(loop, r, econst, ob)
 {
     loop = c.[CIP];
+    ob = c.[CBREAK];
+    c.[CBREAK] = compiler_getlater(c);
     compiler_consume(c, TDO);
     compiler_statement(c);
 
@@ -711,6 +713,8 @@ function compiler_do(c)
         compiler_emit16(c, OJNZW);
         compiler_emit32(c, compiler_relative(c, loop, 4));
     }
+    compiler_setlater(c, c.[CBREAK], c.[CIP]);
+    c.[CBREAK] = ob;
 }
 
 function compiler_break(c)
