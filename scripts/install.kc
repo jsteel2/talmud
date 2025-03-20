@@ -9,6 +9,7 @@ function mbr()
     if (!bin) return;
     if (!lba_read(installdir{FILE_DRIVE}, 1, 0, installdir)) return print("Could not read MBR sector\n");
     memcpy(installdir, bin, 440);
+    installdir.<510> = 0xAA55;
     if (!lba_write(installdir{FILE_DRIVE}, 1, 0, installdir)) return print("Could not write MBR sector\n");
 }
 
@@ -20,9 +21,10 @@ function vbr()
     compiler_free(c);
     if (!bin) return;
     if (!lba_read(installdir{FILE_DRIVE}, 1, 0, installdir)) return print("Could not read MBR sector\n");
-    lba = installdir.[PARTITION_TABLE + installdir{FILE_PARTITION} *! 16 + PARTITION_LBA];
+    lba = installdir.[PARTITION_TABLE + installdir{FILE_PARTITION} *! PARTITION + PARTITION_LBA];
     if (!lba_read(installdir{FILE_DRIVE}, 1, lba, installdir)) return print("Could not read VBR sector\n");
     memcpy(installdir + 90, bin + 90, 420);
+    installdir.<510> = 0xAA55;
     if (!lba_write(installdir{FILE_DRIVE}, 1, lba, installdir)) return print("Could not write VBR sector\n");
 }
 
@@ -43,8 +45,85 @@ function eden()
 }
 
 function formatpart()
+(lba, sectors, p, i, j)
 {
-    print("TODO\n");
+    p = installdir;
+    if (!lba_read(p{FILE_DRIVE}, 1, 0, p)) return print("Could not read MBR sector\n");
+    lba = p.[PARTITION_TABLE + p{FILE_PARTITION} *! PARTITION + PARTITION_LBA];
+    sectors = p.[PARTITION_TABLE + p{FILE_PARTITION} *! PARTITION + PARTITION_LBA_SECTORS];
+
+    p{BS_BOOTJMP} = OJMPB;
+    p{BS_BOOTJMP + 1} = 0x58;
+    p{BS_BOOTJMP + 2} = ONOP;
+    memcpy(&p{BS_OEM_NAME}, "TALMUDOS".[STRINGPTR], 8);
+    p.<BS_BYTES_PER_SECTOR> = 512;
+
+    print("Sectors per cluster (8 reccomended): ");
+    if (!inputline(str)) return;
+    p{BS_SECTORS_PER_CLUSTER} = str2int(str, 10, NULL);
+
+    p.<BS_RESERVED_SECTOR_COUNT> = 1;
+    p{BS_TABLE_COUNT} = 1;
+    p.<BS_ROOT_ENTRY_COUNT> = 0;
+    p.<BS_TOTAL_SECTORS_16> = 0;
+    p{BS_MEDIA_TYPE} = 0xF8;
+    p.<BS_TABLE_SIZE_16> = 0;
+    p.<BS_SECTORS_PER_TRACK> = 63;
+    p.<BS_HEAD_SIDE_COUNT> = 255;
+    p.[BS_HIDDEN_SECTOR_COUNT] = lba;
+    p.[BS_TOTAL_SECTORS_32] = sectors;
+    p.[BS_TABLE_SIZE_32] = sectors /! p{BS_SECTORS_PER_CLUSTER} /! 128;
+    if (sectors /! p{BS_SECTORS_PER_CLUSTER} %! 128) p.[BS_TABLE_SIZE_32] += 1;
+    j = p.[BS_TABLE_SIZE_32];
+    p.<BS_EXTENDED_FLAGS> = 0;
+    p.<BS_FAT_VERSION> = 0;
+    p.[BS_ROOT_CLUSTER] = 2;
+    p.<BS_FAT_INFO> = 0;
+    p.<BS_BACKUP_BS_SECTOR> = 0;
+    memset(&p{BS_RESERVED}, 0, 12);
+    p{BS_DRIVE_NUMBER} = p{FILE_DRIVE};
+    p{BS_RESERVED2} = 0;
+    p{BS_BOOT_SIGNATURE} = 0x28;
+    p.[BS_VOLUME_ID] = lba;
+    memcpy(&p{BS_VOLUME_LABEL}, "NO NAME    ".[STRINGPTR], 11);
+    memcpy(&p{BS_FAT_TYPE_LABEL}, "FAT32   ".[STRINGPTR], 8);
+
+    memcpy(&p{FAT_BS}, .vbr, .vbr_end - .vbr);
+
+    if (!lba_write(p{FILE_DRIVE}, 1, lba, p)) return print("Could not write FAT bootsector\n");
+    p[0] = 0xFFFFFFF8;
+    p[1] = 0xFFFFFFFF;
+    p[2] = 0x0FFFFFFF;
+    memsetd(p + 3 *! 4, 0, 125);
+    if (!lba_write(p{FILE_DRIVE}, 1, lba + 1, p)) return print("Could not write FAT table sector 0\n");
+    memsetd(p, 0, 3);
+    i = 1;
+    while (i <! j)
+    {
+        if (!lba_write(p{FILE_DRIVE}, 1, lba + i + 1, p)) return format(print, "Could not write FAT table sector %d\n, i");
+        i += 1;
+    }
+    return;
+.vbr:
+USE16
+    XOR AX, AX
+    MOV DS, AX
+    MOV SI, .prompt - .vbr + 0x7C00 + FAT_BS
+.puts:
+    LODSB
+    TEST AL, AL
+    JZ .done
+
+    MOV AH, 0x0E
+    INT 0x10
+    JMP .puts
+.done:
+    CLI
+    HLT
+    JMP .done
+.prompt: DB 'Not a bootable partition!', 0
+.vbr_end:
+USE32
 }
 
 function sys()
@@ -55,7 +134,7 @@ function sys()
 print("Enter installation path (ex. :80;1): ");
 if (!inputline(str)) RET
 strdup(str, installpath);
-format(print, "Is %s correct? ", str);
+format(print, "Is %s correct? ", installpath);
 if (!inputline(str) or !str.[STRINGLEN] or upper(str.[STRINGPTR]{0}) != 'Y') { free(installpath.[STRINGPTR]); RET }
 if (!open(installpath, installdir, FALSE)) { print("Could not open path\n"); free(installpath.[STRINGPTR]); RET }
 print("Format partition to FAT32? ");

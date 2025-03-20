@@ -24,9 +24,15 @@ function malloc_init(lowmem_start)
     if (himem)
     {
         HI_MEM_START{MEM_HEADER_FLAGS} = MEM_HEADER_FNO_MERGE_NEXT;
+        HI_MEM_START.[MEM_HEADER_PREV] = NULL;
+        if (himem + HI_MEM_START == EXT_MEM_START)
+        {
+            HI_MEM_START.[MEM_HEADER_SIZE] = himem + extmem - MEM_HEADER;
+            HI_MEM_START.[MEM_HEADER_NEXT] = NULL;
+            return;
+        }
         HI_MEM_START.[MEM_HEADER_SIZE] = himem - MEM_HEADER;
         HI_MEM_START.[MEM_HEADER_NEXT] = extmem ? EXT_MEM_START : NULL;
-        HI_MEM_START.[MEM_HEADER_PREV] = NULL;
     }
     if (extmem)
     {
