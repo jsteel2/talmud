@@ -37,7 +37,7 @@ function eden()
     bin = compile(c, "install", "include \"boot/eden.kc\"");
     compiler_free(c);
     if (!bin) return;
-    if (!openat(installdir, "/eden.exe", f, TRUE)) return format(print, "Could not open %s/EDEN.EXE\n", installpath);
+    if (!openat(installdir, "/eden.exe", f, FILE_FCREATE)) return format(print, "Could not open %s/EDEN.EXE\n", installpath);
     if (!write(f, c.[CIP] - c.[CORG], bin)) return print("Could not write to file\n");
     free(bin);
     if (!resize(f, c.[CIP] - c.[CORG])) return print("Could not resize file\n");
@@ -136,7 +136,7 @@ if (!inputline(str)) RET
 strdup(str, installpath);
 format(print, "Is %s correct? ", installpath);
 if (!inputline(str) or !str.[STRINGLEN] or upper(str.[STRINGPTR]{0}) != 'Y') { free(installpath.[STRINGPTR]); RET }
-if (!open(installpath, installdir, FALSE)) { print("Could not open path\n"); free(installpath.[STRINGPTR]); RET }
+if (!open(installpath, installdir, 0)) { print("Could not open path\n"); free(installpath.[STRINGPTR]); RET }
 print("Format partition to FAT32? ");
 if (inputline(str) and str.[STRINGLEN] and upper(str.[STRINGPTR]{0}) == 'Y') formatpart();
 print("Build EDEN? ");

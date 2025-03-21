@@ -42,7 +42,7 @@ function bstrap()
         JMP .hlt
     }
 
-    if (!openat(NULL, "/boot/eden.kc", file, FALSE))
+    if (!openat(NULL, "/boot/eden.kc", file, 0))
     {
         print("Could not open /boot/eden.kc\n");
         JMP .hlt
@@ -76,7 +76,7 @@ function bstrap()
         JMP .hlt
     }
 
-    if (!openat(NULL, "/eden.exe", file, FALSE))
+    if (!openat(NULL, "/eden.exe", file, 0))
     {
         print("Could not open /eden.exe\n");
         JMP .hlt

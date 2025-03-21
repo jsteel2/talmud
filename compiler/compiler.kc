@@ -602,7 +602,7 @@ function compiler_include(c)
 
     src.[STRINGPTR] = NULL;
     compiler_try(c, .catch);
-    if (!open(s, f, FALSE)) compiler_throw(c, $@, $*, format(print, "Could not open file \"%s\"", s));
+    if (!open(s, f, 0)) compiler_throw(c, $@, $*, format(print, "Could not open file \"%s\"", s));
     src.[STRINGLEN] = f.[FILE_SIZE];
     src.[STRINGPTR] = malloc(src.[STRINGLEN]);
     if (!src.[STRINGPTR]) compiler_throw(c, $@, $*, format(print, "Failed to allocate %uB of memory", src.[STRINGLEN]));

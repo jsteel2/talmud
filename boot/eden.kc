@@ -52,7 +52,7 @@ function eden()
         JMP .hlt
     }
 
-    if (!open("/adam/eve.kc", file, FALSE))
+    if (!open("/adam/eve.kc", file, 0))
     {
         print("Could not open /adam/eve.kc\n");
         JMP .hlt

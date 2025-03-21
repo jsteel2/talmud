@@ -89,7 +89,7 @@ function copen(p, m)
     cf = malloc(CFILE);
     cf.[CFILE_DATA] = NULL;
     cf.[CFILE_SEEK] = 0;
-    if (!open(s, &cf{CFILE_FILE}, FALSE))
+    if (!open(s, &cf{CFILE_FILE}, 0))
     {
         free(cf);
         cf = NULL;
@@ -193,7 +193,7 @@ function cgettime(osec, ousec)
 function load_elf(path, osymtab, ostrtab, osyms)
 (f{FILE}, ehdr{ELF_EHDR}, phdrs, shdrs, total_size, i, e, j, mem)
 {
-    if (!open(path, f, FALSE)) return NULL;
+    if (!open(path, f, 0)) return NULL;
     read(f, ELF_EHDR, ehdr);
     total_size = 0;
     phdrs = malloc(ehdr.<E_PHNUM> *! ELF_PHDR);
