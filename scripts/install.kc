@@ -103,6 +103,9 @@ function formatpart()
         if (!lba_write(p{FILE_DRIVE}, 1, lba + i + 1, p)) return format(print, "Could not write FAT table sector %d\n, i");
         i += 1;
     }
+
+    p{0} = 0;
+    if (!lba_write(p{FILE_DRIVE}, 1, lba + j + 1, p)) return print("Could not write root directory\n");
     return;
 .vbr:
 USE16

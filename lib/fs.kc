@@ -72,7 +72,7 @@ function openat(cwd, path, file, flags)
             while ((r = dir_next2(file, d)) >! 1)
             {
                 if (r == 2 and !x) x = file.[FILE_SEEK];
-                if (fnamecmp(s, d))
+                if (r == 3 and fnamecmp(s, d))
                 {
                     file.[FILE_SIZE] = d.[DIR_ENTRY_FILE_SIZE];
                     file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER] = d.<DIR_ENTRY_CLUSTER_HI> << 16 | d.<DIR_ENTRY_CLUSTER_LO>;
@@ -84,12 +84,22 @@ function openat(cwd, path, file, flags)
             }
             if (flags & FILE_FCREATE and state >=! path.[STRINGLEN])
             {
-                if (!x) x = file.[FILE_SEEK];
+                if (!x)
+                {
+                    x = file.[FILE_SEEK];
+                    r = 4;
+                }
                 seek(file, x - (r ? DIR_ENTRY : 0));
                 memset(d, 0, DIR_ENTRY);
                 name2f83(s, d);
                 d{DIR_ENTRY_ATTR} = flags & ~FILE_FCREATE;
+                # TODO allocate cluster for file
                 write(file, DIR_ENTRY, d);
+                if (r == 4)
+                {
+                    d{0} = 0;
+                    write(file, DIR_ENTRY, d);
+                }
                 return TRUE;
             }
             return FALSE;
@@ -100,23 +110,32 @@ function openat(cwd, path, file, flags)
     return TRUE;
 }
 
+function uppersl(d, s, n)
+{
+    while (n)
+    {
+        n -= 1;
+        d{n} = upper(s{n});
+    }
+}
+
 function name2f83(s, o83)
 (x)
 {
     memset(o83, ' ', 11);
-    if (s.[STRINGPTR]{0} == '.') return memcpy(o83, s.[STRINGPTR], s.[STRINGLEN]);
+    if (s.[STRINGPTR]{0} == '.') return uppersl(o83, s.[STRINGPTR], s.[STRINGLEN]);
 
     x = strchr(s, '.');
-    memcpy(o83, s.[STRINGPTR], x);
+    uppersl(o83, s.[STRINGPTR], x);
     if (x == s.[STRINGLEN]) return;
-    memcpy(o83 + 8, s.[STRINGPTR] + x + 1, s.[STRINGLEN] - x - 1);
+    uppersl(o83 + 8, s.[STRINGPTR] + x + 1, s.[STRINGLEN] - x - 1);
 }
 
 function fnamecmp(s, d83)
 (f83{11})
 {
     name2f83(s, f83);
-    return memicmp(f83, d83, 11);
+    return memcmp(f83, d83, 11);
 }
 
 function dir_next2(file, outentry)
@@ -200,9 +219,8 @@ function seek(file, w)
     return TRUE;
 }
 
-# This is just a stub for the bootstrapping for now
 function write(file, n, buf)
-(sectors_read, x, i)
+(sectors_write, x, i)
 {
     i = n;
     while (n)
@@ -213,33 +231,36 @@ function write(file, n, buf)
             {
                 if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512, file)) return i - n;
                 file.[FILE_CLUSTER_CUR] = file.[file.[FILE_CLUSTER_CUR] *! 4 %! 512] & 0x0FFFFFFF;
-                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return i - n;
+                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return i - n; # TODO grow file
             }
-            if (TRUE)
+            if (n >=! 512)
             {
-                sectors_read = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER});
-                if (sectors_read == 0) sectors_read = 1;
-                if (!lba_write(file{FILE_DRIVE}, sectors_read, cur_sector(file), buf)) return i - n;
-                x = sectors_read *! 512;
+                sectors_write = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER});
+                if (!lba_write(file{FILE_DRIVE}, sectors_write, cur_sector(file), buf)) return i - n;
+                x = sectors_write *! 512;
                 file.[FILE_SEEK] += x;
-                if (n <! x) n = 0;
-                else n -= x;
+                n -= x;
                 buf += x;
             }
             else
             {
+                if (!lba_read(file{FILE_DRIVE}, 1, cur_sector(file), file)) return i - n;
+                memcpy(file, buf, n);
                 if (!lba_write(file{FILE_DRIVE}, 1, cur_sector(file), file)) return i - n;
-                memcpy(buf, file, n);
                 file.[FILE_SEEK] += n;
                 return i;
             }
         }
         else
         {
-            # implement
+            x = minu(n, 512 - (file.[FILE_SEEK] & 511));
+            memcpy(file + (file.[FILE_SEEK] & 511), buf, x);
+            if (!lba_write(file{FILE_DRIVE}, 1, cur_sector(file), file)) return i - n;
+            file.[FILE_SEEK] += x;
+            n -= x;
+            buf += x;
         }
     }
-
     return i;
 }
 
