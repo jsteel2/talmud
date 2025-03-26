@@ -283,7 +283,7 @@ function edit(p)
 {
     clear();
     if (!open(p, f, FILE_FCREATE)) return print("Could not open file\n");
-    if (!vec_resize(&task.[TASK_WINDOW]{WINDOW_PRINT_BUFFER}, f.[FILE_SIZE]) or !read(f, f.[FILE_SIZE], task.[TASK_WINDOW].[WINDOW_PRINT_BUFFER + VEC_PTR])) return print("Could not read file\n");
+    if (!vec_resize(&task.[TASK_WINDOW]{WINDOW_PRINT_BUFFER}, f.[FILE_SIZE]) or read(f, f.[FILE_SIZE], task.[TASK_WINDOW].[WINDOW_PRINT_BUFFER + VEC_PTR]) != f.[FILE_SIZE]) return print("Could not read file\n");
     task.[TASK_WINDOW].[WINDOW_PRINT_BUFFER + VEC_LEN] = f.[FILE_SIZE];
     window_print_redraw(task.[TASK_WINDOW]);
     while (input(s, 0, TRUE));

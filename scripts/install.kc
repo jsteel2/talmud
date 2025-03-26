@@ -83,7 +83,7 @@ function formatpart()
     memset(&p{BS_RESERVED}, 0, 12);
     p{BS_DRIVE_NUMBER} = p{FILE_DRIVE};
     p{BS_RESERVED2} = 0;
-    p{BS_BOOT_SIGNATURE} = 0x28;
+    p{BS_BOOT_SIGNATURE} = 0x29;
     p.[BS_VOLUME_ID] = lba;
     memcpy(&p{BS_VOLUME_LABEL}, "NO NAME    ".[STRINGPTR], 11);
     memcpy(&p{BS_FAT_TYPE_LABEL}, "FAT32   ".[STRINGPTR], 8);

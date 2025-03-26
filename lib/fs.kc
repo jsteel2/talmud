@@ -3,7 +3,7 @@ struct FAT_BS = 3{BS_BOOTJMP}, 8{BS_OEM_NAME}, <BS_BYTES_PER_SECTOR>, {BS_SECTOR
 const PARTITION_TABLE = 0x1BE;
 struct PARTITION = {PARTITION_ATTRIBUTES}, 3{PARTITION_CHS}, {PARTITION_TYPE}, 3{PARTITION_CHS_END}, [PARTITION_LBA], [PARTITION_LBA_SECTORS];
 
-struct FILE = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_CLUSTER}, [FILE_DATA_SECTOR], [FILE_FAT_SECTOR], [FILE_CLUSTER_CUR], [FILE_CLUSTER], [FILE_SEEK], [FILE_SIZE], {FILE_FLAGS};
+struct FILE = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_CLUSTER}, [FILE_DATA_SECTOR], [FILE_FAT_SECTOR], [FILE_CLUSTER_CUR], [FILE_CLUSTER], [FILE_DIR_CLUSTER], [FILE_DIR_CLUSTER_CUR], [FILE_DIR_SEEK], [FILE_SEEK], [FILE_SIZE], {FILE_FLAGS};
 const FILE_FREAD_ONLY = 1;
 const FILE_FHIDDEN = 2;
 const FILE_FSYSTEM = 4;
@@ -71,9 +71,13 @@ function openat(cwd, path, file, flags)
             x = 0;
             while ((r = dir_next2(file, d)) >! 1)
             {
-                if (r == 2 and !x) x = file.[FILE_SEEK];
+                if (r == 2 and !x) x = file.[FILE_SEEK] - DIR_ENTRY;
                 if (r == 3 and fnamecmp(s, d))
                 {
+.f:
+                    file.[FILE_DIR_CLUSTER] = file.[FILE_CLUSTER];
+                    file.[FILE_DIR_CLUSTER_CUR] = file.[FILE_CLUSTER_CUR];
+                    file.[FILE_DIR_SEEK] = file.[FILE_SEEK] - DIR_ENTRY;
                     file.[FILE_SIZE] = d.[DIR_ENTRY_FILE_SIZE];
                     file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER] = d.<DIR_ENTRY_CLUSTER_HI> << 16 | d.<DIR_ENTRY_CLUSTER_LO>;
                     file.[FILE_SEEK] = 0;
@@ -86,21 +90,26 @@ function openat(cwd, path, file, flags)
             {
                 if (!x)
                 {
-                    x = file.[FILE_SEEK];
+                    x = file.[FILE_SEEK] - (r ? DIR_ENTRY : 0);
                     r = 4;
                 }
-                seek(file, x - (r ? DIR_ENTRY : 0));
+                seek(file, x);
                 memset(d, 0, DIR_ENTRY);
                 name2f83(s, d);
                 d{DIR_ENTRY_ATTR} = flags & ~FILE_FCREATE;
-                # TODO allocate cluster for file
+                x = alloc_cluster(file);
+                d.<DIR_ENTRY_CLUSTER_LO> = x;
+                d.<DIR_ENTRY_CLUSTER_HI> = x >> 16;
                 write(file, DIR_ENTRY, d);
                 if (r == 4)
                 {
                     d{0} = 0;
+                    x = file.[FILE_CLUSTER_CUR];
                     write(file, DIR_ENTRY, d);
+                    file.[FILE_CLUSTER_CUR] = x;
+                    file.[FILE_SEEK] -= DIR_ENTRY;
                 }
-                return TRUE;
+                JMP .f
             }
             return FALSE;
         }
@@ -220,7 +229,7 @@ function seek(file, w)
 }
 
 function write(file, n, buf)
-(sectors_write, x, i)
+(sectors_write, x, i, c)
 {
     i = n;
     while (n)
@@ -229,9 +238,18 @@ function write(file, n, buf)
         {
             if (file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER} == 0 and file.[FILE_SEEK] != 0)
             {
-                if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512, file)) return i - n;
-                file.[FILE_CLUSTER_CUR] = file.[file.[FILE_CLUSTER_CUR] *! 4 %! 512] & 0x0FFFFFFF;
-                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return i - n; # TODO grow file
+                c = file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512;
+                if (!lba_read(file{FILE_DRIVE}, 1, c, file)) return i - n;
+                x = file.[FILE_CLUSTER_CUR] *! 4 %! 512;
+                file.[FILE_CLUSTER_CUR] = file.[x] & 0x0FFFFFFF;
+                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF8)
+                {
+                    file.[FILE_CLUSTER_CUR] = alloc_cluster(file);
+                    if (!lba_read(file{FILE_DRIVE}, 1, c, file)) return i - n;
+                    file.[x] = file.[x] & 0xF0000000 | file.[FILE_CLUSTER_CUR];
+                    if (!lba_write(file{FILE_DRIVE}, 1, c, file)) return i - n;
+                }
+                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return i - n;
             }
             if (n >=! 512)
             {
@@ -265,13 +283,50 @@ function write(file, n, buf)
 }
 
 function resize(f, size)
+(d{FILE})
 {
-    # implement
+    if (size /! 512 /! f{FILE_SECTORS_PER_CLUSTER} <! f.[FILE_SIZE] /! 512 /! f{FILE_SECTORS_PER_CLUSTER})
+    {
+        # TODO shrink file
+        # make a free_clusters function to free a cluster chain from x cluster
+        # and also make it set cluster_alloc_start
+    }
     f.[FILE_SIZE] = size;
+    d.[FILE_DATA_SECTOR] = f.[FILE_DATA_SECTOR];
+    d{FILE_SECTORS_PER_CLUSTER} = f{FILE_SECTORS_PER_CLUSTER};
+    d.[FILE_CLUSTER_CUR] = f.[FILE_DIR_CLUSTER_CUR];
+    d.[FILE_SEEK] = f.[FILE_DIR_SEEK];
+    if (!lba_read(f{FILE_DRIVE}, 1, cur_sector(d), d)) return FALSE;
+    d.[d.[FILE_SEEK] %! 512 + DIR_ENTRY_FILE_SIZE] = f.[FILE_SIZE];
+    if (!lba_write(f{FILE_DRIVE}, 1, cur_sector(d), d)) return FALSE;
     return TRUE;
 }
 
 function cluster2sector(file, cluster) return ((cluster - 2) *! file{FILE_SECTORS_PER_CLUSTER}) + file.[FILE_DATA_SECTOR];
+
+global cluster_alloc_start;
+function alloc_cluster(file)
+(buf{512}, sector, i)
+{
+    sector = cluster_alloc_start;
+    while (TRUE) # TODO terminate on end of FAT
+    {
+        if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + sector, buf)) return 0x0FFFFFF8;
+        i = 0;
+        while (i <! 512 /! 4)
+        {
+            if (buf[i] & 0x0FFFFFFF == 0)
+            {
+                cluster_alloc_start = sector;
+                buf[i] |= 0x0FFFFFF8;
+                if (!lba_write(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + sector, buf)) return 0x0FFFFFF8;
+                return i + sector *! 128;
+            }
+            i += 1;
+        }
+        sector += 1;
+    }
+}
 
 function dir2path(v, p)
 (s{STRING}, st{VEC}, f{FILE}, d{DIR_ENTRY}, c, l)
