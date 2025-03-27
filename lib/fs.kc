@@ -11,6 +11,7 @@ const FILE_FVOLUME_ID = 8;
 const FILE_FDIRECTORY = 16;
 const FILE_FARCHIVE = 32;
 const FILE_FCREATE = 64;
+const FILE_F83 = 128;
 const FILE_FLFN = FILE_FREAD_ONLY | FILE_FHIDDEN | FILE_FSYSTEM | FILE_FVOLUME_ID;
 
 struct DIR_ENTRY = 11{DIR_ENTRY_83NAME}, {DIR_ENTRY_ATTR}, {DIR_ENTRY_RESERVED}, {DIR_ENTRY_CREATE_HUNDRETHS}, <DIR_ENTRY_CREATE_TIME>, <DIR_ENTRY_CREATE_DATE>, <DIR_ENTRY_ACCESSED_DATE>, <DIR_ENTRY_CLUSTER_HI>, <DIR_ENTRY_MODIFICATION_TIME>, <DIR_ENTRY_MODIFICATION_DATE>, <DIR_ENTRY_CLUSTER_LO>, [DIR_ENTRY_FILE_SIZE];
@@ -72,7 +73,7 @@ function openat(cwd, path, file, flags)
             while ((r = dir_next2(file, d)) >! 1)
             {
                 if (r == 2 and !x) x = file.[FILE_SEEK] - DIR_ENTRY;
-                if (r == 3 and fnamecmp(s, d))
+                if (r == 3 and (flags & FILE_F83 ? memcmp(s.[STRINGPTR], d, 11) : fnamecmp(s, d)))
                 {
 .f:
                     file.[FILE_DIR_CLUSTER] = file.[FILE_CLUSTER];
@@ -174,6 +175,7 @@ function cur_sector(file)
 function read(file, n, buf)
 (sectors_read, x, i)
 {
+    if (!(file{FILE_FLAGS} & FILE_FDIRECTORY)) n = minu(n, file.[FILE_SIZE] - file.[FILE_SEEK]);
     i = n;
     while (n)
     {
@@ -381,3 +383,58 @@ function dir2path(v, p)
     vec_free(st);
     return TRUE;
 }
+
+function _mkdiratf(cwd, path, file, flags)
+(buf{DIR_ENTRY *! 2 + 1})
+{
+    if (!openat(cwd, path, file, FILE_FCREATE | FILE_FDIRECTORY | flags)) return FALSE;
+    memcpy(buf, ".          ".[STRINGPTR], 11);
+    buf{DIR_ENTRY_ATTR} = FILE_FDIRECTORY;
+    buf.<DIR_ENTRY_CLUSTER_LO> = file.[FILE_CLUSTER];
+    buf.<DIR_ENTRY_CLUSTER_HI> = file.[FILE_CLUSTER] >> 16;
+    memcpy(buf + DIR_ENTRY, "..         ".[STRINGPTR], 11);
+    buf{DIR_ENTRY + DIR_ENTRY_ATTR} = FILE_FDIRECTORY;
+    buf.<DIR_ENTRY + DIR_ENTRY_CLUSTER_LO> = cwd.[FILE_CLUSTER];
+    buf.<DIR_ENTRY + DIR_ENTRY_CLUSTER_HI> = cwd.[FILE_CLUSTER] >> 16;
+    buf{DIR_ENTRY *! 2} = 0;
+    if (!write(file, DIR_ENTRY *! 2 + 1, buf)) return FALSE;
+    return seek(file, 0);
+}
+
+function mkdiratf(cwd, path, file) return _mkdiratf(cwd, path, file, 0);
+
+function mkdirf(path, file) return mkdiratf(&task{TASK_CWD}, path, file);
+function mkdir(path) (file{FILE}) return mkdirf(path, file);
+
+function _copyfromto(srcdir, src, destdir, dest, flags)
+(srcf{FILE}, destf{FILE}, d{FILE}, e{DIR_ENTRY}, buf, s{STRING})
+{
+    if (!openat(srcdir, src, srcf, flags)) return FALSE;
+    if (srcf{FILE_FLAGS} & FILE_FDIRECTORY)
+    {
+        if (!mkdiratf(destdir, dest, destf, flags)) return FALSE;
+        memcpy(d, srcf, FILE);
+        while (dir_next(d, e))
+        {
+            if (e{0} == '.') JMP .l
+            s.[STRINGLEN] = 11;
+            s.[STRINGPTR] = e;
+            if (!_copyfromto(srcf, s, destf, s, FILE_F83)) return FALSE;
+.l:
+        }
+    }
+    else
+    {
+        if (!openat(destdir, dest, destf, flags | FILE_FCREATE)) return FALSE;
+        buf = malloc(4096);
+        while (write(destf, read(srcf, 4096, buf), buf));
+        resize(destf, srcf.[FILE_SIZE]);
+    }
+    return TRUE;
+}
+
+function copyfromto(srcdir, src, destdir, dest) return _copyfromto(srcdir, src, destdir, dest, 0);
+
+function copyfrom(srcdir, src, dest) return copyfromto(srcdir, src, &task{TASK_CWD}, dest);
+function copyto(src, destdir, dest) return copyfromto(&task{TASK_CWD}, src, destdir, dest);
+function copy(src, dest) return copyto(src, &task{TASK_CWD}, dest);

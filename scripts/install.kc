@@ -131,7 +131,12 @@ USE32
 
 function sys()
 {
-    print("TODO\n");
+    copyto("/adam", installdir, "/adam");
+    copyto("/boot", installdir, "/boot");
+    copyto("/compiler", installdir, "/compiler");
+    copyto("/doom", installdir, "/doom");
+    copyto("/lib", installdir, "/lib");
+    copyto("/scripts", installdir, "/scripts");
 }
 
 print("Enter installation path (ex. :80;1): ");
