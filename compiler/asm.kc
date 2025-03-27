@@ -137,11 +137,11 @@ function compiler_asm_mem(c, outsize, mem)
             mem{CASMEMMODRM} = modrm(MODDISPW, 0, REBP);
             break;
         case TSI:
-            mem{CASMEMMODRM} = modrm(MODDISPW, 0, 0x4);
+            mem{CASMEMMODRM} = modrm(MODMEM, 0, 0x4);
             mem{CASMEMADDRSIZE} = 16;
             break;
         case TDI:
-            mem{CASMEMMODRM} = modrm(MODDISPW, 0, 0x5);
+            mem{CASMEMMODRM} = modrm(MODMEM, 0, 0x5);
             mem{CASMEMADDRSIZE} = 16;
             break;
         case TBP:
@@ -149,7 +149,7 @@ function compiler_asm_mem(c, outsize, mem)
             mem{CASMEMADDRSIZE} = 16;
             break;
         case TBX:
-            mem{CASMEMMODRM} = modrm(MODDISPW, 0, 0x7);
+            mem{CASMEMMODRM} = modrm(MODMEM, 0, 0x7);
             mem{CASMEMADDRSIZE} = 16;
             break;
         default:
