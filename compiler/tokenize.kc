@@ -222,6 +222,7 @@ function tokenizer_ident_token(t, out)
             if (strcmp(s, "STOSB")) out.[TOKEN_TYPE] = TSTOSB;
             else if (strcmp(s, "STOSD")) out.[TOKEN_TYPE] = TSTOSD;
             else if (strcmp(s, "STOSW")) out.[TOKEN_TYPE] = TSTOSW;
+            else if (strcmp(s, "SHORT")) out.[TOKEN_TYPE] = TSHORT;
             else if (strcmp(s, "SETB")) out.[TOKEN_TYPE] = TSETB;
             else if (strcmp(s, "SETZ")) out.[TOKEN_TYPE] = TSETZ;
             else if (strcmp(s, "STD")) out.[TOKEN_TYPE] = TSTD;

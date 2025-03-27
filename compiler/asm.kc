@@ -474,9 +474,9 @@ function compiler_asm_jcc(c, opb, opw)
     compiler_advance(c);
     if (opw == -1 or compiler_match(c, TSHORT))
     {
-        r = compiler_const_expression(c);
+        r = compiler_relative(c, compiler_const_expression(c), 2);
         compiler_emit8(c, opb);
-        compiler_emit8(c, compiler_relative(c, r, 2));
+        compiler_emit8(c, r);
     }
     else
     {

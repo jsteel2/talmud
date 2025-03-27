@@ -1292,8 +1292,7 @@ bool compiler_mov(Compiler *c)
         }
         else if (compiler_imm16(c, &s))
         {
-            HANDLE(compiler_emit8(c, 0xC7));
-            HANDLE(compiler_emit8(c, MODRM(0b11, 0, d)));
+            HANDLE(compiler_emit8(c, 0xB8 + d));
             HANDLE(compiler_emit16(c, s));
             return true;
         }
@@ -1316,8 +1315,7 @@ bool compiler_mov(Compiler *c)
         }
         else if (compiler_imm8(c, &s))
         {
-            HANDLE(compiler_emit8(c, 0xC6));
-            HANDLE(compiler_emit8(c, MODRM(0b11, 0, d)));
+            HANDLE(compiler_emit8(c, 0xB0 + d));
             HANDLE(compiler_emit8(c, s));
             return true;
         }
@@ -1445,6 +1443,7 @@ bool compiler_jmp(Compiler *c, uint8_t op, uint8_t opfar, uint8_t reg)
 bool compiler_jmp8(Compiler *c, uint8_t op)
 {
     int64_t x;
+    compiler_match(c, TSHORT);
     HANDLE(compiler_const_expr(c, (size_t *)&x));
     x = compiler_relative(c, x, 2);
     if (!c->is_first_pass && (x > 0xff || x < -0x80)) return die(&c->t, "immediate too large");

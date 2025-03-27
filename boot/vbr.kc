@@ -83,16 +83,16 @@ FindName:
     MOV SI, ProgramName
     MOV CL, 11
     CMP BYTE [ES:DI], CH
-    JZ FindNameFailed
+    JZ SHORT FindNameFailed
     PUSH DI
     REP CMPSB
     POP DI
-    JZ FindNameFound
+    JZ SHORT FindNameFound
     ADD DI, 32
     CMP DI, AX
-    JNZ FindName
+    JNZ SHORT FindName
     POPF
-    JB RootDirReadContinue
+    JB SHORT RootDirReadContinue
 FindNameFailed:
     CALL Error
     DB 'NoFile', 0
@@ -105,7 +105,7 @@ FindNameFound:
 
 FileReadContinue:
     CALL ReadCluster
-    JB FileReadContinue
+    JB SHORT FileReadContinue
 
     MOV DL, [bsDriveNumber]
     MOV DH, [bsreserved1]
@@ -177,7 +177,7 @@ ReadSectorRetry:
 
     LEA SP, [SI + 16]
 
-    JNB ReadSectorDone
+    JNB SHORT ReadSectorDone
 
     MOV AH, 0
 
@@ -186,7 +186,7 @@ ReadSectorRetry:
     POPAD
 
     DEC DI
-    JNZ ReadSectorRetry
+    JNZ SHORT ReadSectorRetry
 
 ReadError:
     CALL Error
@@ -219,7 +219,7 @@ ErrorNext:
 Halt:
     HLT
     TEST AL, AL
-    JZ Halt
+    JZ SHORT Halt
     INT 0x10
     JMP ErrorNext
 

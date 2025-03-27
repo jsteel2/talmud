@@ -40,7 +40,7 @@ JMP $$ - 2
 puts:
     LODSB
     TEST AL, AL
-    JZ .done
+    JZ SHORT .done
     
     MOV AH, 0x0e
     INT 0x10
