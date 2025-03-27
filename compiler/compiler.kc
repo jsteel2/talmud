@@ -296,13 +296,17 @@ function compiler_statement(c)
         case TLODSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OLODSW);
         case TLODSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OLODSW);
         case TPUSHF: return compiler_aemit8(c, OPUSHF);
+        case TPUSHAD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OPUSHA);
+        case TPOPAD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OPOPA);
         case TPOPF: return compiler_aemit8(c, OPOPF);
         case TCWDE: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OCWDE);
+        case TCDQ: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OCDQ);
         case TINT: compiler_aemit8(c, OINT); return compiler_emit8(c, compiler_asm_immb(c));
         case TMOV: return compiler_asm_mov(c);
-        case TMOVZX: return compiler_asm_movzx(c, OMOVZXB);
-        case TMOVSX: return compiler_asm_movzx(c, OMOVSXB);
+        case TMOVZX: return compiler_asm_movzx(c, OMOVZXB, OMOVZXW);
+        case TMOVSX: return compiler_asm_movzx(c, OMOVSXB, OMOVSXW);
         case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
+        case TADC: return compiler_asm_grp1(c, OADCMRB, OGRP1ADC);
         case TSUB: return compiler_asm_grp1(c, OSUBMRB, OGRP1SUB);
         case TOR: return compiler_asm_grp1(c, OORMRB, OGRP1OR);
         case TXOR: return compiler_asm_grp1(c, OXORMRB, OGRP1XOR);
@@ -331,6 +335,7 @@ function compiler_statement(c)
         case TJNZ: return compiler_asm_jcc(c, OJNZB, OJNZW);
         case TJB: return compiler_asm_jcc(c, OJBB, OJBW);
         case TJNB: return compiler_asm_jcc(c, OJNBB, OJNBW);
+        case TLOOP: return compiler_asm_jcc(c, OLOOP, -1);
         case TSETZ: return compiler_asm_setcc(c, OSETZ);
         case TSETB: return compiler_asm_setcc(c, OSETB);
         case TIN: return compiler_asm_in(c);
@@ -340,6 +345,7 @@ function compiler_statement(c)
         case TLTR: return compiler_asm_ltr(c);
         case TLEA: return compiler_asm_lea(c);
         case TTEST: return compiler_asm_test(c);
+        case TXCHG: return compiler_asm_xchg(c);
         case TDOT: local = TRUE; compiler_advance(c);
         case TIDENT: if (compiler_label(c, local)) break;
         default:

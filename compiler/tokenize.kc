@@ -77,6 +77,7 @@ function tokenizer_ident_token(t, out)
     {
         case 'A':
             if (strcmp(s, "ADD")) out.[TOKEN_TYPE] = TADD;
+            else if (strcmp(s, "ADC")) out.[TOKEN_TYPE] = TADC;
             else if (strcmp(s, "AND")) out.[TOKEN_TYPE] = TAND;
             else if (strcmp(s, "AL")) out.[TOKEN_TYPE] = TAL;
             else if (strcmp(s, "AH")) out.[TOKEN_TYPE] = TAH;
@@ -96,6 +97,7 @@ function tokenizer_ident_token(t, out)
             else if (strcmp(s, "CALL")) out.[TOKEN_TYPE] = TCALL;
             else if (strcmp(s, "CWDE")) out.[TOKEN_TYPE] = TCWDE;
             else if (strcmp(s, "CLD")) out.[TOKEN_TYPE] = TCLD;
+            else if (strcmp(s, "CDQ")) out.[TOKEN_TYPE] = TCDQ;
             else if (strcmp(s, "CLI")) out.[TOKEN_TYPE] = TCLI;
             else if (strcmp(s, "CMP")) out.[TOKEN_TYPE] = TCMP;
             else if (strcmp(s, "CR0")) out.[TOKEN_TYPE] = TCR0;
@@ -174,6 +176,7 @@ function tokenizer_ident_token(t, out)
             else if (strcmp(s, "LODSD")) out.[TOKEN_TYPE] = TLODSD;
             else if (strcmp(s, "LGDT")) out.[TOKEN_TYPE] = TLGDT;
             else if (strcmp(s, "LIDT")) out.[TOKEN_TYPE] = TLIDT;
+            else if (strcmp(s, "LOOP")) out.[TOKEN_TYPE] = TLOOP;
             else if (strcmp(s, "LEA")) out.[TOKEN_TYPE] = TLEA;
             else if (strcmp(s, "LTR")) out.[TOKEN_TYPE] = TLTR;
             else break;
@@ -200,7 +203,9 @@ function tokenizer_ident_token(t, out)
             else break;
             return TRUE;
         case 'P':
-            if (strcmp(s, "PUSHF")) out.[TOKEN_TYPE] = TPUSHF;
+            if (strcmp(s, "PUSHAD")) out.[TOKEN_TYPE] = TPUSHAD;
+            else if (strcmp(s, "PUSHF")) out.[TOKEN_TYPE] = TPUSHF;
+            else if (strcmp(s, "POPAD")) out.[TOKEN_TYPE] = TPOPAD;
             else if (strcmp(s, "PUSH")) out.[TOKEN_TYPE] = TPUSH;
             else if (strcmp(s, "POPF")) out.[TOKEN_TYPE] = TPOPF;
             else if (strcmp(s, "POP")) out.[TOKEN_TYPE] = TPOP;
