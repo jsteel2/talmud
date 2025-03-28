@@ -180,7 +180,7 @@ function window_print_buffer(w)
 }
 
 function window_print(w, s)
-(i)
+(i, x)
 {
     window_print_scrollback(w);
     i = 0;
@@ -203,12 +203,24 @@ function window_print(w, s)
         else if (s.[STRINGPTR]{i} == '\b')
         {
             if (w.[WINDOW_PRINT_CURSOR] <=! w.[WINDOW_PRINT_EDITABLE_START]) JMP .l
-            # handle newline
-            window_print_cursor_left(w);
+            if (w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR] - 1} == '\n')
+            {
+                w.[WINDOW_PRINT_CURSOR] -= 1;
+                w.[WINDOW_PRINT_Y] -= 8;
+                x = w.[WINDOW_PRINT_CURSOR] - 1;
+                while (x and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{x} != '\n') x -= 1;
+                w.[WINDOW_PRINT_X] = (w.[WINDOW_PRINT_CURSOR] - x) %! (w.[WINDOW_W] /! 8) *! 8;
+                if (w.[WINDOW_PRINT_Y] <$ 0) window_print_scroll_up(w, 1);
+            }
+            else
+            {
+                window_print_cursor_left(w);
+            }
             vec_remove(&w{WINDOW_PRINT_BUFFER}, NULL, w.[WINDOW_PRINT_CURSOR]);
-            vec_push1(&w{WINDOW_PRINT_BUFFER}, ' ');
+            vec_push1(&w{WINDOW_PRINT_BUFFER}, '\n');
+            vec_push1(&w{WINDOW_PRINT_BUFFER}, '\n');
             window_print_buffer(w);
-            w.[WINDOW_PRINT_BUFFER + VEC_LEN] -= 1;
+            w.[WINDOW_PRINT_BUFFER + VEC_LEN] -= 2;
         }
         else
         {

@@ -199,6 +199,7 @@ function seth(u)
         if (!i)
         {
             clear();
+            s.[STRINGLEN] = 0;
             JMP .l
         }
         x = compile(&task{TASK_COMPILER}, "stdin", i);
