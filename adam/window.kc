@@ -209,6 +209,7 @@ function window_print(w, s)
                 w.[WINDOW_PRINT_Y] -= 8;
                 x = w.[WINDOW_PRINT_CURSOR] - 1;
                 while (x and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{x} != '\n') x -= 1;
+                if (x) x += 1;
                 w.[WINDOW_PRINT_X] = (w.[WINDOW_PRINT_CURSOR] - x) %! (w.[WINDOW_W] /! 8) *! 8;
                 if (w.[WINDOW_PRINT_Y] <$ 0) window_print_scroll_up(w, 1);
             }
