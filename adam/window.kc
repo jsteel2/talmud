@@ -113,17 +113,17 @@ function window_draw_text(win, s, x, y, color, bg)
     while (i <! s.[STRINGLEN])
     {
         if (y + 8 >$ win.[WINDOW_H]) return;
+        if (x + 8 >! win.[WINDOW_W])
+        {
+            x = 0;
+            y += 8;
+        }
         if (s.[STRINGPTR]{i} == '\n')
         {
             window_fill_rect(win, x, y, win.[WINDOW_W] - x, 8, 0xFFFFFF);
             x = 0;
             y += 8;
             JMP .l
-        }
-        if (x + 8 >! win.[WINDOW_W])
-        {
-            x = 0;
-            y += 8;
         }
         if (y + 8 >$ win.[WINDOW_H]) return;
         window_draw_char(win, s.[STRINGPTR]{i}, x, y, color, bg);
@@ -207,9 +207,8 @@ function window_print(w, s)
             {
                 w.[WINDOW_PRINT_CURSOR] -= 1;
                 w.[WINDOW_PRINT_Y] -= 8;
-                x = w.[WINDOW_PRINT_CURSOR] - 1;
-                while (x and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{x} != '\n') x -= 1;
-                if (x) x += 1;
+                x = w.[WINDOW_PRINT_CURSOR];
+                while (x and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{x - 1} != '\n') x -= 1;
                 w.[WINDOW_PRINT_X] = (w.[WINDOW_PRINT_CURSOR] - x) %! (w.[WINDOW_W] /! 8) *! 8;
                 if (w.[WINDOW_PRINT_Y] <$ 0) window_print_scroll_up(w, 1);
             }
@@ -321,40 +320,30 @@ function window_print_cursor_right(w)
 }
 
 function window_print_cursor_down(w)
-(x)
 {
     window_print_scrollback(w);
-    x = w.[WINDOW_PRINT_CURSOR] >! w.[WINDOW_PRINT_EDITABLE_START] and (w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR] - 1} == '\n' or w.[WINDOW_PRINT_X]);
     while (w.[WINDOW_PRINT_CURSOR] <! w.[WINDOW_PRINT_BUFFER + VEC_LEN] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR]} != '\n')
     {
         w.[WINDOW_PRINT_CURSOR] += 1;
         w.[WINDOW_PRINT_X] += 8;
         if (w.[WINDOW_PRINT_X] >=! w.[WINDOW_W])
         {
-            x = FALSE;
             w.[WINDOW_PRINT_X] = 0;
             w.[WINDOW_PRINT_Y] += 8;
-        }
-        else
-        {
-            x = TRUE;
         }
     }
     if (w.[WINDOW_PRINT_CURSOR] == w.[WINDOW_PRINT_BUFFER + VEC_LEN]) return;
     if (w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR]} == '\n')
     {
         w.[WINDOW_PRINT_CURSOR] += 1;
-        if (x)
-        {
-            w.[WINDOW_PRINT_Y] += 8;
-            w.[WINDOW_PRINT_X] = 0;
-        }
+        w.[WINDOW_PRINT_Y] += 8;
+        w.[WINDOW_PRINT_X] = 0;
     }
     if (w.[WINDOW_PRINT_Y] + 8 >$ w.[WINDOW_H]) window_print_scroll_down(w, (w.[WINDOW_PRINT_Y] + 8 - w.[WINDOW_H]) /! 8);
 }
 
 function window_print_cursor_up(w)
-(i)
+(i, x)
 {
     window_print_scrollback(w);
     if (w.[WINDOW_PRINT_CURSOR] <=! w.[WINDOW_PRINT_EDITABLE_START]) return;
@@ -378,30 +367,28 @@ function window_print_cursor_up(w)
     while (w.[WINDOW_PRINT_CURSOR] >! w.[WINDOW_PRINT_EDITABLE_START] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_CURSOR] - 1} != '\n')
     {
         w.[WINDOW_PRINT_CURSOR] -= 1;
+        i += 8;
         if (i >=! w.[WINDOW_W])
         {
             i = 0;
             w.[WINDOW_PRINT_Y] -= 8;
         }
-        else
-        {
-            i += 8;
-        }
     }
     w.[WINDOW_PRINT_X] = 0;
     if (w.[WINDOW_PRINT_CURSOR] == w.[WINDOW_PRINT_EDITABLE_START])
     {
-        i = w.[WINDOW_PRINT_CURSOR];
-        while (i and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{i - 1} != '\n')
+        x = w.[WINDOW_PRINT_CURSOR];
+        while (x and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{x - 1} != '\n')
         {
-            i -= 1;
-            w.[WINDOW_PRINT_X] += 8;
-            if (w.[WINDOW_PRINT_X] >=! w.[WINDOW_W])
+            x -= 1;
+            i += 8;
+            if (i >=! w.[WINDOW_W])
             {
-                w.[WINDOW_PRINT_X] = 0;
-                w.[WINDOW_PRINT_Y] += 8;
+                i = 0;
+                w.[WINDOW_PRINT_Y] -= 8;
             }
         }
+        w.[WINDOW_PRINT_X] = (w.[WINDOW_PRINT_CURSOR] - x) *! 8;
     }
     if (w.[WINDOW_PRINT_Y] <$ 0) window_print_scroll_up(w, -w.[WINDOW_PRINT_Y] /! 8);
 }
