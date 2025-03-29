@@ -15,6 +15,7 @@ global adam_key_events;
 global adam_mouse_events;
 global next_task;
 global timer_ms;
+global mouse_packet_stop;
 
 IN AL, 0x92
 OR AL, 2
@@ -88,6 +89,7 @@ function eden()
     if (!compiler_global_set(compiler, "adam_key_events", &adam_key_events)) JMP .hlt
     if (!compiler_global_set(compiler, "adam_mouse_events", &adam_mouse_events)) JMP .hlt
     if (!compiler_global_set(compiler, "timer_ms", &timer_ms)) JMP .hlt
+    if (!compiler_global_set(compiler, "mouse_packet_stop", &mouse_packet_stop)) JMP .hlt
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)

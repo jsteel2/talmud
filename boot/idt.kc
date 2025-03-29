@@ -150,7 +150,7 @@ mouse_handler:
 .na:
     INC BYTE [mouse_state]
     MOV [EBX + mouse_packet], AL
-    CMP EBX, 2
+    CMP EBX, [mouse_packet_stop]
     JNZ .e
     MOV BYTE [mouse_state], 0
     MOV EBX, [adam_mouse_events]

@@ -16,13 +16,13 @@ include "adam/mouse.kc"
 global ans;
 
 function eve(compiler)
-(c{3}, olm, orm, omm, w, k, m{MOUSE_EVENT}, dragging, startx, starty, ox, oy)
+(c{4}, olm, orm, omm, w, k, m{MOUSE_EVENT}, dragging, startx, starty, ox, oy)
 {
     CLI
     adam_key_events = malloc(VEC);
     adam_mouse_events = malloc(VEC);
     vec_init(adam_key_events, 64, 1);
-    vec_init(adam_mouse_events, 64, 3);
+    vec_init(adam_mouse_events, 64, 4);
     STI
     set_resolution(1024, 768);
     init_mouse();
@@ -112,6 +112,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
             if (cursor_y <$ 0) cursor_y = 0;
             if (cursor_y >=$ fb_height) cursor_y = fb_height - 1;
             draw_cursor();
+            m{MOUSE_SCROLL} = c{3} & 0xF;
 
             if (mouse_captured)
             {
@@ -170,6 +171,11 @@ Welcome to TalmudOS (Formerly ChucksOS)
                     }
                     vec_push(&w{WINDOW_MOUSE_EVENTS}, m);
                     windows.[WINDOW_TASK].[TASK_WAIT] = FALSE;
+                }
+                if (w{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL)
+                {
+                    if (m{MOUSE_SCROLL} == MOUSE_SCROLL_DOWN) window_print_scroll_up(w, 1);
+                    else if (m{MOUSE_SCROLL} == MOUSE_SCROLL_UP) window_print_scroll_down(w, 1);
                 }
             }
             

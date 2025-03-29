@@ -18,6 +18,22 @@ init_mouse:
     OUT 0x60, AL
     mouse_write(0xF6);
     mouse_read();
+    mouse_write(0xF3);
+    mouse_read();
+    mouse_write(200);
+    mouse_read();
+    mouse_write(0xF3);
+    mouse_read();
+    mouse_write(100);
+    mouse_read();
+    mouse_write(0xF3);
+    mouse_read();
+    mouse_write(80);
+    mouse_read();
+    mouse_write(0xF2);
+    mouse_read();
+    if (mouse_read() == 3) mouse_packet_stop = 3;
+    else mouse_packet_stop = 2;
     mouse_write(0xF4);
     mouse_read();
     STI
@@ -47,13 +63,18 @@ function mouse_write(b)
 
 mouse_read:
     mouse_waitd();
+    XOR EAX, EAX
     IN AL, 0x60
     RET
 
-struct MOUSE_EVENT = [MOUSE_X], [MOUSE_Y], {MOUSE_FLAGS};
+struct MOUSE_EVENT = [MOUSE_X], [MOUSE_Y], {MOUSE_FLAGS}, {MOUSE_SCROLL};
 const MOUSE_LMB_DOWN = 1;
 const MOUSE_RMB_DOWN = 2;
 const MOUSE_MMB_DOWN = 4;
 const MOUSE_LMB_UP = 8;
 const MOUSE_RMB_UP = 16;
 const MOUSE_MMB_UP = 32;
+const MOUSE_SCROLL_UP = 1;
+const MOUSE_SCROLL_DOWN = 15;
+const MOUSE_SCROLL_LEFT = 2;
+const MOUSE_SCROLL_RIGHT = 14;
