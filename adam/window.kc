@@ -248,7 +248,7 @@ function window_print_scroll_down(w, rows)
             i += 8;
             w.[WINDOW_PRINT_SCROLLTOP] += 1;
         }
-        if (w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_SCROLLTOP]} == '\n') w.[WINDOW_PRINT_SCROLLTOP] += 1;
+        if (i <! w.[WINDOW_W] and w.[WINDOW_PRINT_BUFFER + VEC_PTR]{w.[WINDOW_PRINT_SCROLLTOP]} == '\n') w.[WINDOW_PRINT_SCROLLTOP] += 1;
         if (w.[WINDOW_PRINT_SCROLLTOP] >=! w.[WINDOW_PRINT_BUFFER + VEC_LEN])
         {
             w.[WINDOW_PRINT_SCROLLTOP] = o;
@@ -282,8 +282,7 @@ function window_print_scroll_up(w, rows)
             w.[WINDOW_PRINT_SCROLLTOP] = i;
             break;
         }
-        if (w.[WINDOW_PRINT_SCROLLTOP] - x == w.[WINDOW_W] /! 8) w.[WINDOW_PRINT_SCROLLTOP] -= w.[WINDOW_W] /! 8;
-        else w.[WINDOW_PRINT_SCROLLTOP] -= (w.[WINDOW_PRINT_SCROLLTOP] - x) %! (w.[WINDOW_W] /! 8);
+        w.[WINDOW_PRINT_SCROLLTOP] -= (w.[WINDOW_PRINT_SCROLLTOP] - x) %! (w.[WINDOW_W] /! 8);
 .l:
         w.[WINDOW_PRINT_Y] += 8;
         rows -= 1;
