@@ -16,7 +16,7 @@ include "adam/mouse.kc"
 global ans;
 
 function eve(compiler)
-(c{4}, olm, orm, omm, w, k, m{MOUSE_EVENT}, dragging, startx, starty, ox, oy)
+(c{4}, olm, orm, omm, w, k, m{MOUSE_EVENT}, dragging, startx, starty, ox, oy, hover_toggle)
 {
     CLI
     adam_key_events = malloc(VEC);
@@ -47,6 +47,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
     olm = FALSE;
     orm = FALSE;
     omm = FALSE;
+    hover_toggle = NULL;
     while (TRUE)
     {
         if (adam_key_events.[VEC_LEN] == 0 and adam_mouse_events.[VEC_LEN] == 0)
@@ -125,10 +126,15 @@ Welcome to TalmudOS (Formerly ChucksOS)
             else
             {
                 w = windows;
-                while (w and (w.[WINDOW_X] >$ cursor_x or cursor_x >$ w.[WINDOW_X] + w.[WINDOW_W] or w.[WINDOW_Y] >$ cursor_y or cursor_y >$ w.[WINDOW_Y] + w.[WINDOW_H] + TITLEBAR_SIZE))
+                while (w and (w.[WINDOW_X] >$ cursor_x or cursor_x >=$ w.[WINDOW_X] + w.[WINDOW_W] or w.[WINDOW_Y] >$ cursor_y or cursor_y >=$ w.[WINDOW_Y] + w.[WINDOW_H] + TITLEBAR_SIZE))
                 {
                     w = w.[WINDOW_BELOW];
                 }
+            }
+            if (hover_toggle and hover_toggle != w)
+            {
+                window_draw_titlebar(hover_toggle);
+                hover_toggle = NULL;
             }
             if (w)
             {
@@ -141,6 +147,29 @@ Welcome to TalmudOS (Formerly ChucksOS)
                 if (m{MOUSE_FLAGS} & (MOUSE_LMB_DOWN | MOUSE_RMB_DOWN | MOUSE_MMB_DOWN)) focus_window(w);
                 if (dragging or cursor_y <$ w.[WINDOW_Y] + TITLEBAR_SIZE)
                 {
+                    if (cursor_x >=$ w.[WINDOW_X] + w.[WINDOW_W] - 16 and !dragging)
+                    {
+                        if (m{MOUSE_FLAGS} & MOUSE_LMB_DOWN)
+                        {
+                            if (w.[WINDOW_TASK] == task)
+                            {
+                                print("Ouch!\n");
+                                JMP .l
+                            }
+                            hover_toggle = NULL;
+                            kill(w.[WINDOW_TASK]);
+                            JMP .l
+                        }
+                        if (!hover_toggle) window_draw_titlebar(w);
+                        hover_toggle = w;
+                        JMP .s
+                    }
+                    else if (hover_toggle)
+                    {
+                        window_draw_titlebar(w);
+                        hover_toggle = NULL;
+                    }
+                    
                     if (m{MOUSE_FLAGS} & MOUSE_LMB_DOWN)
                     {
                         dragging = w;
@@ -164,6 +193,8 @@ Welcome to TalmudOS (Formerly ChucksOS)
                 }
                 else if (w{WINDOW_FLAGS} & WINDOW_FGET_MOUSE_EVENTS and (mouse_captured or (w.[WINDOW_Y] + TITLEBAR_SIZE <$ cursor_y)))
                 {
+                    if (hover_toggle) window_draw_titlebar(w);
+                    hover_toggle = NULL;
                     if (!mouse_captured)
                     {
                         m.[MOUSE_X] = cursor_x - w.[WINDOW_X];
@@ -172,6 +203,12 @@ Welcome to TalmudOS (Formerly ChucksOS)
                     vec_push(&w{WINDOW_MOUSE_EVENTS}, m);
                     windows.[WINDOW_TASK].[TASK_WAIT] = FALSE;
                 }
+                else if (hover_toggle)
+                {
+                    window_draw_titlebar(w);
+                    hover_toggle = NULL;
+                }
+.s:
                 if (w{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL)
                 {
                     if (m{MOUSE_SCROLL} == MOUSE_SCROLL_DOWN) window_print_scroll_up(w, 1);
@@ -179,6 +216,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
                 }
             }
             
+.l:
             olm = c{0} & 1;
             orm = c{0} & 2;
             omm = c{0} & 4;

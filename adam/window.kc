@@ -68,12 +68,22 @@ function focus_window(w)
 }
 
 function window_draw_titlebar(win)
-(s{STRING})
+(s{STRING}, w)
 {
+    w = win.[WINDOW_W] - 16;
     s.[STRINGPTR] = win.[WINDOW_TASK].[TASK_NAME + STRINGPTR];
-    s.[STRINGLEN] = minu(win.[WINDOW_TASK].[TASK_NAME + STRINGLEN], win.[WINDOW_W] /! 8);
+    s.[STRINGLEN] = minu(win.[WINDOW_TASK].[TASK_NAME + STRINGLEN], maxs(0, w /! 8 - 2));
     window_fill_rect(win, 0, -TITLEBAR_SIZE, win.[WINDOW_W], TITLEBAR_SIZE, TITLEBAR_COLOR);
     window_draw_text(win, s, win.[WINDOW_W] /! 2 - s.[STRINGLEN] *! 4, -TITLEBAR_SIZE /$ 2 - 4, 0, TITLEBAR_COLOR);
+    if (cursor_y <$ win.[WINDOW_Y] + TITLEBAR_SIZE and cursor_x >=$ win.[WINDOW_X] + w and cursor_y >=$ win.[WINDOW_Y] and cursor_x <$ win.[WINDOW_X] + win.[WINDOW_W])
+    {
+        window_fill_rect(win, w, -TITLEBAR_SIZE, 16, TITLEBAR_SIZE, 0xFF0000);
+        window_draw_char(win, 'X', w + 4, -TITLEBAR_SIZE /$ 2 - 4, 0xFFFFFF, 0xFF0000);
+    }
+    else
+    {
+        window_draw_char(win, 'X', w + 4, -TITLEBAR_SIZE /$ 2 - 4, 0, TITLEBAR_COLOR);
+    }
 }
 
 function window_fill_rect(win, x, y, w, h, c)
