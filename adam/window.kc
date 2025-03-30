@@ -28,7 +28,7 @@ function create_window(x, y, w, h)
     win.[WINDOW_BELOW] = windows;
     if (windows) windows.[WINDOW_ABOVE] = win;
     windows = task.[TASK_WINDOW] = win;
-    window_set_titlebar(win, &task{TASK_NAME});
+    window_draw_titlebar(win);
     window_fill_rect(win, 0, 0, win.[WINDOW_W], win.[WINDOW_H], 0xFFFFFF);
     return win;
 }
@@ -67,8 +67,11 @@ function focus_window(w)
     release_mouse();
 }
 
-function window_set_titlebar(win, s)
+function window_draw_titlebar(win)
+(s{STRING})
 {
+    s.[STRINGPTR] = win.[WINDOW_TASK].[TASK_NAME + STRINGPTR];
+    s.[STRINGLEN] = minu(win.[WINDOW_TASK].[TASK_NAME + STRINGLEN], win.[WINDOW_W] /! 8);
     window_fill_rect(win, 0, -TITLEBAR_SIZE, win.[WINDOW_W], TITLEBAR_SIZE, TITLEBAR_COLOR);
     window_draw_text(win, s, win.[WINDOW_W] /! 2 - s.[STRINGLEN] *! 4, -TITLEBAR_SIZE /$ 2 - 4, 0, TITLEBAR_COLOR);
 }
@@ -152,7 +155,7 @@ function fill_rect(x, y, w, h, c) window_fill_rect(task.[TASK_WINDOW], x, y, w, 
 function draw_char(c, x, y, color, bg) window_draw_char(task.[TASK_WINDOW], c, x, y, color, bg);
 function draw_text(s, x, y, color, bg) window_draw_text(task.[TASK_WINDOW], s, x, y, color, bg);
 function write_rect(x, y, w, h, p) window_write_rect(task.[TASK_WINDOW], x, y, w, h, p);
-function set_titlebar(s) window_set_titlebar(task.[TASK_WINDOW], s);
+function draw_titlebar() window_draw_titlebar(task.[TASK_WINDOW]);
 
 function window_print_redraw(w)
 (s{STRING}, p)

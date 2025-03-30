@@ -286,11 +286,19 @@ function clear()
 }
 
 function edit(p)
-(f{FILE}, s{STRING})
+(f{FILE}, s{STRING}, b)
 {
     clear();
     if (!open(p, f, FILE_FCREATE)) return print("Could not open file\n");
     if (!vec_resize(&task.[TASK_WINDOW]{WINDOW_PRINT_BUFFER}, f.[FILE_SIZE]) or read(f, f.[FILE_SIZE], task.[TASK_WINDOW].[WINDOW_PRINT_BUFFER + VEC_PTR]) != f.[FILE_SIZE]) return print("Could not read file\n");
+    b = malloc(task.[TASK_NAME + STRINGLEN] + p.[STRINGLEN] + 3);
+    memcpy(b, task.[TASK_NAME + STRINGPTR], task.[TASK_NAME + STRINGLEN]);
+    memcpy(&b{task.[TASK_NAME + STRINGLEN]}, " - ".[STRINGPTR], 3);
+    memcpy(&b{task.[TASK_NAME + STRINGLEN] + 3}, p.[STRINGPTR], p.[STRINGLEN]);
+    free(task.[TASK_NAME + STRINGPTR]);
+    task.[TASK_NAME + STRINGPTR] = b;
+    task.[TASK_NAME + STRINGLEN] += p.[STRINGLEN] + 3;
+    draw_titlebar();
     task.[TASK_WINDOW].[WINDOW_PRINT_BUFFER + VEC_LEN] = f.[FILE_SIZE];
     window_print_redraw(task.[TASK_WINDOW]);
     while (input(s, 0, TRUE));
@@ -298,6 +306,8 @@ function edit(p)
     write(f, s.[STRINGLEN], s.[STRINGPTR]);
     resize(f, s.[STRINGLEN]);
     clear();
+    task.[TASK_NAME + STRINGLEN] -= p.[STRINGLEN] + 3;
+    draw_titlebar();
 }
 
 reboot:
