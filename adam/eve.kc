@@ -84,10 +84,12 @@ Welcome to TalmudOS (Formerly ChucksOS)
             else if (k == K_PGUP and windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL)
             {
                 window_print_scroll_up(windows, windows.[WINDOW_H] /! 8);
+                windows.[WINDOW_TASK].[TASK_WAIT] = FALSE;
             }
             else if (k == K_PGDOWN and windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL)
             {
                 window_print_scroll_down(windows, windows.[WINDOW_H] /! 8);
+                windows.[WINDOW_TASK].[TASK_WAIT] = FALSE;
             }
             else if (windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL and (k == (K_PGUP & K_RELEASED) or k == (K_PGDOWN & K_RELEASED)))
             {
@@ -213,6 +215,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
                 {
                     if (m{MOUSE_SCROLL} == MOUSE_SCROLL_DOWN) window_print_scroll_up(w, 1);
                     else if (m{MOUSE_SCROLL} == MOUSE_SCROLL_UP) window_print_scroll_down(w, 1);
+                    w.[WINDOW_TASK].[TASK_WAIT] = FALSE;
                 }
             }
             

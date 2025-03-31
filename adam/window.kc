@@ -179,9 +179,7 @@ function window_print_redraw(w)
 function window_print_scrollback(w)
 {
     if (w.[WINDOW_PRINT_Y] >=$ 0 and w.[WINDOW_PRINT_Y] + 8 <=$ w.[WINDOW_H]) return;
-    # set scrolltop by starting from w.[WINDOW_PRINT_CURSOR] and going back until we hit the top left
-    w.[WINDOW_PRINT_Y] = 0;
-    window_print_redraw(w);
+    (w.[WINDOW_PRINT_Y] >$ 0 ? window_print_scroll_down : window_print_scroll_up)(w, (w.[WINDOW_PRINT_Y] + 8 - w.[WINDOW_H]) /! 8);
 }
 
 function window_print_buffer(w)
