@@ -58,6 +58,9 @@ function _framebuffer_refresh(x, y, w, h, win)
     if (y + h >$ fb_height) h -= (y + h) - fb_height;
     if (x <$ 0) { w += x; x = 0; }
     if (y <$ 0) { h += y; y = 0; }
+    if (w <$ 0) w = 0;
+    if (h <$ 0) h = 0;
+    if (!w and !h) return;
     if (win and win == windows)
     {
         screen_write_rect(x, y, w, h, win.[WINDOW_BUFFER] + (y - win.[WINDOW_Y]) *! win.[WINDOW_W] *! 4 + (x - win.[WINDOW_X]) *! 4, win.[WINDOW_W] *! 4);

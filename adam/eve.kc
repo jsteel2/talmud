@@ -215,6 +215,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
                 {
                     if (m{MOUSE_SCROLL} == MOUSE_SCROLL_DOWN) window_print_scroll_up(w, 1);
                     else if (m{MOUSE_SCROLL} == MOUSE_SCROLL_UP) window_print_scroll_down(w, 1);
+                    else JMP .l
                     w.[WINDOW_TASK].[TASK_WAIT] = FALSE;
                 }
             }
