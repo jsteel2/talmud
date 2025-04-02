@@ -84,13 +84,17 @@ function _framebuffer_refresh(x, y, w, h, win)
             if (wallpaper)
             {
                 pb = buf;
-                pw = &wallpaper{y *! wallpaper_w *! 4 + x *! 4};
                 i = 0;
                 while (i <! h)
                 {
-                    memcpyd(pb, pw, w);
-                    pb += w *! 4;
-                    pw += wallpaper_w *! 4;
+                    ow = 0;
+                    while (ow <! w)
+                    {
+                        oh = minu(wallpaper_w - (x + ow) %! wallpaper_w, w - ow);
+                        memcpyd(pb, &wallpaper{(y + i) %! wallpaper_h *! wallpaper_w *! 4 + (x + ow) %! wallpaper_w *! 4}, oh);
+                        pb += oh *! 4;
+                        ow += oh;
+                    }
                     i += 1;
                 }
             }
