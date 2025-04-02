@@ -3,8 +3,17 @@ const VBE_MODE_PTR = 0xE, VBE_ATTRIBUTES = 0x0, VBE_PITCH = 0x10, VBE_WIDTH = 0x
 global framebuffer, fb_pitch, fb_width, fb_height;
 global cursor_x, cursor_y, ocursor_x, ocursor_y, mouse_captured;
 global windows;
+global wallpaper, wallpaper_w, wallpaper_h;
 const CURSOR_W = 4, CURSOR_H = 4;
 const BACKGROUND_COLOR = 0x5C96C9;
+
+function set_wallpaper(p)
+{
+    free(wallpaper);
+    wallpaper = load_qoi(p, &wallpaper_w, &wallpaper_h);
+    if (wallpaper) wallpaper.[MEM_HEADER_TASK - MEM_HEADER] = ADAM;
+    framebuffer_refresh(0, 0, fb_width, fb_height, NULL);
+}
 
 function set_resolution(x, y)
 (ctrl, inf, modes, i, eax, ecx, ebx, edi, unused)
@@ -51,6 +60,7 @@ function _framebuffer_refresh(x, y, w, h, win)
 {
     if (!windows)
     {
+        if (wallpaper) return screen_write_rect(x, y, w, h, &wallpaper{y *! wallpaper_w *! 4 + x *! 4}, wallpaper_w *! 4);
         return screen_fill_rect(x, y, w, h, BACKGROUND_COLOR);
     }
     if (x >=$ fb_width or y >=$ fb_height) return;
@@ -71,7 +81,23 @@ function _framebuffer_refresh(x, y, w, h, win)
         if (!buf) return;
         if (!win)
         {
-            memsetd(buf, BACKGROUND_COLOR, h *! w);
+            if (wallpaper)
+            {
+                pb = buf;
+                pw = &wallpaper{y *! wallpaper_w *! 4 + x *! 4};
+                i = 0;
+                while (i <! h)
+                {
+                    memcpyd(pb, pw, w);
+                    pb += w *! 4;
+                    pw += wallpaper_w *! 4;
+                    i += 1;
+                }
+            }
+            else
+            {
+                memsetd(buf, BACKGROUND_COLOR, h *! w);
+            }
             win = windows;
             while (win.[WINDOW_BELOW]) win = win.[WINDOW_BELOW];
         }

@@ -4,6 +4,7 @@ include "lib/fs.kc"
 include "lib/malloc.kc"
 include "lib/map.kc"
 include "lib/vec.kc"
+include "lib/img.kc"
 include "compiler/compiler.kc"
 include "boot/task.kc"
 include "adam/task.kc"
@@ -25,6 +26,7 @@ function eve(compiler)
     vec_init(adam_mouse_events, 64, 4);
     STI
     set_resolution(1024, 768);
+    new_task("Wallpaper Loader", set_wallpaper, "/wallpape.qoi");
     init_mouse();
     create_window(8, 8, 512, 128);
 
