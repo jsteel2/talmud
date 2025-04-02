@@ -3,7 +3,7 @@ struct FAT_BS = 3{BS_BOOTJMP}, 8{BS_OEM_NAME}, <BS_BYTES_PER_SECTOR>, {BS_SECTOR
 const PARTITION_TABLE = 0x1BE;
 struct PARTITION = {PARTITION_ATTRIBUTES}, 3{PARTITION_CHS}, {PARTITION_TYPE}, 3{PARTITION_CHS_END}, [PARTITION_LBA], [PARTITION_LBA_SECTORS];
 
-struct FILE = 512{FILE_BUF}, {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_CLUSTER}, [FILE_DATA_SECTOR], [FILE_FAT_SECTOR], [FILE_CLUSTER_CUR], [FILE_CLUSTER], [FILE_DIR_CLUSTER], [FILE_DIR_CLUSTER_CUR], [FILE_DIR_SEEK], [FILE_SEEK], [FILE_SIZE], {FILE_FLAGS};
+struct FILE = 512{FILE_BUF}, 512{FILE_CLUSTER_BUF}, [FILE_CLUSTER_BUF_SECTOR], {FILE_DRIVE}, {FILE_PARTITION}, {FILE_SECTORS_PER_CLUSTER}, [FILE_DATA_SECTOR], [FILE_FAT_SECTOR], [FILE_CLUSTER_CUR], [FILE_CLUSTER], [FILE_DIR_CLUSTER], [FILE_DIR_CLUSTER_CUR], [FILE_DIR_SEEK], [FILE_SEEK], [FILE_SIZE], {FILE_FLAGS};
 const FILE_FREAD_ONLY = 1;
 const FILE_FHIDDEN = 2;
 const FILE_FSYSTEM = 4;
@@ -63,6 +63,7 @@ function openat(cwd, path, file, flags)
             file.[FILE_FAT_SECTOR] = file.<BS_RESERVED_SECTOR_COUNT> + file.[BS_HIDDEN_SECTOR_COUNT];
             file.[FILE_DATA_SECTOR] = file.[FILE_FAT_SECTOR] + file{BS_TABLE_COUNT} *! file.[BS_TABLE_SIZE_32];
             file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER] = file.[BS_ROOT_CLUSTER];
+            file.[FILE_CLUSTER_BUF_SECTOR] = 0;
             file.[FILE_SEEK] = 0;
             file{FILE_FLAGS} = FILE_FDIRECTORY;
             read = TRUE;
@@ -172,6 +173,42 @@ function cur_sector(file)
     return cluster2sector(file, file.[FILE_CLUSTER_CUR]) + (file.[FILE_SEEK] %! (file{FILE_SECTORS_PER_CLUSTER} *! 512)) /! 512;
 }
 
+function advance_clusterr(file)
+(s)
+{
+    if (file.[FILE_SEEK] & 511 == 0 and file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER} == 0)
+    {
+        s = file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512;
+        if (file.[FILE_CLUSTER_BUF_SECTOR] != s and !lba_read(file{FILE_DRIVE}, 1, s, &file{FILE_CLUSTER_BUF})) return FALSE;
+        file.[FILE_CLUSTER_BUF_SECTOR] = s;
+        file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER_BUF + file.[FILE_CLUSTER_CUR] *! 4 %! 512] & 0x0FFFFFFF;
+        if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return FALSE;
+    }
+    return TRUE;
+}
+
+function advance_clusterw(file)
+(c, x)
+{
+    if (file.[FILE_SEEK] & 511 == 0 and file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER} == 0)
+    {
+        c = file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512;
+        if (file.[FILE_CLUSTER_BUF_SECTOR] != c and !lba_read(file{FILE_DRIVE}, 1, c, &file{FILE_CLUSTER_BUF})) return FALSE;
+        file.[FILE_CLUSTER_BUF_SECTOR] = c;
+        x = FILE_CLUSTER_BUF + file.[FILE_CLUSTER_CUR] *! 4 %! 512;
+        file.[FILE_CLUSTER_CUR] = file.[x] & 0x0FFFFFFF;
+        if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF8)
+        {
+            file.[FILE_CLUSTER_CUR] = alloc_cluster(file);
+            if (!lba_read(file{FILE_DRIVE}, 1, c, &file{FILE_CLUSTER_BUF})) return FALSE;
+            file.[x] = file.[x] & 0xF0000000 | file.[FILE_CLUSTER_CUR];
+            if (!lba_write(file{FILE_DRIVE}, 1, c, &file{FILE_CLUSTER_BUF})) return FALSE;
+        }
+        if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return FALSE;
+    }
+    return TRUE;
+}
+
 function read(file, n, buf)
 (sectors_read, x, i)
 {
@@ -181,12 +218,6 @@ function read(file, n, buf)
     {
         if (file.[FILE_SEEK] & 511 == 0)
         {
-            if (file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER} == 0 and file.[FILE_SEEK] != 0)
-            {
-                if (!lba_read(file{FILE_DRIVE}, 1, file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512, file)) return i - n;
-                file.[FILE_CLUSTER_CUR] = file.[file.[FILE_CLUSTER_CUR] *! 4 %! 512] & 0x0FFFFFFF;
-                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return i - n;
-            }
             if (n >=! 512)
             {
                 sectors_read = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER});
@@ -212,47 +243,45 @@ function read(file, n, buf)
             n -= x;
             buf += x;
         }
+        if (!advance_clusterr(file)) return i - n;
     }
 
     return i;
 }
 
-# ...ew.
-# i dont care enough to implement this properly... for now
 function seek(file, w)
-(x)
+(e, i, x)
 {
-    file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER];
+    x = file.[FILE_SEEK] /! 512;
+    e = w /! 512 /! file{FILE_SECTORS_PER_CLUSTER};
+    i = x /! file{FILE_SECTORS_PER_CLUSTER};
+    if (e <! i)
+    {
+        file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER];
+        i = 0;
+    }
     file.[FILE_SEEK] = 0;
-    x = malloc(w);
-    read(file, w, x);
-    free(x);
+    while (i <! e)
+    {
+        if (!advance_clusterr(file)) return FALSE;
+        i += 1;
+    }
+    file.[FILE_SEEK] = w;
+    if (w & 511 and x != w /! 512)
+    {
+        if (!lba_read(file{FILE_DRIVE}, 1, cur_sector(file), file)) return FALSE;
+    }
     return TRUE;
 }
 
 function write(file, n, buf)
-(sectors_write, x, i, c)
+(sectors_write, x, i)
 {
     i = n;
     while (n)
     {
         if (file.[FILE_SEEK] & 511 == 0)
         {
-            if (file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER} == 0 and file.[FILE_SEEK] != 0)
-            {
-                c = file.[FILE_FAT_SECTOR] + file.[FILE_CLUSTER_CUR] *! 4 /! 512;
-                if (!lba_read(file{FILE_DRIVE}, 1, c, file)) return i - n;
-                x = file.[FILE_CLUSTER_CUR] *! 4 %! 512;
-                file.[FILE_CLUSTER_CUR] = file.[x] & 0x0FFFFFFF;
-                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF8)
-                {
-                    file.[FILE_CLUSTER_CUR] = alloc_cluster(file);
-                    if (!lba_read(file{FILE_DRIVE}, 1, c, file)) return i - n;
-                    file.[x] = file.[x] & 0xF0000000 | file.[FILE_CLUSTER_CUR];
-                    if (!lba_write(file{FILE_DRIVE}, 1, c, file)) return i - n;
-                }
-                if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return i - n;
-            }
             if (n >=! 512)
             {
                 sectors_write = minu(n /! 512, file{FILE_SECTORS_PER_CLUSTER} - file.[FILE_SEEK] /! 512 %! file{FILE_SECTORS_PER_CLUSTER});
@@ -280,6 +309,7 @@ function write(file, n, buf)
             n -= x;
             buf += x;
         }
+        if (!advance_clusterw(file)) return i - n;
     }
     return i;
 }
