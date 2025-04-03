@@ -275,7 +275,9 @@ function dir(p)
     s.[STRINGPTR] = &d{DIR_ENTRY_83NAME};
     while (dir_next(f, d))
     {
-        format(print, "%s\n", s);
+        format(print, "%s", s);
+        if (!(d{DIR_ENTRY_ATTR} & FILE_FDIRECTORY)) format(print, " %dK", d.[DIR_ENTRY_FILE_SIZE] /! 1024);
+        print("\n");
     }
 }
 
@@ -365,3 +367,6 @@ reboot:
     CLI
 .h: HLT
     JMP .h
+
+function screenshot_rect(p, x, y, w, h) return save_qoi(p, &framebuffer{y *! fb_pitch + x *! 4}, w, h, fb_pitch, 3, 0);
+function screenshot(p) return screenshot_rect(p, 0, 0, fb_width, fb_height);

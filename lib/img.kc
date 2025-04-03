@@ -12,12 +12,27 @@ function load_qoi(path, ow, oh)
         free(p);
         return NULL;
     }
-    x = parse_qoi(p, file.[FILE_SIZE], ow, oh);
+    x = decode_qoi(p, file.[FILE_SIZE], ow, oh);
     free(p);
     return x;
 }
 
-function parse_qoi(b, size, ow, oh)
+function save_qoi(path, img, w, h, pitch, channels, colorspace)
+(file{FILE}, x, size)
+{
+    if (!open(path, file, FILE_FCREATE)) return FALSE;
+    x = encode_qoi(img, w, h, pitch, channels, colorspace, &size);
+    if (!x) return FALSE;
+    if (write(file, size, x) != size or !resize(file, size))
+    {
+        free(x);
+        return FALSE;
+    }
+    free(x);
+    return TRUE;
+}
+
+function decode_qoi(b, size, ow, oh)
 (p, px{4}, index[64], pi, bi, pe, run, pb, b1, b2, vg)
 {
     if (b.[QOI_MAGIC] != 'fioq') return NULL;
@@ -85,4 +100,112 @@ function parse_qoi(b, size, ow, oh)
         pi += 1;
     }
     return p;
+}
+
+function encode_qoi(img, w, h, pitch, channels, colorspace, osize)
+(p, i, index[64], px{4}, prev{4}, x, e, run, index_pos, vr, vg, vb, vg_r, vg_b)
+{
+    p = malloc(w *! h *! (channels + 1) + QOI_HEADER + 8);
+    p.[QOI_MAGIC] = 'fioq';
+    p.[QOI_WIDTH] = swap32(w);
+    p.[QOI_HEIGHT] = swap32(h);
+    p{QOI_CHANNELS} = channels;
+    p{QOI_COLORSPACE} = colorspace;
+    i = QOI_HEADER;
+    memsetd(index, 0, 64);
+    px[0] = prev[0] = 0xFF000000;
+    e = img + h *! pitch;
+    run = 0;
+    while (img <! e)
+    {
+        x = 0;
+        while (x <! w)
+        {
+            if (channels == 4) px[0] = img[x];
+            else px[0] = img[x] | 0xFF000000;
+            if (px[0] == prev[0])
+            {
+                run += 1;
+                if (run == 62 or (x + 1 == w and img + pitch == e))
+                {
+                    p{i} = QOI_OP_RUN | (run - 1);
+                    i += 1;
+                    run = 0;
+                }
+            }
+            else
+            {
+                if (run >! 0)
+                {
+                    p{i} = QOI_OP_RUN | (run - 1);
+                    i += 1;
+                    run = 0;
+                }
+                index_pos = (px{2} *! 3 + px{1} *! 5 + px{0} *! 7 + px{3} *! 11) %! 64;
+                if (index[index_pos] == px[0])
+                {
+                    p{i} = QOI_OP_INDEX | index_pos;
+                    i += 1;
+                }
+                else
+                {
+                    index[index_pos] = px[0];
+                    if (px{3} == prev{3})
+                    {
+                        vr = px{2} - prev{2};
+                        vg = px{1} - prev{1};
+                        vb = px{0} - prev{0};
+                        MOVSX EAX, BYTE [vr]
+                        MOV [vr], EAX
+                        MOVSX EAX, BYTE [vg]
+                        MOV [vg], EAX
+                        MOVSX EAX, BYTE [vb]
+                        MOV [vb], EAX
+                        vg_r = vr - vg;
+                        vg_b = vb - vg;
+                        MOVSX EAX, BYTE [vg_r]
+                        MOV [vg_r], EAX
+                        MOVSX EAX, BYTE [vg_b]
+                        MOV [vg_b], EAX
+                        if (vr >$ -3 and vr <$ 2 and vg >$ -3 and vg <$ 2 and vb >$ -3 and vb <$ 2)
+                        {
+                            p{i} = QOI_OP_DIFF | (vr + 2 & 0xFF << 4) | (vg + 2 & 0xFF << 2) | (vb + 2 & 0xFF);
+                            i += 1;
+                        }
+                        else if (vg_r >$ -9 and vg_r <$ 8 and vg >$ -33 and vg <$ 32 and vg_b >$ -9 and vg_b <$ 8)
+                        {
+                            p{i} = QOI_OP_LUMA | (vg + 32 & 0xFF);
+                            p{i + 1} = (vg_r + 8 & 0xFF << 4) | (vg_b + 8 & 0xFF);
+                            i += 2;
+                        }
+                        else
+                        {
+                           p{i} = QOI_OP_RGB;
+                           p{i + 1} = px{2};
+                           p{i + 2} = px{1};
+                           p{i + 3} = px{0};
+                           i += 4;
+                        }
+                    }
+                    else
+                    {
+                        p{i} = QOI_OP_RGBA;
+                        p{i + 1} = px{2};
+                        p{i + 2} = px{1};
+                        p{i + 3} = px{0};
+                        p{i + 4} = px{3};
+                        i += 5;
+                    }
+                }
+                prev[0] = px[0];
+            }
+            x += 1;
+        }
+        img += pitch;
+    }
+    p.[i] = 0;
+    p.[i + 4] = 0x01000000;
+    i += 8;
+    *osize = i;
+    return realloc(p, i);
 }
