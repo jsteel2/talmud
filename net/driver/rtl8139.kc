@@ -48,7 +48,7 @@ function nic_init(bus, dev, fun)
     pic_clear_mask(irq);
 }
 
-function tx_packet(data, size)
+function nic_tx_packet(data, size)
 {
     MOV DX, [rtl_io]
     ADD DX, [tx_cur]
