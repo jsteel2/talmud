@@ -1,0 +1,26 @@
+function tx_packet(data, size)
+{
+    # if nic_tx_packet returns false, we should buffer it or something
+    # also nic_tx_packet frees the data so only call this with malloc'd pointers
+    return nic_tx_packet(data, size);
+}
+
+function rx_packet(data, size)
+{
+    # if there is a packet, write it to data and set *size, return true
+    # otherwise return false
+}
+
+function net_main()
+(data{1548}, size)
+{
+    while (TRUE)
+    {
+        print("Hello!\n");
+        while (rx_packet(data, &size))
+        {
+            # handle packet
+        }
+        wait();
+    }
+}

@@ -1,0 +1,14 @@
+struct ETHERNET_HEADER = 6{ETHERNET_DEST_MAC}, 6{ETHERNET_SRC_MAC}, <ETHERNET_TYPE>;
+
+function eth_frame_alloc(src, dest, type, length)
+(p)
+{
+    p = malloc(ETHERNET_HEADER + length);
+    if (!p) return NULL;
+    p.[ETHERNET_DEST_MAC] = dest.[0];
+    p.<ETHERNET_DEST_MAC + 4> = dest.<4>;
+    p.[ETHERNET_SRC_MAC] = src.[0];
+    p.<ETHERNET_SRC_MAC + 4> = src.<4>;
+    p.<ETHERNET_TYPE> = swap16(type);
+    return p;
+}

@@ -27,7 +27,7 @@ function nic_init(bus, dev, fun)
     MOV AX, 5
     OUT DX, AX
     ADD DX, 0x08
-    MOV EAX, 0x8F | (0b11 << 11)
+    MOV EAX, 0x8E | (0b11 << 11)
     OUT DX, EAX
     SUB DX, 0x0D
     MOV AL, 0x0C
@@ -46,6 +46,16 @@ function nic_init(bus, dev, fun)
     idt_set_entry(0x20 + irq, rtl_irq_handler, 0x8E);
     LIDT [idtr]
     pic_clear_mask(irq);
+    MOV DX, [rtl_io]
+    ADD DX, 0x20
+    XOR EAX, EAX
+    OUT DX, EAX
+    ADD DX, 4
+    OUT DX, EAX
+    ADD DX, 4
+    OUT DX, EAX
+    ADD DX, 4
+    OUT DX, EAX
 }
 
 function nic_tx_packet(data, size)
@@ -57,6 +67,10 @@ function nic_tx_packet(data, size)
     TEST EAX, (1 << 13)
     JZ .full
     ADD DX, 0x10
+    IN EAX, DX
+    PUSH EAX
+    CALL free
+    POP EAX
     MOV EAX, [data]
     OUT DX, EAX
     SUB DX, 0x10
@@ -70,30 +84,21 @@ function nic_tx_packet(data, size)
 
 rtl_irq_handler:
     PUSH EAX
-    PUSH ECX
     PUSH EDX
-    PUSH EBX
-    PUSH EDI
-    PUSH ESI
     MOV DX, [rtl_io]
     ADD DX, 0x3E
     IN AX, DX
-    PUSH EAX
-    PUSH "rtl isr status: %x\n"
-    PUSH adam_print
-    CALL format
-    ADD ESP, 12
-    MOV DX, [rtl_io]
-    ADD DX, 0x3E
+    TEST AX, 1
+    JZ .e
+    # push packet to circular FIFO
+    MOV EAX, [net_task]
+    MOV DWORD [EAX + TASK_WAIT], FALSE
+.e:
     MOV AX, 0x0E
     OUT DX, AX
     MOV AL, 0x20
     OUT 0xA0, AL
     OUT 0x20, AL
-    POP ESI
-    POP EDI
-    POP EBX
     POP EDX
-    POP ECX
     POP EAX
     IRET

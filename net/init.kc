@@ -1,10 +1,18 @@
+global net_task;
+
 function net_init()
-(bus, dev, fun, nic_init)
+(bus, dev, fun, nic_init, net_main)
 {
+    net_task = task;
     if (pci_find(0x10EC, 0x8139, &bus, &dev, &fun)) compile(&ADAM{TASK_COMPILER}, "net_init", "include \"/net/driver/rtl8139.kc\"");
     else return print("No supported network card found.\n");
     if (!compile(&ADAM{TASK_COMPILER}, "net_init", "
-# include everything
+include \"net/task.kc\"
+include \"net/ethernet.kc\"
 ")) return;
-    if (compiler_ident_get(&ADAM{TASK_COMPILER}, "nic_init", &nic_init)) nic_init(bus, dev, fun);
+    if (compiler_ident_get(&ADAM{TASK_COMPILER}, "nic_init", &nic_init) and compiler_ident_get(&ADAM{TASK_COMPILER}, "net_main", &net_main))
+    {
+        nic_init(bus, dev, fun);
+        net_main();
+    }
 }
