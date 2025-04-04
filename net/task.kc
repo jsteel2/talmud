@@ -9,6 +9,7 @@ function rx_packet(data, size)
 {
     # if there is a packet, write it to data and set *size, return true
     # otherwise return false
+    return FALSE;
 }
 
 function net_main()
