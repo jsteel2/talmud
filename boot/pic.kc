@@ -48,3 +48,23 @@ function pic_map(m1, m2)
     MOV AL, 0xEF
     OUT PIC2_DATA, AL
 }
+
+function pic_clear_mask(irq)
+{
+    if (irq <! 8)
+    {
+        MOV DX, PIC1_DATA
+    }
+    else
+    {
+        MOV DX, PIC2_DATA
+        SUB BYTE [irq], 8
+    }
+    MOV CL, [irq]
+    MOV BL, 1
+    SHL BL, CL
+    NOT BL
+    IN AL, DX
+    AND AL, BL
+    OUT DX, AL
+}

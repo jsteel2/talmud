@@ -2,9 +2,6 @@ struct IDT_ENTRY = <IDT_ENTRY_ISR_LOW>, <IDT_ENTRY_CS>, {IDT_ENTRY_RESERVED}, {I
 const IDT_ENTRIES = 45;
 global idt{IDT_ENTRY *! IDT_ENTRIES};
 
-struct IDTR = <IDTR_LIMIT>, [IDTR_BASE];
-global idtr{IDTR};
-
 function idt_init()
 (v)
 {

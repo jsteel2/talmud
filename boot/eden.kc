@@ -16,6 +16,8 @@ global adam_mouse_events;
 global next_task;
 global timer_ms;
 global mouse_packet_stop;
+struct IDTR = <IDTR_LIMIT>, [IDTR_BASE];
+global idtr{IDTR};
 
 IN AL, 0x92
 OR AL, 2
@@ -73,7 +75,7 @@ function eden()
 
     s.[STRINGPTR] = r;
     s.[STRINGLEN] = file.[FILE_SIZE];
-    if (!compiler_init(compiler))
+    if (!compiler_init(compiler, ADAM))
     {
         print("Could not initialize compiler\n");
         JMP .hlt
@@ -83,6 +85,8 @@ function eden()
     if (!compiler_const_set(compiler, "DISK_BUF", DISK_BUF)) JMP .hlt
     if (!compiler_const_set(compiler, "lba_read", lba_read)) JMP .hlt
     if (!compiler_const_set(compiler, "lba_write", lba_write)) JMP .hlt
+    if (!compiler_const_set(compiler, "pic_clear_mask", pic_clear_mask)) JMP .hlt
+    if (!compiler_const_set(compiler, "idt_set_entry", idt_set_entry)) JMP .hlt
     if (!compiler_const_set(compiler, "ADAM", ADAM)) JMP .hlt
     if (!compiler_global_set(compiler, "first_free", &first_free)) JMP .hlt
     if (!compiler_global_set(compiler, "task", &task)) JMP .hlt
@@ -90,6 +94,7 @@ function eden()
     if (!compiler_global_set(compiler, "adam_mouse_events", &adam_mouse_events)) JMP .hlt
     if (!compiler_global_set(compiler, "timer_ms", &timer_ms)) JMP .hlt
     if (!compiler_global_set(compiler, "mouse_packet_stop", &mouse_packet_stop)) JMP .hlt
+    if (!compiler_global_set(compiler, "idtr", &idtr)) JMP .hlt
     eve = compile(compiler, "/adam/eve.kc", s);
     free(r);
     if (!eve)

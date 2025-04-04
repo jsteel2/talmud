@@ -13,6 +13,8 @@ include "adam/font.kc"
 include "adam/keyboard.kc"
 include "adam/window.kc"
 include "adam/mouse.kc"
+include "adam/pci.kc"
+include "net/init.kc"
 
 global ans;
 
@@ -43,6 +45,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
 ");
 
     new_task("Seth", seth, 0);
+    new_task("Networking", net_init, 0);
 
     draw_cursor();
     dragging = NULL;
@@ -230,7 +233,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
     }
 }
 
-function seth(u)
+function seth()
 (s{STRING}, p{VEC}, x, t, i)
 {
     create_window(200, 200, 640, 480){WINDOW_FLAGS} = WINDOW_FGET_KEY_EVENTS | WINDOW_FPRINT_SCROLL;

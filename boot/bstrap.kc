@@ -62,7 +62,7 @@ function bstrap()
 
     s.[STRINGPTR] = r;
     s.[STRINGLEN] = file.[FILE_SIZE];
-    if (!compiler_init(compiler))
+    if (!compiler_init(compiler, ADAM))
     {
         print("Could not initialize compiler\n");
         JMP .hlt

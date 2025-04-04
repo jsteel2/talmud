@@ -1,0 +1,49 @@
+const PCI_REG_VENDOR_ID = 0x00, PCI_REG_COMMAND = 0x04, PCI_REG_BAR0 = 0x10, PCI_REG_INTERRUPT_LINE = 0x3C;
+
+function pci_read32(bus, dev, fun, off)
+{
+    off = (1 << 31) | (bus << 16) | (dev << 11) | (fun << 8) | (off & 0xFC);
+    MOV DX, 0xCF8
+    MOV EAX, [off]
+    OUT DX, EAX
+    MOV DX, 0xCFC
+    IN EAX, DX
+}
+
+function pci_write32(bus, dev, fun, off, x)
+{
+    off = (1 << 31) | (bus << 16) | (dev << 11) | (fun << 8) | (off & 0xFC);
+    MOV DX, 0xCF8
+    MOV EAX, [off]
+    OUT DX, EAX
+    MOV DX, 0xCFC
+    MOV EAX, [x]
+    OUT DX, EAX
+}
+
+function pci_find(vendor, device, obus, odev, ofun)
+(x, v, d)
+{
+    *obus = 0;
+    while (*obus <! 256)
+    {
+        *odev = 0;
+        while (*odev <! 32)
+        {
+            *ofun = 0;
+            while (*ofun <! 8)
+            {
+                x = pci_read32(*obus, *odev, *ofun, PCI_REG_VENDOR_ID);
+                v = x & 0xFFFF;
+                d = x >> 16;
+                if (v == 0xFFFF) JMP .l
+                if (v == vendor and d == device) return TRUE;
+.l:
+                *ofun += 1;
+            }
+            *odev += 1;
+        }
+        *obus += 1;
+    }
+    return FALSE;
+}

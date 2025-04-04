@@ -60,7 +60,7 @@ function new_task(name, entry, arg)
     t.[TASK_WINDOW] = NULL;
     t.[TASK_NEXT] = task.[TASK_NEXT];
     t.[TASK_PREV] = task;
-    compiler_init(&t{TASK_COMPILER});
+    compiler_init(&t{TASK_COMPILER}, t);
     t.[TASK_ESP] = &t{TASK_STACK} + TASK_STACK_SIZE - 8;
     t.[TASK_ESP][0] = exit;
     t.[TASK_ESP][1] = arg;

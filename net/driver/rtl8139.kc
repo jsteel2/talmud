@@ -1,0 +1,99 @@
+global rx_buffer, mac{6}, rtl_io, tx_cur;
+
+function nic_init(bus, dev, fun)
+(irq)
+{
+    pci_write32(bus, dev, fun, PCI_REG_COMMAND, pci_read32(bus, dev, fun, PCI_REG_COMMAND) | 4);
+    rtl_io = pci_read32(bus, dev, fun, PCI_REG_BAR0) & 0xFFFFFFFC;
+    irq = pci_read32(bus, dev, fun, PCI_REG_INTERRUPT_LINE) & 0xFF;
+    MOV DX, [rtl_io]
+    ADD DX, 0x52
+    XOR AL, AL
+    OUT DX, AL
+    SUB DX, 0x1B
+    MOV AL, 0x10
+    OUT DX, AL
+.l:
+    IN AL, DX
+    TEST AL, 0x10
+    JNZ .l
+
+    rx_buffer = malloc(64 *! 1024 + 16 + 1500);
+    MOV DX, [rtl_io]
+    ADD DX, 0x30
+    MOV EAX, [rx_buffer]
+    OUT DX, EAX
+    ADD DX, 0x0C
+    MOV AX, 5
+    OUT DX, AX
+    ADD DX, 0x08
+    MOV EAX, 0x8F | (0b11 << 11)
+    OUT DX, EAX
+    SUB DX, 0x0D
+    MOV AL, 0x0C
+    OUT DX, AL
+
+    XOR ECX, ECX
+    MOV DX, [rtl_io]
+.l2:
+    IN AL, DX
+    MOV [ECX + mac], AL
+    INC ECX
+    INC DX
+    CMP ECX, 6
+    JNZ .l2
+    format(print, "MAC: %x:%x:%x:%x:%x:%x\n", mac{0}, mac{1}, mac{2}, mac{3}, mac{4}, mac{5});
+    idt_set_entry(0x20 + irq, rtl_irq_handler, 0x8E);
+    LIDT [idtr]
+    pic_clear_mask(irq);
+}
+
+function tx_packet(data, size)
+{
+    MOV DX, [rtl_io]
+    ADD DX, [tx_cur]
+    ADD DX, 0x10
+    IN EAX, DX
+    TEST EAX, (1 << 13)
+    JZ .full
+    ADD DX, 0x10
+    MOV EAX, [data]
+    OUT DX, EAX
+    SUB DX, 0x10
+    MOV EAX, [size]
+    OUT DX, EAX
+    tx_cur = (tx_cur + 4) %! 0x10;
+    return TRUE;
+.full:
+    return FALSE;
+}
+
+rtl_irq_handler:
+    PUSH EAX
+    PUSH ECX
+    PUSH EDX
+    PUSH EBX
+    PUSH EDI
+    PUSH ESI
+    MOV DX, [rtl_io]
+    ADD DX, 0x3E
+    IN AX, DX
+    PUSH EAX
+    PUSH "rtl isr status: %x\n"
+    PUSH adam_print
+    CALL format
+    ADD ESP, 12
+    MOV DX, [rtl_io]
+    ADD DX, 0x3E
+    MOV AX, 0x0E
+    OUT DX, AX
+    MOV AL, 0x20
+    OUT 0xA0, AL
+    OUT 0x20, AL
+    POP ESI
+    POP EDI
+    POP EBX
+    POP EDX
+    POP ECX
+    POP EAX
+    IRET

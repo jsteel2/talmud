@@ -3,7 +3,7 @@ global str{STRING}, installpath{STRING}, installdir{FILE};
 function mbr()
 (c{COMPILER}, bin)
 {
-    if (!compiler_init(c)) return print("Could not initialize compiler\n");
+    if (!compiler_init(c, task)) return print("Could not initialize compiler\n");
     bin = compile(c, "install", "include \"/boot/mbr.kc\"");
     compiler_free(c);
     if (!bin) return;
@@ -16,7 +16,7 @@ function mbr()
 function vbr()
 (c{COMPILER}, bin, lba)
 {
-    if (!compiler_init(c)) return print("Could not initialize compiler\n");
+    if (!compiler_init(c, task)) return print("Could not initialize compiler\n");
     bin = compile(c, "install", "include \"/boot/vbr.kc\"");
     compiler_free(c);
     if (!bin) return;
@@ -33,7 +33,7 @@ function eden()
 {
     memcpy(fb, &task{TASK_CWD}, FILE);
     if (!cd("/")) return print("Could not cd to /\n");;
-    if (!compiler_init(c)) return print("Could not initialize compiler\n");
+    if (!compiler_init(c, task)) return print("Could not initialize compiler\n");
     bin = compile(c, "install", "include \"boot/eden.kc\"");
     compiler_free(c);
     if (!bin) return;
@@ -136,6 +136,7 @@ function sys()
     copyto("/compiler", installdir, "/compiler");
     copyto("/doom", installdir, "/doom");
     copyto("/lib", installdir, "/lib");
+    copyto("/net", installdir, "/net");
     copyto("/scripts", installdir, "/scripts");
 }
 
