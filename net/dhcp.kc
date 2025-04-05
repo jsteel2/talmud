@@ -79,12 +79,13 @@ function dhcp_parse_offer(m, len, xid, yiaddr, dns, router, submask)
     *submask = 0;
     while (len)
     {
+        if (m{0} == 0xFF) break;
         if (m{0} == DHCP_OPTION_MSGTYPE and m{1} == 1 and m{2} == DHCP_MSGTYPE_OFFER) type = TRUE;
         else if (m{0} == DHCP_OPTION_DNS and m{1} == 4) *dns = swap32(m.[2]);
         else if (m{0} == DHCP_OPTION_ROUTER and m{1} == 4) *router = swap32(m.[2]);
         else if (m{0} == DHCP_OPTION_SUBNETMASK and m{1} == 4) *submask = swap32(m.[2]);
-        m += 2 + m{1};
         len -= 2 + m{1};
+        m += 2 + m{1};
     }
     return type and *submask;
 }
@@ -97,9 +98,10 @@ function dhcp_parse_ack(m, len, xid)
     len -= DHCP_HEADER;
     while (len)
     {
+        if (m{0} == 0xFF) break;
         if (m{0} == DHCP_OPTION_MSGTYPE and m{1} == 1 and m{2} == DHCP_MSGTYPE_ACK) return TRUE;
-        m += 2 + m{1};
         len -= 2 + m{1};
+        m += 2 + m{1};
     }
     return FALSE;
 }
