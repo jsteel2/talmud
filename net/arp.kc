@@ -1,0 +1,4 @@
+function arp_init()
+{
+    return TRUE;
+}

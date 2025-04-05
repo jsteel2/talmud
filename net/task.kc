@@ -15,6 +15,7 @@ function net_main()
 (data{1518}, size)
 {
     new_task("DHCP", dhcp_configure, 0);
+    if (!arp_init()) return print("Could not init ARP\n");
     if (!udp_init()) return print("Could not init UDP\n");
     while (TRUE)
     {

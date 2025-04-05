@@ -107,16 +107,17 @@ function dhcp_parse_ack(m, len, xid)
 }
 
 function dhcp_configure()
-(s, buf{576}, len, yiaddr, dns, router, submask)
+(s, xid, buf{576}, len, yiaddr, dns, router, submask)
 {
     # todo add retries and timeout and handle multiple offers
     s = udp_bind(68);
-    if (!dhcp_send_discover(0x8008135)) return print("DHCP Send Discover failed\n", udp_unbind(s));
+    xid = rand();
+    if (!dhcp_send_discover(xid)) return print("DHCP Send Discover failed\n", udp_unbind(s));
     len = udp_recv(s, buf, 576);
-    if (!dhcp_parse_offer(buf, len, 0x8008135, &yiaddr, &dns, &router, &submask)) return print("DHCP Offer failed\n");
-    if (!dhcp_send_request(0x8008135, yiaddr, s.[UDP_SOCK_SRC])) return print("DHCP Send Request failed\n", udp_unbind(s));
+    if (!dhcp_parse_offer(buf, len, xid, &yiaddr, &dns, &router, &submask)) return print("DHCP Offer failed\n");
+    if (!dhcp_send_request(xid, yiaddr, s.[UDP_SOCK_SRC])) return print("DHCP Send Request failed\n", udp_unbind(s));
     len = udp_recv(s, buf, 576);
-    if (!dhcp_parse_ack(buf, len, 0x8008135)) return print("DHCP ACK failed\n");
+    if (!dhcp_parse_ack(buf, len, xid)) return print("DHCP ACK failed\n");
     ipv4_addr = yiaddr;
     ipv4_router = router;
     ipv4_dns = dns;

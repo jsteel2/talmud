@@ -322,3 +322,14 @@ function intcmp(x, y) return x[0] == y[0];
 function hashint(x) return x[0];
 function shortcmp(x, y) return x<0> == y<0>;
 function hashshort(x) return x<0>;
+
+global rand_state;
+function rand() return rand_state = rand_state *! 1664525 + 1013904223;
+
+function cmos_read(reg)
+{
+    MOV AL, [reg]
+    OUT 0x70, AL
+    XOR EAX, EAX
+    IN AL, 0x71
+}

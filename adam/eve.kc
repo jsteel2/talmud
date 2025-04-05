@@ -44,6 +44,8 @@ I  \\ `+' /  I         #     #  #  #      # ## # #    # #    #
 Welcome to TalmudOS (Formerly ChucksOS)
 ");
 
+    rand_state = cmos_read(0) + cmos_read(2) *! 0x60 + cmos_read(4) *! 0x60 *! 0x60 + cmos_read(7) *! 0x60 *! 0x60 *! 0x24;
+
     new_task("Seth", seth, 0);
     new_task("Networking", net_init, 0);
 

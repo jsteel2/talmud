@@ -10,8 +10,10 @@ function net_init()
 include \"net/task.kc\"
 include \"net/ethernet.kc\"
 include \"net/ipv4.kc\"
+include \"net/arp.kc\"
 include \"net/udp.kc\"
 include \"net/dhcp.kc\"
+include \"net/dns.kc\"
 ")) return;
     if (compiler_ident_get(&ADAM{TASK_COMPILER}, "nic_init", &nic_init) and compiler_ident_get(&ADAM{TASK_COMPILER}, "net_main", &net_main))
     {

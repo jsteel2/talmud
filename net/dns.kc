@@ -1,0 +1,50 @@
+struct DNS_HEADER = <DNS_ID>, <DNS_FLAGS>, <DNS_QDCOUNT>, <DNS_ANCOUNT>, <DNS_NSCOUNT>, <DNS_ARCOUNT>;
+
+function dns_send_question(src, id, domain)
+(p, len, state, s{STRING}, i)
+{
+    len = DNS_HEADER + domain.[STRINGLEN] + 6;
+    p = udp_packet_alloc(ipv4_addr, ipv4_dns, src, 53, len);
+    if (!p) return FALSE;
+    p.<DNS_ID> = id;
+    p.<DNS_FLAGS> = 0x0001;
+    p.<DNS_QDCOUNT> = 0x0100;
+    p.<DNS_ANCOUNT> = p.<DNS_NSCOUNT> = p.<DNS_ARCOUNT> = 0;
+    state = i = 0;
+    while (strtok(domain, '.', s, &state))
+    {
+        p{DNS_HEADER + i} = s.[STRINGLEN];
+        memcpy(&p{DNS_HEADER + i + 1}, s.[STRINGPTR], s.[STRINGLEN]);
+        i += s.[STRINGLEN] + 1;
+    }
+    p{len - 5} = 0;
+    p.<len - 4> = 0x0100;
+    p.<len - 2> = 0x0100;
+    return udp_packet_tx(p, len);
+}
+
+function dns_parse_response(buf)
+{
+    print("WOW\n");
+}
+
+function dns_resolve(domain)
+(s, id, ip, buf{512})
+{
+    # todo add cache, timeout, retry
+    s = udp_bind(0);
+    id = rand();
+    if (!dns_send_question(s.[UDP_SOCK_PORT], id, domain))
+    {
+        udp_unbind(s);
+        return 0;
+    }
+    udp_recv(s, buf, 512);
+    if (!(ip = dns_parse_response(buf)))
+    {
+        udp_unbind(s);
+        return 0;
+    }
+    udp_unbind(s);
+    return ip;
+}
