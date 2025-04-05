@@ -89,8 +89,12 @@ rtl_irq_handler:
     ADD DX, 0x3E
     IN AX, DX
     TEST AX, 1
+    MOV AX, 0x05
+    OUT DX, AX
     JZ .e
     # push packet to circular FIFO
+    # also make the adam keyboard and mouse event vectors FIFO instead
+    # and maybe delete the vec_push_circ function since its unused then
     MOV EAX, [net_task]
     MOV DWORD [EAX + TASK_WAIT], FALSE
 .e:

@@ -1,0 +1,16 @@
+const IPV4_PROTO_UDP = 17;
+struct UDP_HEADER = <UDP_SOURCE>, <UDP_DEST>, <UDP_LENGTH>, <UDP_CHECKSUM>;
+
+function udp_packet_alloc(src, dest, src_port, dest_port, length)
+(p)
+{
+    p = ipv4_packet_alloc(src, dest, IPV4_PROTO_UDP, UDP_HEADER + length);
+    if (!p) return NULL;
+    p.<UDP_SOURCE> = swap16(src_port);
+    p.<UDP_DEST> = swap16(dest_port);
+    p.<UDP_LENGTH> = swap16(UDP_HEADER + length);
+    p.<UDP_CHECKSUM> = 0;
+    return p + UDP_HEADER;
+}
+
+function udp_packet_tx(packet, length) return ipv4_packet_tx(packet - UDP_HEADER, length + UDP_HEADER);

@@ -10,5 +10,7 @@ function eth_frame_alloc(src, dest, type, length)
     p.[ETHERNET_SRC_MAC] = src.[0];
     p.<ETHERNET_SRC_MAC + 4> = src.<4>;
     p.<ETHERNET_TYPE> = swap16(type);
-    return p;
+    return p + ETHERNET_HEADER;
 }
+
+function eth_frame_tx(frame, length) return tx_packet(frame - ETHERNET_HEADER, length + ETHERNET_HEADER);

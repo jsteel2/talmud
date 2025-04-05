@@ -1,0 +1,51 @@
+const ETHERTYPE_IPV4 = 0x0800;
+struct IPV4_HEADER = {IPV4_VERSION_IHL}, {IPV4_DSCP_ECN}, <IPV4_LENGTH>, <IPV4_IDENT>, <IPV4_FLAGS_FRAGOFF>, {IPV4_TTL}, {IPV4_PROTO}, <IPV4_CHECKSUM>, [IPV4_SRC], [IPV4_DEST];
+
+function ipv4tomac(ip, mac)
+{
+    if (ip == 0xFFFFFFFF)
+    {
+        mac.[0] = 0xFFFFFFFF;
+        mac.<4> = 0xFFFF;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+function ipv4_checksum(p, length)
+(sum)
+{
+    sum = 0;
+    while (length >! 1)
+    {
+        sum += p.<0>;
+        p += 2;
+        length -= 2;
+    }
+    if (length) sum += p.<0> & 0xFF;
+    sum = (sum >> 16) + (sum & 0xFFFF);
+    sum += sum >> 16;
+    return ~sum & 0xFFFF;
+}
+
+function ipv4_packet_alloc(src, dest, proto, length)
+(p, dest_mac{6})
+{
+    if (!ipv4tomac(dest, dest_mac)) return NULL;
+    p = eth_frame_alloc(mac, dest_mac, ETHERTYPE_IPV4, IPV4_HEADER + length);
+    if (!p) return NULL;
+    p{IPV4_VERSION_IHL} = 5 | (4 << 4);
+    p{IPV4_DSCP_ECN} = 0;
+    p.<IPV4_LENGTH> = swap16(IPV4_HEADER + length);
+    p.<IPV4_IDENT> = 0;
+    p.<IPV4_FLAGS_FRAGOFF> = 0;
+    p{IPV4_TTL} = 64;
+    p{IPV4_PROTO} = proto;
+    p.<IPV4_CHECKSUM> = 0;
+    p.[IPV4_SRC] = src;
+    p.[IPV4_DEST] = dest;
+    p.<IPV4_CHECKSUM> = ipv4_checksum(p, IPV4_HEADER);
+    return p + IPV4_HEADER;
+}
+
+function ipv4_packet_tx(packet, length) return eth_frame_tx(packet - IPV4_HEADER, length + IPV4_HEADER);
