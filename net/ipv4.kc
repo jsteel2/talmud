@@ -42,10 +42,15 @@ function ipv4_packet_alloc(src, dest, proto, length)
     p{IPV4_TTL} = 64;
     p{IPV4_PROTO} = proto;
     p.<IPV4_CHECKSUM> = 0;
-    p.[IPV4_SRC] = src;
-    p.[IPV4_DEST] = dest;
+    p.[IPV4_SRC] = swap32(src);
+    p.[IPV4_DEST] = swap32(dest);
     p.<IPV4_CHECKSUM> = ipv4_checksum(p, IPV4_HEADER);
     return p + IPV4_HEADER;
 }
 
 function ipv4_packet_tx(packet, length) return eth_frame_tx(packet - IPV4_HEADER, length + IPV4_HEADER);
+
+function ipv4_packet_handle(packet, length)
+{
+    if (packet{IPV4_PROTO} == IPV4_PROTO_UDP) return udp_packet_handle(packet + IPV4_HEADER, length - IPV4_HEADER);
+}

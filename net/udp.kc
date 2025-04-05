@@ -14,3 +14,8 @@ function udp_packet_alloc(src, dest, src_port, dest_port, length)
 }
 
 function udp_packet_tx(packet, length) return ipv4_packet_tx(packet - UDP_HEADER, length + UDP_HEADER);
+
+function udp_packet_handle(packet, length)
+{
+    format(print, "Got UDP Packet to port %d of length %d\n", swap16(packet.<UDP_DEST>), length - UDP_HEADER);
+}

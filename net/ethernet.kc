@@ -14,3 +14,8 @@ function eth_frame_alloc(src, dest, type, length)
 }
 
 function eth_frame_tx(frame, length) return tx_packet(frame - ETHERNET_HEADER, length + ETHERNET_HEADER);
+
+function eth_frame_handle(frame, length)
+{
+    if (swap16(frame.<ETHERNET_TYPE>) == ETHERTYPE_IPV4) return ipv4_packet_handle(frame + ETHERNET_HEADER, length - ETHERNET_HEADER);
+}

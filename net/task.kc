@@ -2,27 +2,22 @@ function tx_packet(data, size)
 {
     # if nic_tx_packet returns false, we should buffer it or something
     # also nic_tx_packet frees the data so only call this with malloc'd pointers
-    return nic_tx_packet(data, size);
+    nic_tx_packet(data, size);
+    return TRUE;
 }
 
 function rx_packet(data, size)
 {
-    # if there is a packet, write it to data and set *size, return true
-    # otherwise return false
-    return FALSE;
+    return nic_rx_packet(data, size);
 }
 
 function net_main()
-(data{1548}, size)
+(data{1518}, size)
 {
     new_task("DHCP", dhcp_configure, 0);
     while (TRUE)
     {
-        print("Hello!\n");
-        while (rx_packet(data, &size))
-        {
-            # handle packet
-        }
+        while (rx_packet(data, &size)) eth_frame_handle(data, size);
         wait();
     }
 }

@@ -82,6 +82,36 @@ function nic_tx_packet(data, size)
     return FALSE;
 }
 
+function nic_rx_packet(data, size)
+(cbr, capr, status, length)
+{
+    XOR EAX, EAX
+    MOV DX, [rtl_io]
+    ADD DX, 0x38
+    IN AX, DX
+    ADD AX, 16
+    MOV [capr], EAX
+    ADD DX, 2
+    IN AX, DX
+    MOV [cbr], EAX
+    if (cbr != capr)
+    {
+        status = rx_buffer.<capr>;
+        length = rx_buffer.<capr + 2>;
+        capr += 4;
+        if (status & 1) memcpy(data, &rx_buffer{capr}, *size = length - 4);
+        MOV AX, [capr]
+        SUB AX, 16
+        ADD AX, [length]
+        MOV DX, [rtl_io]
+        ADD DX, 0x38
+        OUT DX, AX
+        if (status & 1) return TRUE;
+        return nic_rx_packet(data, size);
+    }
+    return FALSE;
+}
+
 rtl_irq_handler:
     PUSH EAX
     PUSH EDX
@@ -92,9 +122,6 @@ rtl_irq_handler:
     MOV AX, 0x05
     OUT DX, AX
     JZ .e
-    # push packet to circular FIFO
-    # also make the adam keyboard and mouse event vectors FIFO instead
-    # and maybe delete the vec_push_circ function since its unused then
     MOV EAX, [net_task]
     MOV DWORD [EAX + TASK_WAIT], FALSE
 .e:
