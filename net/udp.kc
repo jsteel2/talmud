@@ -15,7 +15,63 @@ function udp_packet_alloc(src, dest, src_port, dest_port, length)
 
 function udp_packet_tx(packet, length) return ipv4_packet_tx(packet - UDP_HEADER, length + UDP_HEADER);
 
-function udp_packet_handle(packet, length)
+global udp_sockets{MAP};
+struct UDP_SOCK = [UDP_SOCK_TASK], [UDP_SOCK_SRC], [UDP_SOCK_BUF], [UDP_SOCK_BUF_LEN];
+
+function udp_init()
 {
-    format(print, "Got UDP Packet to port %d of length %d\n", swap16(packet.<UDP_DEST>), length - UDP_HEADER);
+    return map_init(udp_sockets, 64, 2, 4, shortcmp, hashshort, free);
+}
+
+function udp_packet_handle(packet, length)
+(sock, x)
+{
+    x = swap16(packet.<UDP_DEST>);
+    if (!map_get(udp_sockets, &x, &sock)) return;
+    if (sock.[UDP_SOCK_BUF])
+    {
+        if (length - UDP_HEADER <! sock.[UDP_SOCK_BUF_LEN]) sock.[UDP_SOCK_BUF_LEN] = length - UDP_HEADER;
+        memcpy(sock.[UDP_SOCK_BUF], packet + UDP_HEADER, sock.[UDP_SOCK_BUF_LEN]);
+        sock.[UDP_SOCK_BUF] = NULL;
+        sock.[UDP_SOCK_SRC] = swap32(packet + IPV4_SRC - IPV4_HEADER);
+        sock.[UDP_SOCK_TASK].[TASK_WAIT] = FALSE;
+    }
+}
+
+function udp_bind(port)
+(sock)
+{
+    if (port == -1)
+    {
+        # todo get a random free port
+        return NULL;
+    }
+    sock = malloc(UDP_SOCK);
+    if (!sock) return NULL;
+    sock.[UDP_SOCK_BUF] = NULL;
+    sock.[UDP_SOCK_TASK] = task;
+    if (!map_set(udp_sockets, &port, &sock))
+    {
+        free(sock);
+        return NULL;
+    }
+    return sock;
+}
+
+# todo on task kill unbind all ports that belong to task
+function udp_unbind(sock)
+{
+    # todo remove from map
+    free(sock);
+}
+
+function udp_recv(sock, buf, n)
+{
+    sock.[UDP_SOCK_BUF] = buf;
+    sock.[UDP_SOCK_BUF_LEN] = n;
+    while (sock.[UDP_SOCK_BUF])
+    {
+        wait();
+    }
+    return sock.[UDP_SOCK_BUF_LEN];
 }

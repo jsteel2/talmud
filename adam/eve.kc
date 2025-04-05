@@ -284,8 +284,6 @@ function dir(p)
     }
 }
 
-function intcmp(x, y) return x[0] == y[0];
-function hashint(x) return *x;
 function memrep()
 (m{MAP}, i, freemem, usedmem, n)
 {

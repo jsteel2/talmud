@@ -1,6 +1,8 @@
 const ETHERTYPE_IPV4 = 0x0800;
 struct IPV4_HEADER = {IPV4_VERSION_IHL}, {IPV4_DSCP_ECN}, <IPV4_LENGTH>, <IPV4_IDENT>, <IPV4_FLAGS_FRAGOFF>, {IPV4_TTL}, {IPV4_PROTO}, <IPV4_CHECKSUM>, [IPV4_SRC], [IPV4_DEST];
 
+global ipv4_addr, ipv4_router, ipv4_dns, ipv4_submask;
+
 function ipv4tomac(ip, mac)
 {
     if (ip == 0xFFFFFFFF)

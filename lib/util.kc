@@ -170,6 +170,7 @@ function format(fn, fmt)
             else if (c == 'd') format_dec(fn, s, vararg(v));
             else if (c == 'u') format_udec(fn, s, vararg(v));
             else if (c == 'c') format_char(fn, s, vararg(v));
+            else if (c == 'i') format_ip(fn, s, vararg(v));
 
             start = i + 1;
             v += 1;
@@ -180,6 +181,17 @@ function format(fn, fmt)
     s.[STRINGPTR] = fmt.[STRINGPTR] + start;
     s.[STRINGLEN] = i - start;
     fn(s);
+}
+
+function format_ip(fn, s, n)
+{
+    format_udec(fn, s, n >> 24);
+    fn(".");
+    format_udec(fn, s, n >> 16 & 0xFF);
+    fn(".");
+    format_udec(fn, s, n >> 8 & 0xFF);
+    fn(".");
+    format_udec(fn, s, n & 0xFF);
 }
 
 function format_hex(fn, s, n)
@@ -306,3 +318,7 @@ function qsort(p, n, size, cmp, tmp)
 function sortbcmp(x, y) return x{0} - y{0};
 function sortwcmp(x, y) return x<0> - y<0>;
 function sortdwcmp(x, y) return x[0] - y[0];
+function intcmp(x, y) return x[0] == y[0];
+function hashint(x) return x[0];
+function shortcmp(x, y) return x<0> == y<0>;
+function hashshort(x) return x<0>;

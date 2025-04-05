@@ -15,6 +15,7 @@ function net_main()
 (data{1518}, size)
 {
     new_task("DHCP", dhcp_configure, 0);
+    if (!udp_init()) return print("Could not init UDP\n");
     while (TRUE)
     {
         while (rx_packet(data, &size)) eth_frame_handle(data, size);

@@ -1,7 +1,8 @@
 struct DHCP_HEADER = {DHCP_OP}, {DHCP_HTYPE}, {DHCP_HLEN}, {DHCP_HOPS}, [DHCP_XID], <DHCP_SECS>, <DHCP_FLAGS>, [DHCP_CIADDR], [DHCP_YIADDR], [DHCP_SIADDR], [DHCP_GIADDR], 16{DHCP_CHADDR}, 64{DHCP_SNAME}, 128{DHCP_FILE}, [DHCP_COOKIE];
 struct DHCP_MESSAGE = DHCP_HEADER{DHCP_MESSAGE_HEADER}, {DHCP_DMT_TYPE}, {DHCP_DMT_LENGTH}, {DHCP_DMT};
 struct DHCP_DISCOVER = DHCP_MESSAGE{DHCP_DISCOVER_MESSAGE}, {DHCP_PRL_TYPE}, {DHCP_PRL_LENGTH}, 3{DHCP_PRL}, {DHCP_DISCOVER_END};
-const BOOTREQUEST = 1, BOOTREPLY = 2, DHCP_COOKIE_VAL = 0x63538263, HTYPE_ETHERNET = 1, HLEN_ETHERNET = 6, DHCP_OPTION_SUBNETMASK = 1, DHCP_OPTION_ROUTER = 3, DHCP_OPTION_DNS = 6, DHCP_OPTION_DOMAIN_NAME = 15, DHCP_OPTION_MSGTYPE = 53, DHCP_MSGTYPE_DISCOVER = 1, DHCP_OPTION_PARAMLIST = 55;
+struct DHCP_REQUEST = DHCP_MESSAGE{DHCP_REQUEST_MESSAGE}, {DHCP_REQUEST_IP_TYPE}, {DHCP_REQUEST_IP_LENGTH}, [DHCP_REQUEST_IP], {DHCP_REQUEST_SID_TYPE}, {DHCP_REQUEST_SID_LENGTH}, [DHCP_REQUEST_SID], {DHCP_REQUEST_END};
+const BOOTREQUEST = 1, BOOTREPLY = 2, DHCP_COOKIE_VAL = 0x63538263, HTYPE_ETHERNET = 1, HLEN_ETHERNET = 6, DHCP_OPTION_SUBNETMASK = 1, DHCP_OPTION_ROUTER = 3, DHCP_OPTION_DNS = 6, DHCP_OPTION_DOMAIN_NAME = 15, DHCP_OPTION_MSGTYPE = 53, DHCP_MSGTYPE_DISCOVER = 1, DHCP_OPTION_PARAMLIST = 55, DHCP_MSGTYPE_OFFER = 2, DHCP_OPTION_REQUESTED_IP = 50, DHCP_OPTION_SERVER_ID = 54, DHCP_MSGTYPE_REQUEST = 3, DHCP_MSGTYPE_ACK = 5;
 
 function dhcp_send_discover(xid)
 (p)
@@ -33,7 +34,91 @@ function dhcp_send_discover(xid)
     return udp_packet_tx(p, DHCP_DISCOVER);
 }
 
-function dhcp_configure()
+function dhcp_send_request(xid, ip, siaddr)
+(p)
 {
-    if (!dhcp_send_discover(0x8008135)) return print("DHCP Send Discover failed\n");
+    p = udp_packet_alloc(0, 0xFFFFFFFF, 68, 67, DHCP_REQUEST);
+    if (!p) return FALSE;
+    p{DHCP_OP} = BOOTREQUEST;
+    p{DHCP_HTYPE} = HTYPE_ETHERNET;
+    p{DHCP_HLEN} = HLEN_ETHERNET;
+    p{DHCP_HOPS} = 0;
+    p.[DHCP_XID] = swap32(xid);
+    p.<DHCP_SECS> = 0;
+    p.<DHCP_FLAGS> = 0;
+    p.[DHCP_CIADDR] = 0;
+    p.[DHCP_YIADDR] = 0;
+    p.[DHCP_SIADDR] = swap32(siaddr);
+    p.[DHCP_GIADDR] = 0;
+    memcpy(&p{DHCP_CHADDR}, mac, 6);
+    p.[DHCP_COOKIE] = DHCP_COOKIE_VAL;
+    p{DHCP_DMT_TYPE} = DHCP_OPTION_MSGTYPE;
+    p{DHCP_DMT_LENGTH} = 1;
+    p{DHCP_DMT} = DHCP_MSGTYPE_REQUEST;
+    p{DHCP_REQUEST_IP_TYPE} = DHCP_OPTION_REQUESTED_IP;
+    p{DHCP_REQUEST_IP_LENGTH} = 4;
+    p.[DHCP_REQUEST_IP] = swap32(ip);
+    p{DHCP_REQUEST_SID_TYPE} = DHCP_OPTION_SERVER_ID;
+    p{DHCP_REQUEST_SID_LENGTH} = 4;
+    p.[DHCP_REQUEST_SID] = swap32(siaddr);
+    p{DHCP_REQUEST_END} = 0xFF;
+    return udp_packet_tx(p, DHCP_REQUEST);
+}
+
+function dhcp_parse_offer(m, len, xid, yiaddr, dns, router, submask)
+(type)
+{
+    if (len <! DHCP_HEADER) return FALSE;
+    if (m.[DHCP_COOKIE] != DHCP_COOKIE_VAL) return FALSE;
+    *yiaddr = swap32(m.[DHCP_YIADDR]);
+    m += DHCP_HEADER;
+    len -= DHCP_HEADER;
+    type = FALSE;
+    *dns = 0;
+    *router = 0;
+    *submask = 0;
+    while (len)
+    {
+        if (m{0} == DHCP_OPTION_MSGTYPE and m{1} == 1 and m{2} == DHCP_MSGTYPE_OFFER) type = TRUE;
+        else if (m{0} == DHCP_OPTION_DNS and m{1} == 4) *dns = swap32(m.[2]);
+        else if (m{0} == DHCP_OPTION_ROUTER and m{1} == 4) *router = swap32(m.[2]);
+        else if (m{0} == DHCP_OPTION_SUBNETMASK and m{1} == 4) *submask = swap32(m.[2]);
+        m += 2 + m{1};
+        len -= 2 + m{1};
+    }
+    return type and *submask;
+}
+
+function dhcp_parse_ack(m, len, xid)
+{
+    if (len <! DHCP_HEADER) return FALSE;
+    if (m.[DHCP_COOKIE] != DHCP_COOKIE_VAL) return FALSE;
+    m += DHCP_HEADER;
+    len -= DHCP_HEADER;
+    while (len)
+    {
+        if (m{0} == DHCP_OPTION_MSGTYPE and m{1} == 1 and m{2} == DHCP_MSGTYPE_ACK) return TRUE;
+        m += 2 + m{1};
+        len -= 2 + m{1};
+    }
+    return FALSE;
+}
+
+function dhcp_configure()
+(s, buf{576}, len, yiaddr, dns, router, submask)
+{
+    # todo add retries and timeout and handle multiple offers
+    s = udp_bind(68);
+    if (!dhcp_send_discover(0x8008135)) return print("DHCP Send Discover failed\n", udp_unbind(s));
+    len = udp_recv(s, buf, 576);
+    if (!dhcp_parse_offer(buf, len, 0x8008135, &yiaddr, &dns, &router, &submask)) return print("DHCP Offer failed\n");
+    if (!dhcp_send_request(0x8008135, yiaddr, s.[UDP_SOCK_SRC])) return print("DHCP Send Request failed\n", udp_unbind(s));
+    len = udp_recv(s, buf, 576);
+    if (!dhcp_parse_ack(buf, len, 0x8008135)) return print("DHCP ACK failed\n");
+    ipv4_addr = yiaddr;
+    ipv4_router = router;
+    ipv4_dns = dns;
+    ipv4_submask = submask;
+    format(print, "DHCP: IP %i, ROUTER %i, DNS %i, SUBMASK %i\n", yiaddr, router, dns, submask);
+    udp_unbind(s);
 }
