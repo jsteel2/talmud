@@ -1,6 +1,6 @@
 struct MAP = [MAP_ENTRIES], [MAP_LEN], [MAP_SIZE], [MAP_KEY_SIZE], [MAP_ENTRY_SIZE], [MAP_COMPARE], [MAP_HASH], [MAP_FREE], [MAP_FIRST], [MAP_LAST];
 
-struct MAP_ENTRY = {MAP_ENTRY_USED}, [MAP_ENTRY_NEXT];
+struct MAP_ENTRY = {MAP_ENTRY_USED}, [MAP_ENTRY_NEXT], [MAP_ENTRY_PREV];
 
 function map_init(m, size, key_size, value_size, compare, hash, free)
 {
@@ -132,10 +132,12 @@ function map_set(m, key, value)
         if (!m.[MAP_FIRST])
         {
             m.[MAP_FIRST] = m.[MAP_LAST] = entry;
+            entry.[MAP_ENTRY_PREV - MAP_ENTRY] = NULL;
         }
         else
         {
             m.[MAP_LAST].[MAP_ENTRY_NEXT - MAP_ENTRY] = entry;
+            entry.[MAP_ENTRY_PREV - MAP_ENTRY] = m.[MAP_LAST];
             m.[MAP_LAST] = entry;
         }
     }
@@ -143,4 +145,23 @@ function map_set(m, key, value)
     memcpy(entry + m.[MAP_KEY_SIZE], value, m.[MAP_ENTRY_SIZE] - m.[MAP_KEY_SIZE] - MAP_ENTRY);
 
     return TRUE;
+}
+
+function map_delr(m, x)
+{
+    x{MAP_ENTRY_USED - MAP_ENTRY} = FALSE;
+    if (x.[MAP_ENTRY_PREV - MAP_ENTRY]) x.[MAP_ENTRY_PREV - MAP_ENTRY].[MAP_ENTRY_NEXT - MAP_ENTRY] = x.[MAP_ENTRY_NEXT - MAP_ENTRY];
+    if (x.[MAP_ENTRY_NEXT - MAP_ENTRY]) x.[MAP_ENTRY_NEXT - MAP_ENTRY].[MAP_ENTRY_PREV - MAP_ENTRY] = x.[MAP_ENTRY_PREV - MAP_ENTRY];
+    if (m.[MAP_FREE]) m.[MAP_FREE](x);
+}
+
+function map_del(m, key)
+(x)
+{
+    if ((x = map_ref(m, key, NULL)))
+    {
+        map_delr(m, x);
+        return TRUE;
+    }
+    return FALSE;
 }

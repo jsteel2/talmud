@@ -71,9 +71,11 @@ function new_task(name, entry, arg)
     return t;
 }
 
+global task_clean;
 function kill(t)
 (m)
 {
+    if (task_clean) task_clean(t);
     t.[TASK_NEXT].[TASK_PREV] = t.[TASK_PREV];
     t.[TASK_PREV].[TASK_NEXT] = t.[TASK_NEXT];
     compiler_free(&t{TASK_COMPILER});

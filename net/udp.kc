@@ -20,7 +20,7 @@ struct UDP_SOCK = [UDP_SOCK_TASK], [UDP_SOCK_SRC], [UDP_SOCK_PORT], [UDP_SOCK_BU
 
 function udp_init()
 {
-    return map_init(udp_sockets, 64, 2, 4, shortcmp, hashshort, free);
+    return map_init(udp_sockets, 64, 2, 4, shortcmp, hashshort, NULL);
 }
 
 function udp_packet_handle(packet, length)
@@ -45,6 +45,7 @@ function udp_bind(port)
     {
         do port = rand() & 0xFFFE; while (map_ref(udp_sockets, &port, NULL));
     }
+    else if (map_ref(udp_sockets, &port, NULL)) return NULL;
     sock = malloc(UDP_SOCK);
     if (!sock) return NULL;
     sock.[UDP_SOCK_PORT] = port;
@@ -58,11 +59,21 @@ function udp_bind(port)
     return sock;
 }
 
-# todo on task kill unbind all ports that belong to task
 function udp_unbind(sock)
 {
-    # todo remove from map
+    map_del(udp_sockets, &sock.[UDP_SOCK_PORT]);
     free(sock);
+}
+
+function udp_unbind_task(task)
+(state)
+{
+    state = 0;
+    while (map_iter(udp_sockets, &state))
+    {
+        if (state.[2 + UDP_SOCK_TASK] == task) map_delr(state);
+        free(&state{2});
+    }
 }
 
 function udp_recv(sock, buf, n)

@@ -11,9 +11,15 @@ function rx_packet(data, size)
     return nic_rx_packet(data, size);
 }
 
+function net_task_clean(t)
+{
+    udp_unbind_task(t);
+}
+
 function net_main()
 (data{1518}, size)
 {
+    task_clean = net_task_clean;
     new_task("DHCP", dhcp_configure, 0);
     if (!arp_init()) return print("Could not init ARP\n");
     if (!udp_init()) return print("Could not init UDP\n");
