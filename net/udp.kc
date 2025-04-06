@@ -71,8 +71,11 @@ function udp_unbind_task(task)
     state = 0;
     while (map_iter(udp_sockets, &state))
     {
-        if (state.[2 + UDP_SOCK_TASK] == task) map_delr(state);
-        free(&state{2});
+        if (state.[2].[UDP_SOCK_TASK] == task)
+        {
+            map_delr(state);
+            free(state.[2]);
+        }
     }
 }
 

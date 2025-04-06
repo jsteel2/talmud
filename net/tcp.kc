@@ -1,6 +1,8 @@
 const IPV4_PROTO_TCP = 6;
 struct TCP_HEADER = <TCP_SOURCE>, <TCP_DEST>, [TCP_SEQ], [TCP_ACK], {TCP_DATA_OFFSET}, {TCP_FLAGS}, <TCP_WINDOW_SIZE>, <TCP_CHECKSUM>, <TCP_URGENT>;
 struct TCP_PSEUDO_HEADER = [TCP_PSEUDO_SOURCE], [TCP_PSEUDO_DEST], {TCP_PSEUDO_ZERO}, {TCP_PSEUDO_PROTO}, <TCP_PSEUDO_LENGTH>;
+const TCP_FLAG_SYN = 2, TCP_FLAG_ACK = 16;
+enum TCP_STATE_CLOSED, TCP_STATE_LISTEN, TCP_STATE_SYN_SENT, TCP_STATE_SYN_RECEIVED, TCP_STATE_ESTABLISHED;
 
 function tcp_packet_alloc(dest, src_port, dest_port, seq, ack, flags, window, length)
 (p)
@@ -52,52 +54,109 @@ function tcp_checksum(packet, length)
     return ~sum & 0xFFFF;
 }
 
-global tcp_sockets{MAP};
-struct TCP_SOCK = [TCP_SOCK_TASK], <TCP_SOCK_PORT>;
+global tcp_connections{MAP};
+struct TCP_IDENT = <TCP_IDENT_PORT>, [TCP_IDENT_DEST_IP], <TCP_IDENT_DEST_PORT>;
+struct TCP_SOCK = TCP_IDENT{TCP_SOCK_IDENT}, [TCP_SOCK_TASK], {TCP_SOCK_STATE}, [TCP_SOCK_SEQ], [TCP_SOCK_ACK], [TCP_SOCK_WINDOW];
+
+function tcpcmp(x, y) return memcmp(*x, *y, TCP_IDENT);
+
+function hashtcp(x)
+(s{STRING})
+{
+    s.[STRINGPTR] = *x;
+    s.[STRINGLEN] = TCP_IDENT;
+    return hash_string(s);
+}
 
 function tcp_init()
 {
-    return map_init(tcp_sockets, 64, 2, 4, shortcmp, hashshort, NULL);
+    return map_init(tcp_connections, 64, 4, 0, tcpcmp, hashtcp, NULL);
 }
 
-function tcp_bind(port)
+function tcp_close_task(task)
+(state)
+{
+    state = 0;
+    while (map_iter(tcp_connections, &state))
+    {
+        if (state.[0].[TCP_SOCK_TASK] == task) tcp_close(state.[0]);
+    }
+}
+
+function tcp_send_packet(sock, flags, data, len)
+(p)
+{
+    p = tcp_packet_alloc(sock.[TCP_IDENT_DEST_IP], sock.<TCP_IDENT_PORT>, sock.<TCP_IDENT_DEST_PORT>, sock.[TCP_SOCK_SEQ], sock.[TCP_SOCK_ACK], flags, sock.[TCP_SOCK_WINDOW], len);
+    if (!p) return;
+    memcpy(p, data, len);
+    tcp_packet_tx(p, len);
+    # todo buffer packet to resend if they have to be (flags & (SYN | FIN) or len != 0)
+    # handle buffered packets in net_task and remove them out of the buffer on ACK
+}
+
+function tcp_connect(ip, port)
 (sock)
 {
-    if (!port)
-    {
-        do port = rand() & 0xFFFE; while (map_ref(tcp_sockets, &port, NULL));
-    }
-    else if (map_ref(tcp_sockets, &port, NULL)) return NULL;
     sock = malloc(TCP_SOCK);
     if (!sock) return NULL;
+    sock.[TCP_IDENT_DEST_IP] = ip;
+    sock.<TCP_IDENT_DEST_PORT> = port;
+    do sock.<TCP_IDENT_PORT> = rand() & 0xFFFE; while (map_ref(tcp_connections, &sock, NULL));
     sock.[TCP_SOCK_TASK] = task;
-    sock.<TCP_SOCK_PORT> = port;
-    if (!map_set(tcp_sockets, &port, &sock))
+    if (!map_set(tcp_connections, &sock, &sock))
     {
         free(sock);
         return NULL;
     }
+    sock.[TCP_SOCK_SEQ] = rand();
+    sock.[TCP_SOCK_ACK] = 0;
+    sock.[TCP_SOCK_WINDOW] = 65535;
+    tcp_send_packet(sock, TCP_FLAG_SYN, NULL, 0);
+    sock{TCP_SOCK_STATE} = TCP_STATE_SYN_SENT;
+    do
+    {
+        # todo add timeout
+        wait();
+    } while (sock{TCP_SOCK_STATE} != TCP_STATE_ESTABLISHED and sock{TCP_SOCK_STATE} != TCP_STATE_CLOSED);
     return sock;
 }
 
-function tcp_unbind(sock)
+function tcp_close(sock)
 {
-    map_del(tcp_sockets, &sock.<TCP_SOCK_PORT>);
+    # todo send FIN (or RST if force?)
+    map_del(tcp_connections, &sock);
     free(sock);
 }
 
-function tcp_unbind_task(task)
-(state)
-{
-    state = 0;
-    while (map_iter(tcp_sockets, &state))
-    {
-        if (state.[2 + TCP_SOCK_TASK] == task) map_delr(state);
-        free(&state{2});
-    }
-}
-
 function tcp_packet_handle(packet, length)
+(ident{TCP_IDENT}, x, sock, ack)
 {
-    print("Hello TCP\n");
+    ident.<TCP_IDENT_PORT> = swap16(packet.<TCP_DEST>);
+    ident.<TCP_IDENT_DEST_PORT> = swap16(packet.<TCP_SOURCE>);
+    ident.[TCP_IDENT_DEST_IP] = swap32(packet.[IPV4_SRC - IPV4_HEADER]);
+    x = ident;
+    if (!(sock = map_ref(tcp_connections, &x, NULL))) return;
+    sock = *sock;
+
+    if (sock{TCP_SOCK_STATE} == TCP_STATE_CLOSED) return;
+
+    ack = FALSE;
+    if (packet{TCP_FLAGS} & TCP_FLAG_SYN)
+    {
+        sock.[TCP_SOCK_ACK] = swap32(packet.[TCP_SEQ]) + 1;
+        ack = TRUE;
+    }
+
+    if (packet{TCP_FLAGS} & TCP_FLAG_ACK)
+    {
+        # todo check if ack is acceptable
+        sock.[TCP_SOCK_SEQ] = swap32(packet.[TCP_ACK]);
+        if (sock{TCP_SOCK_STATE} == TCP_STATE_SYN_SENT and packet{TCP_FLAGS} & TCP_FLAG_SYN)
+        {
+            sock{TCP_SOCK_STATE} = TCP_STATE_ESTABLISHED;
+            sock.[TCP_SOCK_TASK].[TASK_WAIT] = FALSE;
+        }
+    }
+    
+    if (ack) tcp_send_packet(sock, TCP_FLAG_ACK, NULL, 0);
 }

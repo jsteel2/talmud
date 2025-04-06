@@ -3,7 +3,7 @@ struct ETHERNET_HEADER = 6{ETHERNET_DEST_MAC}, 6{ETHERNET_SRC_MAC}, <ETHERNET_TY
 function eth_frame_alloc(src, dest, type, length)
 (p)
 {
-    p = malloc(ETHERNET_HEADER + length);
+    p = malloc_task(ETHERNET_HEADER + length, net_task);
     if (!p) return NULL;
     p.[ETHERNET_DEST_MAC] = dest.[0];
     p.<ETHERNET_DEST_MAC + 4> = dest.<4>;

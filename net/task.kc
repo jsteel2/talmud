@@ -14,7 +14,7 @@ function rx_packet(data, size)
 function net_task_clean(t)
 {
     udp_unbind_task(t);
-    tcp_unbind_task(t);
+    tcp_close_task(t);
 }
 
 function net_main()

@@ -149,6 +149,8 @@ function map_set(m, key, value)
 
 function map_delr(m, x)
 {
+    if (x == m.[MAP_FIRST]) m.[MAP_FIRST] = x.[MAP_ENTRY_NEXT - MAP_ENTRY];
+    if (x == m.[MAP_LAST]) m.[MAP_LAST] = x.[MAP_ENTRY_PREV - MAP_ENTRY];
     x{MAP_ENTRY_USED - MAP_ENTRY} = FALSE;
     if (x.[MAP_ENTRY_PREV - MAP_ENTRY]) x.[MAP_ENTRY_PREV - MAP_ENTRY].[MAP_ENTRY_NEXT - MAP_ENTRY] = x.[MAP_ENTRY_NEXT - MAP_ENTRY];
     if (x.[MAP_ENTRY_NEXT - MAP_ENTRY]) x.[MAP_ENTRY_NEXT - MAP_ENTRY].[MAP_ENTRY_PREV - MAP_ENTRY] = x.[MAP_ENTRY_PREV - MAP_ENTRY];
