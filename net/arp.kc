@@ -1,4 +1,46 @@
+struct ARP_HEADER = <ARP_HTYPE>, <ARP_PTYPE>, {ARP_HLEN}, {ARP_PLEN}, <ARP_OPCODE>, 6{ARP_SRC_MAC}, [ARP_SRC_IP], 6{ARP_DEST_MAC}, [ARP_DEST_IP];
+const ETHERTYPE_ARP = 0x0806, ARP_REQUEST = 1, ARP_REPLY = 2;
+
+global arp_cache{MAP};
 function arp_init()
 {
-    return TRUE;
+    return map_init(arp_cache, 32, 4, 6, intcmp, hashint, NULL);
+}
+
+function arp_send(op, destmac, dest, targetmac)
+(p)
+{
+    p = eth_frame_alloc(mac, destmac, ETHERTYPE_ARP, ARP_HEADER);
+    if (!p) return;
+    p.<ARP_HTYPE> = 0x0100;
+    p.<ARP_PTYPE> = swap16(ETHERTYPE_IPV4);
+    p{ARP_HLEN} = 6;
+    p{ARP_PLEN} = 4;
+    p.<ARP_OPCODE> = swap16(op);
+    p.[ARP_SRC_MAC] = mac.[0];
+    p.<ARP_SRC_MAC + 4> = mac.<4>;
+    p.[ARP_SRC_IP] = swap32(ipv4_addr);
+    p.[ARP_DEST_MAC] = targetmac.[0];
+    p.<ARP_DEST_MAC + 4> = targetmac.<4>;
+    p.[ARP_DEST_IP] = swap32(dest);
+    eth_frame_tx(p, ARP_HEADER);
+}
+
+function arp_get(ip, omac)
+{
+    return map_get(arp_cache, &ip, omac);
+}
+
+function arp_packet_handle(p)
+(x)
+{
+    if (swap16(p.<ARP_OPCODE>) == ARP_REQUEST)
+    {
+        if (swap32(p.[ARP_DEST_IP]) == ipv4_addr) arp_send(ARP_REPLY, &p{ARP_SRC_MAC}, p.[ARP_SRC_IP], &p{ARP_SRC_MAC});
+    }
+    else if (swap16(p.<ARP_OPCODE>) == ARP_REPLY)
+    {
+        x = swap32(p.[ARP_SRC_IP]);
+        map_set(arp_cache, &x, &p{ARP_SRC_MAC});
+    }
 }

@@ -4,12 +4,33 @@ struct IPV4_HEADER = {IPV4_VERSION_IHL}, {IPV4_DSCP_ECN}, <IPV4_LENGTH>, <IPV4_I
 global ipv4_addr, ipv4_router, ipv4_dns, ipv4_submask;
 
 function ipv4tomac(ip, mac)
+(retries, i)
 {
+    if (!ip) return FALSE;
     if (ip == 0xFFFFFFFF)
     {
         mac.[0] = 0xFFFFFFFF;
         mac.<4> = 0xFFFF;
         return TRUE;
+    }
+    if ((ip & ipv4_submask) != (ipv4_addr & ipv4_submask))
+    {
+        if (!ipv4_router) return FALSE;
+        return ipv4tomac(ipv4_router, mac);
+    }
+    if (arp_get(ip, mac)) return TRUE;
+    retries = 4;
+    while (retries)
+    {
+        i = 50;
+        arp_send(ARP_REQUEST, broadcast_mac, ip, null_mac);
+        while (i)
+        {
+            sleep(1);
+            if (arp_get(ip, mac)) return TRUE;
+            i -= 1;
+        }
+        retries -= 1;
     }
     return FALSE;
 }

@@ -103,6 +103,8 @@ function nic_rx_packet(data, size)
         MOV AX, [capr]
         SUB AX, 16
         ADD AX, [length]
+        ADD AX, 3
+        AND AX, ~3
         MOV DX, [rtl_io]
         ADD DX, 0x38
         OUT DX, AX

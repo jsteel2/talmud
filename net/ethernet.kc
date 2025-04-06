@@ -18,4 +18,8 @@ function eth_frame_tx(frame, length) return tx_packet(frame - ETHERNET_HEADER, l
 function eth_frame_handle(frame, length)
 {
     if (swap16(frame.<ETHERNET_TYPE>) == ETHERTYPE_IPV4) return ipv4_packet_handle(frame + ETHERNET_HEADER, length - ETHERNET_HEADER);
+    if (swap16(frame.<ETHERNET_TYPE>) == ETHERTYPE_ARP) return arp_packet_handle(frame + ETHERNET_HEADER);
 }
+
+broadcast_mac: DD 0xFFFFFFFF DW 0xFFFF
+null_mac: DD 0 DW 0

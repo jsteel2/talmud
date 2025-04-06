@@ -21,6 +21,7 @@ function dhcp_send_discover(xid)
     p.[DHCP_SIADDR] = 0;
     p.[DHCP_GIADDR] = 0;
     memcpy(&p{DHCP_CHADDR}, mac, 6);
+    memset(&p{DHCP_SNAME}, 0, 64 + 128);
     p.[DHCP_COOKIE] = DHCP_COOKIE_VAL;
     p{DHCP_DMT_TYPE} = DHCP_OPTION_MSGTYPE;
     p{DHCP_DMT_LENGTH} = 1;
@@ -51,6 +52,7 @@ function dhcp_send_request(xid, ip, siaddr)
     p.[DHCP_SIADDR] = swap32(siaddr);
     p.[DHCP_GIADDR] = 0;
     memcpy(&p{DHCP_CHADDR}, mac, 6);
+    memset(&p{DHCP_SNAME}, 0, 64 + 128);
     p.[DHCP_COOKIE] = DHCP_COOKIE_VAL;
     p{DHCP_DMT_TYPE} = DHCP_OPTION_MSGTYPE;
     p{DHCP_DMT_LENGTH} = 1;
@@ -122,6 +124,7 @@ function dhcp_configure()
     ipv4_router = router;
     ipv4_dns = dns;
     ipv4_submask = submask;
+    arp_send(ARP_REPLY, broadcast_mac, ipv4_addr, null_mac);
     format(print, "DHCP: IP %i, ROUTER %i, DNS %i, SUBMASK %i\n", yiaddr, router, dns, submask);
     udp_unbind(s);
 }
