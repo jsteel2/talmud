@@ -1,0 +1,103 @@
+const IPV4_PROTO_TCP = 6;
+struct TCP_HEADER = <TCP_SOURCE>, <TCP_DEST>, [TCP_SEQ], [TCP_ACK], {TCP_DATA_OFFSET}, {TCP_FLAGS}, <TCP_WINDOW_SIZE>, <TCP_CHECKSUM>, <TCP_URGENT>;
+struct TCP_PSEUDO_HEADER = [TCP_PSEUDO_SOURCE], [TCP_PSEUDO_DEST], {TCP_PSEUDO_ZERO}, {TCP_PSEUDO_PROTO}, <TCP_PSEUDO_LENGTH>;
+
+function tcp_packet_alloc(dest, src_port, dest_port, seq, ack, flags, window, length)
+(p)
+{
+    p = ipv4_packet_alloc(ipv4_addr, dest, IPV4_PROTO_TCP, TCP_HEADER + length);
+    if (!p) return NULL;
+    p.<TCP_SOURCE> = swap16(src_port);
+    p.<TCP_DEST> = swap16(dest_port);
+    p.[TCP_SEQ] = swap32(seq);
+    p.[TCP_ACK] = swap32(ack);
+    p{TCP_DATA_OFFSET} = (TCP_HEADER /! 4) << 4;
+    p{TCP_FLAGS} = flags;
+    p.<TCP_WINDOW_SIZE> = swap16(window);
+    p.<TCP_CHECKSUM> = 0;
+    p.<TCP_URGENT> = 0;
+    return p + TCP_HEADER;
+}
+
+function tcp_packet_tx(packet, length)
+{
+    packet -= TCP_HEADER;
+    packet.<TCP_CHECKSUM> = tcp_checksum(packet, length += TCP_HEADER);
+    return ipv4_packet_tx(packet, length);
+}
+
+function tcp_checksum(packet, length)
+(p{TCP_PSEUDO_HEADER}, sum, n)
+{
+    p.[TCP_PSEUDO_SOURCE] = packet.[IPV4_SRC - IPV4_HEADER];
+    p.[TCP_PSEUDO_DEST] = packet.[IPV4_DEST - IPV4_HEADER];
+    p{TCP_PSEUDO_ZERO} = 0;
+    p{TCP_PSEUDO_PROTO} = IPV4_PROTO_TCP;
+    p.<TCP_PSEUDO_LENGTH> = swap16(length);
+    sum = 0;
+    n = TCP_PSEUDO_HEADER;
+    while (n >! 1)
+    {
+        sum += p.<n -= 2>;
+    }
+    while (length >! 1) 
+    {
+        sum += packet.<0>;
+        packet += 2;
+        length -= 2;
+    }
+    if (length) sum += p{0};
+    sum = (sum >> 16) + (sum & 0xFFFF);
+    sum += sum >> 16;
+    return ~sum & 0xFFFF;
+}
+
+global tcp_sockets{MAP};
+struct TCP_SOCK = [TCP_SOCK_TASK], <TCP_SOCK_PORT>;
+
+function tcp_init()
+{
+    return map_init(tcp_sockets, 64, 2, 4, shortcmp, hashshort, NULL);
+}
+
+function tcp_bind(port)
+(sock)
+{
+    if (!port)
+    {
+        do port = rand() & 0xFFFE; while (map_ref(tcp_sockets, &port, NULL));
+    }
+    else if (map_ref(tcp_sockets, &port, NULL)) return NULL;
+    sock = malloc(TCP_SOCK);
+    if (!sock) return NULL;
+    sock.[TCP_SOCK_TASK] = task;
+    sock.<TCP_SOCK_PORT> = port;
+    if (!map_set(tcp_sockets, &port, &sock))
+    {
+        free(sock);
+        return NULL;
+    }
+    return sock;
+}
+
+function tcp_unbind(sock)
+{
+    map_del(tcp_sockets, &sock.<TCP_SOCK_PORT>);
+    free(sock);
+}
+
+function tcp_unbind_task(task)
+(state)
+{
+    state = 0;
+    while (map_iter(tcp_sockets, &state))
+    {
+        if (state.[2 + TCP_SOCK_TASK] == task) map_delr(state);
+        free(&state{2});
+    }
+}
+
+function tcp_packet_handle(packet, length)
+{
+    print("Hello TCP\n");
+}

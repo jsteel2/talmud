@@ -45,7 +45,7 @@ function ipv4_checksum(p, length)
         p += 2;
         length -= 2;
     }
-    if (length) sum += p.<0> & 0xFF;
+    if (length) sum += p{0};
     sum = (sum >> 16) + (sum & 0xFFFF);
     sum += sum >> 16;
     return ~sum & 0xFFFF;
@@ -76,4 +76,5 @@ function ipv4_packet_tx(packet, length) return eth_frame_tx(packet - IPV4_HEADER
 function ipv4_packet_handle(packet, length)
 {
     if (packet{IPV4_PROTO} == IPV4_PROTO_UDP) return udp_packet_handle(packet + IPV4_HEADER, length - IPV4_HEADER);
+    if (packet{IPV4_PROTO} == IPV4_PROTO_TCP) return tcp_packet_handle(packet + IPV4_HEADER, length - IPV4_HEADER);
 }

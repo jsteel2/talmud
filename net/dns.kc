@@ -60,7 +60,7 @@ function dns_resolve(domain)
     # todo add cache, timeout, retry
     s = udp_bind(0);
     id = rand() & 0xFFFF;
-    if (!dns_send_question(s.[UDP_SOCK_PORT], id, domain))
+    if (!dns_send_question(s.<UDP_SOCK_PORT>, id, domain))
     {
         udp_unbind(s);
         return 0;

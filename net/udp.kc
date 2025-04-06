@@ -16,7 +16,7 @@ function udp_packet_alloc(src, dest, src_port, dest_port, length)
 function udp_packet_tx(packet, length) return ipv4_packet_tx(packet - UDP_HEADER, length + UDP_HEADER);
 
 global udp_sockets{MAP};
-struct UDP_SOCK = [UDP_SOCK_TASK], [UDP_SOCK_SRC], [UDP_SOCK_PORT], [UDP_SOCK_BUF], [UDP_SOCK_BUF_LEN];
+struct UDP_SOCK = [UDP_SOCK_TASK], [UDP_SOCK_SRC], <UDP_SOCK_PORT>, [UDP_SOCK_BUF], [UDP_SOCK_BUF_LEN];
 
 function udp_init()
 {
@@ -48,7 +48,7 @@ function udp_bind(port)
     else if (map_ref(udp_sockets, &port, NULL)) return NULL;
     sock = malloc(UDP_SOCK);
     if (!sock) return NULL;
-    sock.[UDP_SOCK_PORT] = port;
+    sock.<UDP_SOCK_PORT> = port;
     sock.[UDP_SOCK_BUF] = NULL;
     sock.[UDP_SOCK_TASK] = task;
     if (!map_set(udp_sockets, &port, &sock))
@@ -61,7 +61,7 @@ function udp_bind(port)
 
 function udp_unbind(sock)
 {
-    map_del(udp_sockets, &sock.[UDP_SOCK_PORT]);
+    map_del(udp_sockets, &sock.<UDP_SOCK_PORT>);
     free(sock);
 }
 
