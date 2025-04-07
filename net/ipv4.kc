@@ -75,6 +75,19 @@ function ipv4_packet_tx(packet, length) return eth_frame_tx(packet - IPV4_HEADER
 
 function ipv4_packet_handle(packet, length)
 {
-    if (packet{IPV4_PROTO} == IPV4_PROTO_UDP) return udp_packet_handle(packet + IPV4_HEADER, length - IPV4_HEADER);
-    if (packet{IPV4_PROTO} == IPV4_PROTO_TCP) return tcp_packet_handle(packet + IPV4_HEADER, length - IPV4_HEADER);
+    if (packet{IPV4_PROTO} == IPV4_PROTO_UDP) return udp_packet_handle(packet + IPV4_HEADER, minu(swap16(packet.<IPV4_LENGTH>), length) - IPV4_HEADER);
+    if (packet{IPV4_PROTO} == IPV4_PROTO_TCP) return tcp_packet_handle(packet + IPV4_HEADER, minu(swap16(packet.<IPV4_LENGTH>), length) - IPV4_HEADER);
+}
+
+function ipv4_parse(s)
+(state, o{STRING}, ip, n)
+{
+    ip = 0;
+    state = 0;
+    while (strtok(s, '.', o, &state))
+    {
+        ip <<= 8;
+        ip |= str2int(o, 10, NULL) & 0xFF;
+    }
+    return ip;
 }

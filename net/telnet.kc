@@ -1,0 +1,72 @@
+const TELNET_IAC = 0xFF, TELNET_DONT = 0xFE, TELNET_DO = 0xFD, TELNET_WONT = 0xFC, TELNET_WILL = 0xFB;
+
+# todo add telnet server after implementing tcp_listen
+
+function telnet(ip, port)
+(s, buf{4096}, bf, len, i, c, w)
+{
+    s = tcp_connect(ip, port);
+    if (!s) return print("Could not connect\n");
+    format(print, "Connected to %i\n", ip);
+    w = task.[TASK_WINDOW];
+    bf = w{WINDOW_FLAGS};
+    w{WINDOW_FLAGS} |= WINDOW_FGET_KEY_EVENTS;
+    # temporary hack
+    # when we add buffers to the tcp socket we can tcp_recv without blocking
+    # by checking if theres any data in the buffers before trying to read
+    # these TCP_SOCK_RECV members wont exist anymore after thats implemented
+    s.[TCP_SOCK_RECV] = buf;
+    s.[TCP_SOCK_RECV_LEN] = 4096;
+    while (TRUE)
+    {
+        if (w.[WINDOW_KEY_EVENTS + VEC_LEN])
+        {
+            if (!vec_shift(&w{WINDOW_KEY_EVENTS}, &c)) break;
+            if (!(c & K_RELEASED))
+            {
+                c = shift_pressed ? qwerty_upper{c} : qwerty{c};
+                if (c) tcp_send(s, &c, 1);
+            }
+        }
+        else if (s{TCP_SOCK_STATE} == TCP_STATE_CLOSED) break;
+        else if (!s.[TCP_SOCK_RECV])
+        {
+            len = s.[TCP_SOCK_RECV_LEN];
+            i = 0;
+            while (i <! len)
+            {
+                if (buf{i} == TELNET_IAC)
+                {
+                    if (i + 2 >=! len) break;
+                    switch (buf{i + 1})
+                    {
+                        case TELNET_DO:
+                            buf{i + 1} = TELNET_WONT;
+                            tcp_send(s, &buf{i}, 3);
+                            break;
+                        case TELNET_WILL:
+                            buf{i + 1} = TELNET_DONT;
+                            tcp_send(s, &buf{i}, 3);
+                            break;
+                        default:
+                            break;
+                    }
+                    i += 3;
+                }
+                else
+                {
+                    format(print, "%c", buf{i});
+                    i += 1;
+                }
+            }
+            s.[TCP_SOCK_RECV] = buf;
+            s.[TCP_SOCK_RECV_LEN] = 4096;
+        }
+        else
+        {
+            wait();
+        }
+    }
+    w{WINDOW_FLAGS} = bf;
+    tcp_close(s);
+}

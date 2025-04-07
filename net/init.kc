@@ -15,6 +15,7 @@ include \"net/udp.kc\"
 include \"net/dhcp.kc\"
 include \"net/dns.kc\"
 include \"net/tcp.kc\"
+include \"net/telnet.kc\"
 ")) return;
     if (compiler_ident_get(&ADAM{TASK_COMPILER}, "nic_init", &nic_init) and compiler_ident_get(&ADAM{TASK_COMPILER}, "net_main", &net_main))
     {

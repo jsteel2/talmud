@@ -211,6 +211,10 @@ function window_print(w, s)
         {
             window_print(w, "    ");
         }
+        else if (s.[STRINGPTR]{i} == '\r')
+        {
+            # we do not care
+        }
         else if (s.[STRINGPTR]{i} == '\b')
         {
             if (w.[WINDOW_PRINT_CURSOR] <=! w.[WINDOW_PRINT_EDITABLE_START]) JMP .l
@@ -425,6 +429,7 @@ function input(s, editable_start, multiline)
 .l:
         if (w.[WINDOW_KEY_EVENTS + VEC_LEN] == 0)
         {
+            # todo move cursor drawing/clearing into a function so we can use it in telnet
             if (windows == w and w.[WINDOW_PRINT_Y] >=$ 0 and w.[WINDOW_PRINT_Y] + 8 <=$ w.[WINDOW_H])
             {
                 fill_rect(w.[WINDOW_PRINT_X], w.[WINDOW_PRINT_Y], 1, 8, 0xFF);

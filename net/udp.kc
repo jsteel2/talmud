@@ -26,6 +26,7 @@ function udp_init()
 function udp_packet_handle(packet, length)
 (sock, x)
 {
+    length = minu(swap16(packet.<UDP_LENGTH>), length);
     x = swap16(packet.<UDP_DEST>);
     if (!map_get(udp_sockets, &x, &sock)) return;
     if (sock.[UDP_SOCK_BUF])
