@@ -27,7 +27,11 @@ function net_main()
     if (!tcp_init()) return print("Could not init TCP\n");
     while (TRUE)
     {
-        while (rx_packet(data, &size)) eth_frame_handle(data, size);
+        while (rx_packet(data, &size))
+        {
+            eth_frame_handle(data, size);
+            next_task();
+        }
         wait();
     }
 }

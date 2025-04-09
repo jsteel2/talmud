@@ -18,7 +18,8 @@ function nic_init(bus, dev, fun)
     TEST AL, 0x10
     JNZ .l
 
-    rx_buffer = malloc(64 *! 1024 + 16 + 1500);
+    # todo disable WRAP and make rx_buffer 64K again
+    rx_buffer = malloc(32 *! 1024 + 16 + 1500);
     MOV DX, [rtl_io]
     ADD DX, 0x30
     MOV EAX, [rx_buffer]
@@ -27,7 +28,7 @@ function nic_init(bus, dev, fun)
     MOV AX, 5
     OUT DX, AX
     ADD DX, 0x08
-    MOV EAX, 0x8E | (0b11 << 11)
+    MOV EAX, 0x8E | (0b10 << 11)
     OUT DX, EAX
     SUB DX, 0x0D
     MOV AL, 0x0C

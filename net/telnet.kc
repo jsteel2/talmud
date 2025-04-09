@@ -11,27 +11,21 @@ function telnet(ip, port)
     w = task.[TASK_WINDOW];
     bf = w{WINDOW_FLAGS};
     w{WINDOW_FLAGS} |= WINDOW_FGET_KEY_EVENTS;
-    # temporary hack
-    # when we add buffers to the tcp socket we can tcp_recv without blocking
-    # by checking if theres any data in the buffers before trying to read
-    # these TCP_SOCK_RECV members wont exist anymore after thats implemented
-    s.[TCP_SOCK_RECV] = buf;
-    s.[TCP_SOCK_RECV_LEN] = 4096;
     while (TRUE)
     {
         if (w.[WINDOW_KEY_EVENTS + VEC_LEN])
         {
             if (!vec_shift(&w{WINDOW_KEY_EVENTS}, &c)) break;
-            if (!(c & K_RELEASED))
+            if (!(c & K_RELEASED) and c <! QWERTY_SIZE)
             {
                 c = shift_pressed ? qwerty_upper{c} : qwerty{c};
                 if (c) tcp_send(s, &c, 1);
             }
         }
         else if (s{TCP_SOCK_STATE} == TCP_STATE_CLOSED) break;
-        else if (!s.[TCP_SOCK_RECV])
+        else if (tcp_canrecv(s))
         {
-            len = s.[TCP_SOCK_RECV_LEN];
+            len = tcp_recv(s, buf, 4096);
             i = 0;
             while (i <! len)
             {
@@ -59,8 +53,6 @@ function telnet(ip, port)
                     i += 1;
                 }
             }
-            s.[TCP_SOCK_RECV] = buf;
-            s.[TCP_SOCK_RECV_LEN] = 4096;
         }
         else
         {

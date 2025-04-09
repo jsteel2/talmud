@@ -1,0 +1,167 @@
+function vnc_read(s, buf, len)
+(x)
+{
+    while (len)
+    {
+        len -= x = tcp_recv(s, buf, len);
+        if (!x) return FALSE;
+        buf += x;
+    }
+    return TRUE;
+}
+
+struct VNC_TPASS = [VNC_TPASS_SOCK], <VNC_TPASS_W>, <VNC_TPASS_H>;
+function vnc_window(p)
+(c, buf{8}, m{MOUSE_EVENT}, f, x)
+{
+    create_window(0, 0, p.<VNC_TPASS_W>, p.<VNC_TPASS_H>){WINDOW_FLAGS} = WINDOW_FGET_KEY_EVENTS | WINDOW_FGET_MOUSE_EVENTS;
+    c = 0;
+    f = 0;
+    while (TRUE)
+    {
+        if (task.[TASK_WINDOW].[WINDOW_KEY_EVENTS + VEC_LEN])
+        {
+            vec_shift(&task.[TASK_WINDOW]{WINDOW_KEY_EVENTS}, &c);
+            buf{0} = 4;
+            buf{1} = !(c & K_RELEASED);
+            c &= ~K_RELEASED;
+            if (c <! QWERTY_SIZE and (x = shift_pressed ? qwerty_upper{c} : qwerty{c}))
+            {
+                if (x == '\n') c = 0xFF0D;
+                else if (x == '\b') c = 0xFF08;
+                else if (x == '\t') c = 0xFF09;
+                else c = x;
+            }
+            else
+            {
+                if (c == K_LCTRL) c = 0xFFE3;
+                else if (c == K_RCTRL) c = 0xFFE4;
+                else if (c == K_LALT) c = 0xFFE9;
+                else if (c == K_RALT) c = 0xFFEA;
+                else if (c == K_LEFT) c = 0xFF51;
+                else if (c == K_UP) c = 0xFF52;
+                else if (c == K_RIGHT) c = 0xFF53;
+                else if (c == K_DOWN) c = 0xFF54;
+                else if (c == K_LSHIFT) c = 0xFFE1;
+                else if (c == K_RSHIFT) c = 0xFFE2;
+                else c = 0;
+            }
+            buf.[4] = swap32(c);
+            tcp_send(p.[VNC_TPASS_SOCK], buf, 8);
+        }
+        else if (task.[TASK_WINDOW].[WINDOW_MOUSE_EVENTS + VEC_LEN])
+        {
+            vec_shift(&task.[TASK_WINDOW]{WINDOW_MOUSE_EVENTS}, m);
+            if (m{MOUSE_FLAGS} & MOUSE_LMB_DOWN) f |= 1;
+            if (m{MOUSE_FLAGS} & MOUSE_RMB_DOWN) f |= 4;
+            if (m{MOUSE_FLAGS} & MOUSE_MMB_DOWN) f |= 2;
+            if (m{MOUSE_FLAGS} & MOUSE_LMB_UP) f &= ~1;
+            if (m{MOUSE_FLAGS} & MOUSE_RMB_UP) f &= ~4;
+            if (m{MOUSE_FLAGS} & MOUSE_MMB_UP) f &= ~2;
+            f &= ~120;
+            if (m{MOUSE_SCROLL} == MOUSE_SCROLL_UP) f |= 8;
+            else if (m{MOUSE_SCROLL} == MOUSE_SCROLL_DOWN) f |= 16;
+            else if (m{MOUSE_SCROLL} == MOUSE_SCROLL_LEFT) f |= 32;
+            else if (m{MOUSE_SCROLL} == MOUSE_SCROLL_RIGHT) f |= 64;
+            buf{0} = 5;
+            buf{1} = f;
+            buf.<2> = swap16(m.[MOUSE_X]);
+            buf.<4> = swap16(m.[MOUSE_Y]);
+            tcp_send(p.[VNC_TPASS_SOCK], buf, 8);
+        }
+        else
+        {
+            wait();
+        }
+    }
+}
+
+function vnc(ip, port)
+(s, buf{256}, name{STRING}, t, p{VNC_TPASS}, x, i)
+{
+    t = NULL;
+    name.[STRINGPTR] = NULL;
+    s = tcp_connect(ip, port);
+    if (!s) return print("Could not connect\n");
+    format(print, "Connected to %i\n", ip);
+    if (!vnc_read(s, buf, 12) or buf[0] != ' BFR') JMP .e
+    if (!tcp_sends(s, "RFB 003.003\n")) JMP .e
+    if (!vnc_read(s, buf, 4)) JMP .e
+    if (buf[0] != 0x01000000)
+    {
+        print("Authentication not supported\n");
+        JMP .e
+    }
+    buf{0} = 1;
+    if (!tcp_send(s, buf, 1)) JMP .e
+    if (!vnc_read(s, buf, 24)) JMP .e
+    p.<VNC_TPASS_W> = swap16(buf.<0>);
+    p.<VNC_TPASS_H> = swap16(buf.<2>);
+    name.[STRINGLEN] = swap32(buf.[20]);
+    name.[STRINGPTR] = malloc(name.[STRINGLEN]);
+    if (!vnc_read(s, name.[STRINGPTR], name.[STRINGLEN])) JMP .e
+    buf{0} = 0;
+    buf{4} = 32;
+    buf{5} = 24;
+    buf{6} = FALSE;
+    buf{7} = TRUE;
+    buf.<8> = 0xFF00;
+    buf.<10> = 0xFF00;
+    buf.<12> = 0xFF00;
+    buf{14} = 16;
+    buf{15} = 8;
+    buf{16} = 0;
+    if (!tcp_send(s, buf, 20)) JMP .e
+    buf{0} = 2;
+    buf.<2> = 0x0100;
+    buf.[4] = 0;
+    if (!tcp_send(s, buf, 8)) JMP .e
+    p.[VNC_TPASS_SOCK] = s;
+    switch_task(t = new_task(name, vnc_window, p));
+    while (TRUE)
+    {
+        buf{0} = 3;
+        buf{1} = TRUE;
+        buf.<2> = 0;
+        buf.<4> = 0;
+        buf.<6> = swap16(p.<VNC_TPASS_W>);
+        buf.<8> = swap16(p.<VNC_TPASS_H>);
+        if (!tcp_send(s, buf, 10)) JMP .e
+        if (!vnc_read(s, buf, 1)) JMP .e
+        if (buf{0} == 0)
+        {
+            if (!vnc_read(s, buf, 3)) JMP .e
+            x = swap16(buf.<1>);
+            while (x)
+            {
+                if (!vnc_read(s, buf, 12)) JMP .e
+                if (buf.[8] != 0)
+                {
+                    format(print, "Unsupported encoding %d\n", buf.[8]);
+                    JMP .e
+                }
+                buf.<0> = swap16(buf.<0>);
+                buf.<2> = swap16(buf.<2>);
+                buf.<4> = swap16(buf.<4>);
+                buf.<6> = swap16(buf.<6>);
+                i = 0;
+                while (i <! buf.<6>)
+                {
+                    if (!vnc_read(s, &t.[TASK_WINDOW].[WINDOW_BUFFER]{buf.<0> *! 4 + (buf.<2> + i + TITLEBAR_SIZE) *! p.<VNC_TPASS_W> *! 4}, buf.<4> *! 4)) JMP .e
+                    framebuffer_refresh(t.[TASK_WINDOW].[WINDOW_X] + buf.<0>, t.[TASK_WINDOW].[WINDOW_Y] + buf.<2> + i + TITLEBAR_SIZE, buf.<4>, 1, t.[TASK_WINDOW]);
+                    i += 1;
+                }
+                x -= 1;
+            }
+        }
+        else
+        {
+            format(print, "Unsupported message type %d\n", buf{0});
+            JMP .e
+        }
+    }
+.e:
+    if (t) kill(t);
+    tcp_close(s);
+    free(name.[STRINGPTR]);
+}

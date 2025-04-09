@@ -103,7 +103,7 @@ function realloc(p, n)
 {
     new = malloc(n);
     if (!new) return NULL;
-    memcpy(new, p, minu(n, p.[-MEM_HEADER + MEM_HEADER_SIZE]));
+    if (p) memcpy(new, p, minu(n, p.[-MEM_HEADER + MEM_HEADER_SIZE]));
     free(p);
     return new;
 }

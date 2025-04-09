@@ -55,8 +55,9 @@ function tcp_checksum(packet, length)
 }
 
 global tcp_connections{MAP};
+const TCP_SOCK_RECV_SIZE = 65536;
 struct TCP_IDENT = <TCP_IDENT_PORT>, [TCP_IDENT_DEST_IP], <TCP_IDENT_DEST_PORT>;
-struct TCP_SOCK = TCP_IDENT{TCP_SOCK_IDENT}, [TCP_SOCK_TASK], {TCP_SOCK_STATE}, [TCP_SOCK_SEQ], [TCP_SOCK_ACK], [TCP_SOCK_WINDOW], [TCP_SOCK_RECV], [TCP_SOCK_RECV_LEN];
+struct TCP_SOCK = TCP_IDENT{TCP_SOCK_IDENT}, [TCP_SOCK_TASK], {TCP_SOCK_STATE}, [TCP_SOCK_SEQ], [TCP_SOCK_ACK], [TCP_SOCK_RECV_READ], [TCP_SOCK_RECV_WRITE], TCP_SOCK_RECV_SIZE{TCP_SOCK_RECV};
 
 function tcpcmp(x, y) return memcmp(*x, *y, TCP_IDENT);
 
@@ -86,7 +87,7 @@ function tcp_close_task(task)
 function tcp_send_packet(sock, flags, data, len)
 (p)
 {
-    p = tcp_packet_alloc(sock.[TCP_IDENT_DEST_IP], sock.<TCP_IDENT_PORT>, sock.<TCP_IDENT_DEST_PORT>, sock.[TCP_SOCK_SEQ], sock.[TCP_SOCK_ACK], flags, sock.[TCP_SOCK_WINDOW], len);
+    p = tcp_packet_alloc(sock.[TCP_IDENT_DEST_IP], sock.<TCP_IDENT_PORT>, sock.<TCP_IDENT_DEST_PORT>, sock.[TCP_SOCK_SEQ], sock.[TCP_SOCK_ACK], flags, (sock.[TCP_SOCK_RECV_READ] - sock.[TCP_SOCK_RECV_WRITE] - 1 + TCP_SOCK_RECV_SIZE) %! TCP_SOCK_RECV_SIZE, len);
     if (!p) return;
     memcpy(p, data, len);
     tcp_packet_tx(p, len);
@@ -110,8 +111,8 @@ function tcp_connect(ip, port)
     }
     sock.[TCP_SOCK_SEQ] = rand();
     sock.[TCP_SOCK_ACK] = 0;
-    sock.[TCP_SOCK_WINDOW] = 65535;
-    sock.[TCP_SOCK_RECV] = NULL;
+    sock.[TCP_SOCK_RECV_READ] = 0;
+    sock.[TCP_SOCK_RECV_WRITE] = 0;
     tcp_send_packet(sock, TCP_FLAG_SYN, NULL, 0);
     sock{TCP_SOCK_STATE} = TCP_STATE_SYN_SENT;
     do
@@ -130,23 +131,28 @@ function tcp_close(sock)
 }
 
 function tcp_recv(sock, buf, len)
+(x)
 {
-    # todo read socket buffer instead
     if (sock{TCP_SOCK_STATE} == TCP_STATE_CLOSED) return 0;
-    sock.[TCP_SOCK_RECV] = buf;
-    sock.[TCP_SOCK_RECV_LEN] = len;
-    while (sock.[TCP_SOCK_RECV])
+    while (sock.[TCP_SOCK_RECV_READ] == sock.[TCP_SOCK_RECV_WRITE])
     {
         # todo add timeout
         wait();
     }
-    return sock.[TCP_SOCK_RECV_LEN];
+    len = minu(len, (sock.[TCP_SOCK_RECV_WRITE] + TCP_SOCK_RECV_SIZE - sock.[TCP_SOCK_RECV_READ]) %! TCP_SOCK_RECV_SIZE);
+    x = minu(TCP_SOCK_RECV_SIZE - sock.[TCP_SOCK_RECV_READ], len);
+    memcpy(buf, &sock{TCP_SOCK_RECV + sock.[TCP_SOCK_RECV_READ]}, x);
+    if (len >! x) memcpy(&buf{x}, &sock{TCP_SOCK_RECV}, len - x);
+    sock.[TCP_SOCK_RECV_READ] = (sock.[TCP_SOCK_RECV_READ] + len) %! TCP_SOCK_RECV_SIZE;
+    return len;
 }
+
+function tcp_canrecv(sock) return sock.[TCP_SOCK_RECV_READ] != sock.[TCP_SOCK_RECV_WRITE];
 
 function tcp_send(sock, buf, len)
 (x, b)
 {
-    # todo wait+timeout if recipient window is full (only wait if no data was sent)
+    # todo wait+timeout if recipient window is full (only wait if no data was sent (?))
     if (sock{TCP_SOCK_STATE} == TCP_STATE_CLOSED) return 0;
     b = len;
     while (len)
@@ -155,6 +161,7 @@ function tcp_send(sock, buf, len)
         tcp_send_packet(sock, TCP_FLAG_PSH | TCP_FLAG_ACK, buf, x);
         sock.[TCP_SOCK_SEQ] += x; # not sure if right? seems like it would conflict with ACK
         # think we need a pair of variables instead
+        # pretty sure thats killing the connection when we send too many packets
         buf += x;
         len -= x;
     }
@@ -195,17 +202,18 @@ function tcp_packet_handle(packet, length)
 
     if ((length -= (packet{TCP_DATA_OFFSET} >> 4) *! 4) >$ 0)
     {
-        # todo buffer data with sliding window stuff instead
         # todo check if seq is acceptable
-        if (sock.[TCP_SOCK_RECV] and sock.[TCP_SOCK_ACK] == swap32(packet.[TCP_SEQ])) # is that seq check correct?
+        if (sock.[TCP_SOCK_ACK] == swap32(packet.[TCP_SEQ])) # is that seq check correct?
         {
-            if (length <! sock.[TCP_SOCK_RECV_LEN]) sock.[TCP_SOCK_RECV_LEN] = length;
-            memcpy(sock.[TCP_SOCK_RECV], packet + TCP_HEADER, sock.[TCP_SOCK_RECV_LEN]);
-            sock.[TCP_SOCK_RECV] = NULL;
-            sock.[TCP_SOCK_ACK] += sock.[TCP_SOCK_RECV_LEN];
+            length = minu(length, (sock.[TCP_SOCK_RECV_READ] + TCP_SOCK_RECV_SIZE - sock.[TCP_SOCK_RECV_WRITE] - 1) %! TCP_SOCK_RECV_SIZE);
+            x = minu(TCP_SOCK_RECV_SIZE - sock.[TCP_SOCK_RECV_WRITE], length);
+            memcpy(&sock{TCP_SOCK_RECV + sock.[TCP_SOCK_RECV_WRITE]}, &packet{TCP_HEADER}, x);
+            if (length >! x) memcpy(&sock{TCP_SOCK_RECV}, &packet{TCP_HEADER + x}, length - x);
+            sock.[TCP_SOCK_RECV_WRITE] = (sock.[TCP_SOCK_RECV_WRITE] + length) %! TCP_SOCK_RECV_SIZE;
+            sock.[TCP_SOCK_ACK] += length;
             sock.[TCP_SOCK_TASK].[TASK_WAIT] = FALSE;
-            ack = TRUE;
         }
+        ack = TRUE;
     }
     
     if (ack) tcp_send_packet(sock, TCP_FLAG_ACK, NULL, 0);
