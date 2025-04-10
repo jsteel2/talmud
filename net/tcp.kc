@@ -57,7 +57,7 @@ function tcp_checksum(packet, length)
 global tcp_connections{MAP};
 const TCP_SOCK_RECV_SIZE = 65536;
 struct TCP_IDENT = <TCP_IDENT_PORT>, [TCP_IDENT_DEST_IP], <TCP_IDENT_DEST_PORT>;
-struct TCP_SOCK = TCP_IDENT{TCP_SOCK_IDENT}, [TCP_SOCK_TASK], {TCP_SOCK_STATE}, [TCP_SOCK_SEQ], [TCP_SOCK_ACK], [TCP_SOCK_RECV_READ], [TCP_SOCK_RECV_WRITE], TCP_SOCK_RECV_SIZE{TCP_SOCK_RECV};
+struct TCP_SOCK = TCP_IDENT{TCP_SOCK_IDENT}, [TCP_SOCK_TASK], {TCP_SOCK_STATE}, [TCP_SOCK_SEQ], [TCP_SOCK_SEQ_UNA], [TCP_SOCK_ACK], [TCP_SOCK_RECV_READ], [TCP_SOCK_RECV_WRITE], TCP_SOCK_RECV_SIZE{TCP_SOCK_RECV};
 
 function tcpcmp(x, y) return memcmp(*x, *y, TCP_IDENT);
 
@@ -109,7 +109,7 @@ function tcp_connect(ip, port)
         free(sock);
         return NULL;
     }
-    sock.[TCP_SOCK_SEQ] = rand();
+    sock.[TCP_SOCK_SEQ_UNA] = rand();
     sock.[TCP_SOCK_ACK] = 0;
     sock.[TCP_SOCK_RECV_READ] = 0;
     sock.[TCP_SOCK_RECV_WRITE] = 0;
@@ -157,11 +157,9 @@ function tcp_send(sock, buf, len)
     b = len;
     while (len)
     {
-        x = minu(len, 1518 - ETHERNET_HEADER - IPV4_HEADER - TCP_HEADER); # is this correct?
+        x = minu(len, 1460);
         tcp_send_packet(sock, TCP_FLAG_PSH | TCP_FLAG_ACK, buf, x);
-        sock.[TCP_SOCK_SEQ] += x; # not sure if right? seems like it would conflict with ACK
-        # think we need a pair of variables instead
-        # pretty sure thats killing the connection when we send too many packets
+        sock.[TCP_SOCK_SEQ] += x;
         buf += x;
         len -= x;
     }
@@ -192,9 +190,10 @@ function tcp_packet_handle(packet, length)
     if (packet{TCP_FLAGS} & TCP_FLAG_ACK)
     {
         # todo check if ack is acceptable
-        sock.[TCP_SOCK_SEQ] = swap32(packet.[TCP_ACK]);
+        sock.[TCP_SOCK_SEQ_UNA] = swap32(packet.[TCP_ACK]);
         if (sock{TCP_SOCK_STATE} == TCP_STATE_SYN_SENT and packet{TCP_FLAGS} & TCP_FLAG_SYN)
         {
+            sock.[TCP_SOCK_SEQ] = sock.[TCP_SOCK_SEQ_UNA]; # ???
             sock{TCP_SOCK_STATE} = TCP_STATE_ESTABLISHED;
             sock.[TCP_SOCK_TASK].[TASK_WAIT] = FALSE;
         }

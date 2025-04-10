@@ -67,7 +67,7 @@ function vnc_window(p)
             buf{1} = f;
             buf.<2> = swap16(m.[MOUSE_X]);
             buf.<4> = swap16(m.[MOUSE_Y]);
-            tcp_send(p.[VNC_TPASS_SOCK], buf, 8);
+            tcp_send(p.[VNC_TPASS_SOCK], buf, 6);
         }
         else
         {
