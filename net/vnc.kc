@@ -85,11 +85,35 @@ function vnc(ip, port)
     if (!s) return print("Could not connect\n");
     format(print, "Connected to %i\n", ip);
     if (!vnc_read(s, buf, 12) or buf[0] != ' BFR') JMP .e
-    if (!tcp_sends(s, "RFB 003.003\n")) JMP .e
-    if (!vnc_read(s, buf, 4)) JMP .e
-    if (buf[0] != 0x01000000)
+    if (!tcp_sends(s, "RFB 003.008\n")) JMP .e
+    if (!vnc_read(s, buf, 1)) JMP .e
+    i = buf{0};
+    if (!i)
+    {
+        print("Connection failed\n");
+        JMP .e
+    }
+    if (!vnc_read(s, buf, i)) JMP .e
+    x = FALSE;
+    while (i)
+    {
+        if (buf{i -= 1} == 1)
+        {
+            x = TRUE;
+            break;
+        }
+    }
+    if (!x)
     {
         print("Authentication not supported\n");
+        JMP .e
+    }
+    buf{0} = 1;
+    if (!tcp_send(s, buf, 1)) JMP .e
+    if (!vnc_read(s, buf, 4)) JMP .e
+    if (buf[0])
+    {
+        print("Authentication failed\n");
         JMP .e
     }
     buf{0} = 1;
@@ -118,10 +142,10 @@ function vnc(ip, port)
     if (!tcp_send(s, buf, 8)) JMP .e
     p.[VNC_TPASS_SOCK] = s;
     switch_task(t = new_task(name, vnc_window, p));
+    buf{1} = FALSE;
     while (TRUE)
     {
         buf{0} = 3;
-        buf{1} = TRUE;
         buf.<2> = 0;
         buf.<4> = 0;
         buf.<6> = swap16(p.<VNC_TPASS_W>);
@@ -159,6 +183,7 @@ function vnc(ip, port)
             format(print, "Unsupported message type %d\n", buf{0});
             JMP .e
         }
+        buf{1} = TRUE;
     }
 .e:
     if (t) kill(t);
