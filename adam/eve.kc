@@ -16,8 +16,6 @@ include "adam/mouse.kc"
 include "adam/pci.kc"
 include "net/init.kc"
 
-global ans;
-
 function eve(compiler)
 (c{4}, olm, orm, omm, w, k, m{MOUSE_EVENT}, dragging, startx, starty, ox, oy, hover_toggle)
 {
@@ -236,9 +234,10 @@ Welcome to TalmudOS (Formerly ChucksOS)
 }
 
 function seth()
-(s{STRING}, p{VEC}, x, t, i)
+(s{STRING}, p{VEC}, x, t, i, ans)
 {
     create_window(200, 200, 640, 480){WINDOW_FLAGS} = WINDOW_FGET_KEY_EVENTS | WINDOW_FPRINT_SCROLL;
+    compiler_global_set(&task{TASK_COMPILER}, "ans", &ans);
     vec_init(p, 128, 1);
     s.[STRINGLEN] = 0;
     while (TRUE)

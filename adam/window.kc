@@ -248,7 +248,7 @@ function window_print(w, s)
     }
 }
 
-function print(s) window_print(task.[TASK_WINDOW] or ADAM.[TASK_WINDOW], s);
+function print(s) task.[TASK_PRINT] ? task.[TASK_PRINT](s) : window_print(task.[TASK_WINDOW] or ADAM.[TASK_WINDOW], s);
 function adam_print(s) window_print(ADAM.[TASK_WINDOW], s);
 
 function window_print_scroll_down(w, rows)

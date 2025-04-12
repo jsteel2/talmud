@@ -1,15 +1,3 @@
-function vnc_read(s, buf, len)
-(x)
-{
-    while (len)
-    {
-        len -= x = tcp_recv(s, buf, len);
-        if (!x) return FALSE;
-        buf += x;
-    }
-    return TRUE;
-}
-
 struct VNC_TPASS = [VNC_TPASS_SOCK], <VNC_TPASS_W>, <VNC_TPASS_H>;
 function vnc_window(p)
 (c, buf{8}, m{MOUSE_EVENT}, f, x)
@@ -84,16 +72,16 @@ function vnc(ip, port)
     s = tcp_connect(ip, port);
     if (!s) return print("Could not connect\n");
     format(print, "Connected to %i\n", ip);
-    if (!vnc_read(s, buf, 12) or buf[0] != ' BFR') JMP .e
+    if (!tcp_recvall(s, buf, 12) or buf[0] != ' BFR') JMP .e
     if (!tcp_sends(s, "RFB 003.008\n")) JMP .e
-    if (!vnc_read(s, buf, 1)) JMP .e
+    if (!tcp_recvall(s, buf, 1)) JMP .e
     i = buf{0};
     if (!i)
     {
         print("Connection failed\n");
         JMP .e
     }
-    if (!vnc_read(s, buf, i)) JMP .e
+    if (!tcp_recvall(s, buf, i)) JMP .e
     x = FALSE;
     while (i)
     {
@@ -110,7 +98,7 @@ function vnc(ip, port)
     }
     buf{0} = 1;
     if (!tcp_send(s, buf, 1)) JMP .e
-    if (!vnc_read(s, buf, 4)) JMP .e
+    if (!tcp_recvall(s, buf, 4)) JMP .e
     if (buf[0])
     {
         print("Authentication failed\n");
@@ -118,12 +106,12 @@ function vnc(ip, port)
     }
     buf{0} = 1;
     if (!tcp_send(s, buf, 1)) JMP .e
-    if (!vnc_read(s, buf, 24)) JMP .e
+    if (!tcp_recvall(s, buf, 24)) JMP .e
     p.<VNC_TPASS_W> = swap16(buf.<0>);
     p.<VNC_TPASS_H> = swap16(buf.<2>);
     name.[STRINGLEN] = swap32(buf.[20]);
     name.[STRINGPTR] = malloc(name.[STRINGLEN]);
-    if (!vnc_read(s, name.[STRINGPTR], name.[STRINGLEN])) JMP .e
+    if (!tcp_recvall(s, name.[STRINGPTR], name.[STRINGLEN])) JMP .e
     buf{0} = 0;
     buf{4} = 32;
     buf{5} = 24;
@@ -151,14 +139,14 @@ function vnc(ip, port)
         buf.<6> = swap16(p.<VNC_TPASS_W>);
         buf.<8> = swap16(p.<VNC_TPASS_H>);
         if (!tcp_send(s, buf, 10)) JMP .e
-        if (!vnc_read(s, buf, 1)) JMP .e
+        if (!tcp_recvall(s, buf, 1)) JMP .e
         if (buf{0} == 0)
         {
-            if (!vnc_read(s, buf, 3)) JMP .e
+            if (!tcp_recvall(s, buf, 3)) JMP .e
             x = swap16(buf.<1>);
             while (x)
             {
-                if (!vnc_read(s, buf, 12)) JMP .e
+                if (!tcp_recvall(s, buf, 12)) JMP .e
                 if (buf.[8] != 0)
                 {
                     format(print, "Unsupported encoding %d\n", buf.[8]);
@@ -171,7 +159,7 @@ function vnc(ip, port)
                 i = 0;
                 while (i <! buf.<6>)
                 {
-                    if (!vnc_read(s, &t.[TASK_WINDOW].[WINDOW_BUFFER]{buf.<0> *! 4 + (buf.<2> + i + TITLEBAR_SIZE) *! p.<VNC_TPASS_W> *! 4}, buf.<4> *! 4)) JMP .e
+                    if (!tcp_recvall(s, &t.[TASK_WINDOW].[WINDOW_BUFFER]{buf.<0> *! 4 + (buf.<2> + i + TITLEBAR_SIZE) *! p.<VNC_TPASS_W> *! 4}, buf.<4> *! 4)) JMP .e
                     framebuffer_refresh(t.[TASK_WINDOW].[WINDOW_X] + buf.<0>, t.[TASK_WINDOW].[WINDOW_Y] + buf.<2> + i + TITLEBAR_SIZE, buf.<4>, 1, t.[TASK_WINDOW]);
                     i += 1;
                 }

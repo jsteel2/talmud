@@ -31,6 +31,11 @@ function arp_get(ip, omac)
     return map_get(arp_cache, &ip, omac);
 }
 
+function arp_set(ip, mac)
+{
+    return map_set(arp_cache, &ip, mac);
+}
+
 function arp_packet_handle(p)
 (x)
 {

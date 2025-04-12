@@ -58,6 +58,7 @@ function new_task(name, entry, arg)
     strdup(name, &t{TASK_NAME});
     memcpy(&t{TASK_CWD}, &task{TASK_CWD}, FILE);
     t.[TASK_WINDOW] = NULL;
+    t.[TASK_PRINT] = NULL;
     t.[TASK_NEXT] = task.[TASK_NEXT];
     t.[TASK_PREV] = task;
     compiler_init(&t{TASK_COMPILER}, t);

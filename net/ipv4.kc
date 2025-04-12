@@ -74,7 +74,9 @@ function ipv4_packet_alloc(src, dest, proto, length)
 function ipv4_packet_tx(packet, length) return eth_frame_tx(packet - IPV4_HEADER, length + IPV4_HEADER);
 
 function ipv4_packet_handle(packet, length)
+(ip)
 {
+    arp_set(((ip = swap32(packet.[IPV4_SRC])) & ipv4_submask) != (ipv4_addr & ipv4_submask) ? ipv4_router : ip, &packet{ETHERNET_SRC_MAC - ETHERNET_HEADER});
     if (packet{IPV4_PROTO} == IPV4_PROTO_UDP) return udp_packet_handle(packet + IPV4_HEADER, minu(swap16(packet.<IPV4_LENGTH>), length) - IPV4_HEADER);
     if (packet{IPV4_PROTO} == IPV4_PROTO_TCP) return tcp_packet_handle(packet + IPV4_HEADER, minu(swap16(packet.<IPV4_LENGTH>), length) - IPV4_HEADER);
 }

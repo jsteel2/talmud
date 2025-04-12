@@ -1,6 +1,87 @@
-const TELNET_IAC = 0xFF, TELNET_DONT = 0xFE, TELNET_DO = 0xFD, TELNET_WONT = 0xFC, TELNET_WILL = 0xFB;
+const TELNET_IAC = 0xFF, TELNET_DONT = 0xFE, TELNET_DO = 0xFD, TELNET_WONT = 0xFC, TELNET_WILL = 0xFB, TELNET_ECHO = 1, TELNET_SGA = 3;
 
-# todo add telnet server after implementing tcp_listen
+# it would be better to create a dummy window or something so that functions depending on it work too
+function telnetd_task(sock)
+(p{VEC}, c{3}, v{VEC}, x, ans, pr)
+{
+    c{0} = TELNET_IAC;
+    c{1} = TELNET_WILL;
+    c{2} = TELNET_ECHO;
+    if (!tcp_send(sock, c, 3)) break;
+    c{0} = TELNET_IAC;
+    c{1} = TELNET_WILL;
+    c{2} = TELNET_SGA;
+    if (!tcp_send(sock, c, 3)) break;
+    compiler_global_set(&task{TASK_COMPILER}, "ans", &ans);
+    vec_init(p, 128, 1);
+    vec_init(v, 128, 1);
+    pr = TRUE;
+    while (TRUE)
+    {
+        if (pr)
+        {
+            dir2path(p, &task{TASK_CWD});
+            format(print, "%s> ", p);
+            pr = FALSE;
+        }
+.l:
+        if (!tcp_recv(sock, c, 1)) break;
+        if (c{0} == '\r')
+        {
+            if (!tcp_send(sock, c, 1)) break;
+            c{0} = '\n';
+        }
+        if (c{0} == TELNET_IAC)
+        {
+            if (!tcp_recvall(sock, &c{1}, 2)) break;
+        }
+        else if (c{0} == 0) JMP .l
+        else if (!tcp_send(sock, c, 1) or !vec_push1(v, c{0})) break;
+        if (c{0} == '\n')
+        {
+            x = compile(&task{TASK_COMPILER}, "stdin", v);
+            if (x)
+            {
+                v.[VEC_LEN] = 0;
+                pr = TRUE;
+                ans = x();
+                format(print, "ans=%d (%x)\n", ans, ans);
+            }
+            else
+            {
+                if (task.[TASK_COMPILER + CCUR + TOKEN_TYPE] != TEND)
+                {
+                    v.[VEC_LEN] = 0;
+                    pr = TRUE;
+                }
+            }
+        }
+    }
+    tcp_close(sock);
+}
+
+function telnetd()
+(s, n)
+{
+    s = tcp_listen(23, 3);
+    if (!s) print("Could not listen\n");
+    format(print, "Listening on port 23\n");
+    while ((n = tcp_accept(s)))
+    {
+        n.[TCP_SOCK_TASK] = n.[MEM_HEADER_TASK - MEM_HEADER] = new_task("Telnet", telnetd_task, n);
+        compiler_const_set(&n.[TCP_SOCK_TASK]{TASK_COMPILER}, "_telnet_sock", n);
+        compile(&n.[TCP_SOCK_TASK]{TASK_COMPILER}, "telnetd", "
+function _telnet_print(s)
+(state, st{STRING})
+{
+    if (!s.[STRINGLEN]) return;
+    if (!tcp_sends(_telnet_sock, s)) exit();
+}
+");
+        compiler_ident_get(&n.[TCP_SOCK_TASK]{TASK_COMPILER}, "_telnet_print", &n.[TCP_SOCK_TASK]{TASK_PRINT});
+    }
+    tcp_close(s);
+}
 
 function telnet(ip, port)
 (s, buf{4096}, bf, len, i, c, w)

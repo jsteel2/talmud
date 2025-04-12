@@ -54,10 +54,11 @@ function tcp_checksum(packet, length)
     return ~sum & 0xFFFF;
 }
 
-global tcp_connections{MAP};
+global tcp_connections{MAP}, tcp_listening{MAP};
 const TCP_SOCK_RECV_SIZE = 65536;
 struct TCP_IDENT = <TCP_IDENT_PORT>, [TCP_IDENT_DEST_IP], <TCP_IDENT_DEST_PORT>;
 struct TCP_SOCK = TCP_IDENT{TCP_SOCK_IDENT}, [TCP_SOCK_TASK], {TCP_SOCK_STATE}, [TCP_SOCK_SEQ], [TCP_SOCK_SEQ_UNA], [TCP_SOCK_ACK], [TCP_SOCK_RECV_READ], [TCP_SOCK_RECV_WRITE], TCP_SOCK_RECV_SIZE{TCP_SOCK_RECV};
+struct TCP_SOCKL = TCP_IDENT{TCP_SOCK_IDENT}, [TCP_SOCKL_TASK], {TCP_SOCKL_STATE}, [TCP_SOCKL_BACKLOG_LEN], [TCP_SOCKL_BACKLOG_SIZE];
 
 function tcpcmp(x, y) return memcmp(*x, *y, TCP_IDENT);
 
@@ -69,9 +70,12 @@ function hashtcp(x)
     return hash_string(s);
 }
 
+function tcplcmp(x, y) return x[0]<0> == y[0]<0>;
+function hashtcpl(x) return x[0]<0>;
+
 function tcp_init()
 {
-    return map_init(tcp_connections, 64, 4, 0, tcpcmp, hashtcp, NULL);
+    return map_init(tcp_connections, 64, 4, 0, tcpcmp, hashtcp, NULL) and map_init(tcp_listening, 16, 4, 0, tcplcmp, hashtcpl, NULL);
 }
 
 function tcp_close_task(task)
@@ -79,6 +83,11 @@ function tcp_close_task(task)
 {
     state = 0;
     while (map_iter(tcp_connections, &state))
+    {
+        if (state.[0].[TCP_SOCK_TASK] == task) tcp_close(state.[0]);
+    }
+    state = 0;
+    while (map_iter(tcp_listening, &state))
     {
         if (state.[0].[TCP_SOCK_TASK] == task) tcp_close(state.[0]);
     }
@@ -123,18 +132,59 @@ function tcp_connect(ip, port)
     return sock;
 }
 
+function tcp_listen(port, backlog)
+(sock)
+{
+    sock = malloc(TCP_SOCKL + backlog *! 4);
+    if (!sock) return NULL;
+    sock.<TCP_IDENT_PORT> = port;
+    sock.[TCP_IDENT_DEST_IP] = 0;
+    sock.<TCP_IDENT_DEST_PORT> = 0;
+    sock.[TCP_SOCK_TASK] = task;
+    sock.[TCP_SOCKL_BACKLOG_SIZE] = backlog;
+    sock.[TCP_SOCKL_BACKLOG_LEN] = 0;
+    if (!map_set(tcp_listening, &sock, &sock))
+    {
+        free(sock);
+        return NULL;
+    }
+    sock{TCP_SOCK_STATE} = TCP_STATE_LISTEN;
+    return sock;
+}
+
+function tcp_accept(s)
+(x)
+{
+    while (!s.[TCP_SOCKL_BACKLOG_LEN])
+    {
+        wait();
+    }
+    x = s.[TCP_SOCKL];
+    s.[TCP_SOCKL_BACKLOG_LEN] -= 1;
+    memcpyd(&s{TCP_SOCKL}, &s{TCP_SOCKL + 4}, s.[TCP_SOCKL_BACKLOG_LEN]);
+    # todo add timeout?? or try others in backlog?
+    while (x{TCP_SOCK_STATE} != TCP_STATE_ESTABLISHED and x{TCP_SOCK_STATE} != TCP_STATE_CLOSED)
+    {
+        wait();
+    }
+    return x;
+}
+
 function tcp_close(sock)
 {
     # todo send FIN (or RST if force?) if socket state not already closed
-    map_del(tcp_connections, &sock);
+    if (!map_del(tcp_connections, &sock)) map_del(tcp_listening, &sock.<TCP_IDENT_PORT>);
+    if (sock{TCP_SOCK_STATE} == TCP_STATE_LISTEN)
+    {
+        while (sock.[TCP_SOCKL_BACKLOG_LEN]) tcp_close(sock.[TCP_SOCKL + (sock.[TCP_SOCKL_BACKLOG_LEN] -= 1) *! 4]);
+    }
     free(sock);
 }
 
 function tcp_recv(sock, buf, len)
 (x)
 {
-    if (sock{TCP_SOCK_STATE} == TCP_STATE_CLOSED) return 0;
-    while (sock.[TCP_SOCK_RECV_READ] == sock.[TCP_SOCK_RECV_WRITE])
+    while (sock.[TCP_SOCK_RECV_READ] == sock.[TCP_SOCK_RECV_WRITE] and sock{TCP_SOCK_STATE} != TCP_STATE_CLOSED)
     {
         # todo add timeout
         wait();
@@ -148,6 +198,18 @@ function tcp_recv(sock, buf, len)
 }
 
 function tcp_canrecv(sock) return sock.[TCP_SOCK_RECV_READ] != sock.[TCP_SOCK_RECV_WRITE];
+
+function tcp_recvall(s, buf, len)
+(x)
+{
+    while (len)
+    {
+        len -= x = tcp_recv(s, buf, len);
+        if (!x) return FALSE;
+        buf += x;
+    }
+    return TRUE;
+}
 
 function tcp_send(sock, buf, len)
 (x, b)
@@ -175,10 +237,40 @@ function tcp_packet_handle(packet, length)
     ident.<TCP_IDENT_DEST_PORT> = swap16(packet.<TCP_SOURCE>);
     ident.[TCP_IDENT_DEST_IP] = swap32(packet.[IPV4_SRC - IPV4_HEADER]);
     x = ident;
-    if (!(sock = map_ref(tcp_connections, &x, NULL))) return;
+    if (!(sock = map_ref(tcp_connections, &x, NULL)) and !(sock = map_ref(tcp_listening, &x, NULL))) return;
     sock = *sock;
 
     if (sock{TCP_SOCK_STATE} == TCP_STATE_CLOSED) return;
+
+    if (sock{TCP_SOCK_STATE} == TCP_STATE_LISTEN)
+    {
+        if (!(packet{TCP_FLAGS} & TCP_FLAG_SYN) or sock.[TCP_SOCKL_BACKLOG_LEN] == sock.[TCP_SOCKL_BACKLOG_SIZE])
+        {
+            # todo send ACK (?) | RST
+            return;
+        }
+        x = malloc(TCP_SOCK);
+        if (!x) return;
+        x.<TCP_IDENT_PORT> = ident.<TCP_IDENT_PORT>;
+        x.<TCP_IDENT_DEST_PORT> = ident.<TCP_IDENT_DEST_PORT>;
+        x.[TCP_IDENT_DEST_IP] = ident.[TCP_IDENT_DEST_IP];
+        if (!map_set(tcp_connections, &x, &x))
+        {
+            free(x);
+            return NULL;
+        }
+        x.[TCP_SOCK_TASK] = sock.[TCP_SOCK_TASK];
+        x.[TCP_SOCK_ACK] = swap32(packet.[TCP_SEQ]) + 1;
+        x.[TCP_SOCK_SEQ_UNA] = rand();
+        x.[TCP_SOCK_RECV_READ] = 0;
+        x.[TCP_SOCK_RECV_WRITE] = 0;
+        tcp_send_packet(x, TCP_FLAG_SYN | TCP_FLAG_ACK, NULL, 0);
+        x{TCP_SOCK_STATE} = TCP_STATE_SYN_RECEIVED;
+        sock.[TCP_SOCKL + sock.[TCP_SOCKL_BACKLOG_LEN] *! 4] = x;
+        sock.[TCP_SOCKL_BACKLOG_LEN] += 1;
+        sock.[TCP_SOCK_TASK].[TASK_WAIT] = FALSE;
+        return;
+    }
 
     ack = FALSE;
     if (packet{TCP_FLAGS} & TCP_FLAG_SYN)
@@ -191,7 +283,7 @@ function tcp_packet_handle(packet, length)
     {
         # todo check if ack is acceptable
         sock.[TCP_SOCK_SEQ_UNA] = swap32(packet.[TCP_ACK]);
-        if (sock{TCP_SOCK_STATE} == TCP_STATE_SYN_SENT and packet{TCP_FLAGS} & TCP_FLAG_SYN)
+        if ((sock{TCP_SOCK_STATE} == TCP_STATE_SYN_SENT and packet{TCP_FLAGS} & TCP_FLAG_SYN) or sock{TCP_SOCK_STATE} == TCP_STATE_SYN_RECEIVED)
         {
             sock.[TCP_SOCK_SEQ] = sock.[TCP_SOCK_SEQ_UNA]; # ???
             sock{TCP_SOCK_STATE} = TCP_STATE_ESTABLISHED;
