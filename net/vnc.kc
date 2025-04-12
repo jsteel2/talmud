@@ -166,6 +166,16 @@ function vnc(ip, port)
                 x -= 1;
             }
         }
+        else if (buf{0} == 2)
+        {
+            print("Ring ring!\n");
+        }
+        else if (buf{0} == 3)
+        {
+            if (!tcp_recvall(s, buf, 7)) JMP .e
+            i = swap32(buf.[3]);
+            while (i) i -= tcp_recv(s, buf, minu(256, i));
+        }
         else
         {
             format(print, "Unsupported message type %d\n", buf{0});
