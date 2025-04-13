@@ -458,6 +458,7 @@ function _copyfromto(srcdir, src, destdir, dest, flags)
         if (!openat(destdir, dest, destf, flags | FILE_FCREATE)) return FALSE;
         buf = malloc(4096);
         while (write(destf, read(srcf, 4096, buf), buf));
+        free(buf);
         resize(destf, srcf.[FILE_SIZE]);
     }
     return TRUE;

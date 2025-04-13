@@ -255,6 +255,8 @@ dap_lba:
     DD 0
     DD 0
 
+next_task: RET
+
 include "lib/def.kc"
 include "lib/util.kc"
 include "lib/fs.kc"

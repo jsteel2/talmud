@@ -1,7 +1,7 @@
 include "compiler/tokenize.kc"
 include "compiler/asm.kc"
 
-struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, VEC{CCASES}, [CDEFAULT], [CBREAK], [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], STRING{CCUR_FUNC}, [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CGLOBAL_OFFSET], [CPROG_END], {CUSE32}, [CTASK];
+struct COMPILER = TOKENIZER{CTOK}, MAP{CIDENTS}, MAP{CLOCALS}, MAP{CLOCAL_LABELS}, MAP{CSTRINGS}, TOKEN{CCUR}, TOKEN{CNEXT}, VEC{CLATER}, VEC{CCASES}, [CDEFAULT], [CBREAK], [CLATER_I], [CBIN], [CEXCEPT], [CCUR_FILE], STRING{CCUR_FUNC}, [CIS_FIRST_PASS], [CIP], [CORG], [CSTRING_OFFSET], [CGLOBAL_OFFSET], [CPROG_END], {CUSE32}, [CTASK], {CLOCK};
 const IDENT_FLAG_VALID = 1;
 const IDENT_FLAG_LOCAL = 1 << 1;
 const IDENT_FLAG_ADDRESS = 1 << 2;
@@ -16,11 +16,12 @@ function compiler_init(c, t)
     c.[CTASK] = t;
     c.[CEXCEPT] = 0;
     c.[CCUR_FILE] = "None";
-    if (!map_init(&c{CIDENTS}, 1024, STRING, COMPILER_IDENT, strcmp, hash_string, free_string)) return FALSE;
-    if (!map_init(&c{CSTRINGS}, 64, STRING, COMPILER_STRING, strcmp, hash_string, free_string)) return FALSE;
-    if (!map_init(&c{CLOCALS}, 32, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
-    if (!map_init(&c{CLOCAL_LABELS}, 16, STRING, COMPILER_IDENT, strcmp, hash_string, NULL)) return FALSE;
-    if (!vec_init(&c{CLATER}, 1024, 4)) return FALSE;
+    c{CLOCK} = FALSE;
+    if (!map_init_task(&c{CIDENTS}, 1024, STRING, COMPILER_IDENT, strcmp, hash_string, free_string, t)) return FALSE;
+    if (!map_init_task(&c{CSTRINGS}, 64, STRING, COMPILER_STRING, strcmp, hash_string, free_string, t)) return FALSE;
+    if (!map_init_task(&c{CLOCALS}, 32, STRING, COMPILER_IDENT, strcmp, hash_string, NULL, t)) return FALSE;
+    if (!map_init_task(&c{CLOCAL_LABELS}, 16, STRING, COMPILER_IDENT, strcmp, hash_string, NULL, t)) return FALSE;
+    if (!vec_init_task(&c{CLATER}, 1024, 4, t)) return FALSE;
     return TRUE;
 }
 
@@ -186,7 +187,7 @@ function compiler_pass(c, src, is_first_pass)
     c.[CLATER_I] = 0;
     c.[CIP] = c.[CORG];
     c{CUSE32} = TRUE;
-    tokenizer_init(&c{CTOK}, src);
+    tokenizer_init(&c{CTOK}, src, c.[CTASK]);
 
     c.[CNEXT + TOKEN_TYPE] = TINVALID;
     compiler_advance(c);
@@ -217,6 +218,8 @@ function compiler_pass(c, src, is_first_pass)
 
 function compile(c, filename, src)
 {
+    while (c{CLOCK}) next_task();
+    c{CLOCK} = TRUE;
     compiler_try(c, .catch);
     c.[CCUR_FILE] = filename;
     c.[CSTRING_OFFSET] = 0;
@@ -235,6 +238,7 @@ function compile(c, filename, src)
     map_free2(&c{CSTRINGS});
     map_free2(&c{CLOCAL_LABELS});
     free(c.[CCUR_FUNC + STRINGPTR]);
+    c{CLOCK} = FALSE;
     return c.[CBIN];
 
 .catch:
@@ -244,6 +248,7 @@ function compile(c, filename, src)
     map_free2(&c{CSTRINGS});
     map_free2(&c{CLOCAL_LABELS});
     free(c.[CCUR_FUNC + STRINGPTR]);
+    c{CLOCK} = FALSE;
     return NULL;
 }
 
@@ -338,6 +343,7 @@ function compiler_statement(c)
         case TJNB: return compiler_asm_jcc(c, OJNBB, OJNBW);
         case TLOOP: return compiler_asm_jcc(c, OLOOP, -1);
         case TSETZ: return compiler_asm_setcc(c, OSETZ);
+        case TSETNZ: return compiler_asm_setcc(c, OSETNZ);
         case TSETB: return compiler_asm_setcc(c, OSETB);
         case TIN: return compiler_asm_in(c);
         case TOUT: return compiler_asm_out(c);
@@ -403,7 +409,7 @@ function compiler_label(c, local)
     else
     {
         free(c.[CCUR_FUNC + STRINGPTR]);
-        strdup(&c{CCUR + TOKEN_VALUE}, &c{CCUR_FUNC});
+        strdup_task(&c{CCUR + TOKEN_VALUE}, &c{CCUR_FUNC}, c.[CTASK]);
         compiler_label_set(c, &c{CIDENTS}, &c{CCUR + TOKEN_VALUE});
     }
     compiler_consume(c, TCOLON);
@@ -446,7 +452,7 @@ function compiler_function(c)
     compiler_consume(c, TFUNCTION);
     compiler_consume(c, TIDENT);
     free(c.[CCUR_FUNC + STRINGPTR]);
-    strdup(&c{CCUR + TOKEN_VALUE}, &c{CCUR_FUNC});
+    strdup_task(&c{CCUR + TOKEN_VALUE}, &c{CCUR_FUNC}, c.[CTASK]);
 
     end = compiler_getlater(c);
     compiler_emit8(c, OJMPW);
@@ -565,7 +571,7 @@ function compiler_global(c)
     {
         compiler_consume(c, TIDENT);
         if (map_get(&c{CIDENTS}, &c{CCUR + TOKEN_VALUE}, ident)) memcpy(s, &c{CCUR + TOKEN_VALUE}, STRING);
-        else strdup(&c{CCUR + TOKEN_VALUE}, s);
+        else strdup_task(&c{CCUR + TOKEN_VALUE}, s, c.[CTASK]);
         if (c.[CIS_FIRST_PASS])
         {
             ident.[COMPILER_IDENT_ADDR] = c.[CGLOBAL_OFFSET];
@@ -616,7 +622,7 @@ function compiler_include(c)
 
     if (!read(f, src.[STRINGLEN], src.[STRINGPTR])) compiler_throw(c, $@, $*, format(print, "Could not read file \"%s\"", s));
 
-    tokenizer_init(&c{CTOK}, src);
+    tokenizer_init(&c{CTOK}, src, c.[CTASK]);
 
     c.[CNEXT + TOKEN_TYPE] = TINVALID;
     compiler_advance(c);
@@ -798,7 +804,7 @@ function compiler_switch(c)
     compiler_consume(c, TRIGHTPAREN);
 
     memcpy(oldcases, &c{CCASES}, VEC);
-    vec_init(&c{CCASES}, 32, COMPILER_CASE);
+    vec_init_task(&c{CCASES}, 32, COMPILER_CASE, c.[CTASK]);
 
     ob = c.[CBREAK];
     c.[CBREAK] = compiler_getlater(c);
@@ -1684,7 +1690,7 @@ function compiler_const_set(c, name, address)
 (s{STRING}, x, ident{COMPILER_IDENT})
 {
     if (map_get(&c{CIDENTS}, name, s)) x = name;
-    else x = strdup(name, s);
+    else x = strdup_task(name, s, c.[CTASK]);
     ident.[COMPILER_IDENT_ADDR] = address;
     ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_ADDRESS;
     if (!map_set(&c{CIDENTS}, x, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), x == name ? 0 : free(s.[STRINGPTR]));
@@ -1695,7 +1701,7 @@ function compiler_global_set(c, name, address)
 (s{STRING}, x, ident{COMPILER_IDENT})
 {
     if (map_get(&c{CIDENTS}, name, s)) x = name;
-    else x = strdup(name, s);
+    else x = strdup_task(name, s, c.[CTASK]);
     ident.[COMPILER_IDENT_ADDR] = address;
     ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID;
     if (!map_set(&c{CIDENTS}, x, ident)) return compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, address), x == name ? 0 : free(s.[STRINGPTR]));
@@ -1709,7 +1715,7 @@ function compiler_label_set(c, m, name)
     {
         ident.[COMPILER_IDENT_ADDR] = c.[CIP];
         ident{COMPILER_IDENT_FLAGS} = IDENT_FLAG_VALID | IDENT_FLAG_RELOCATE | IDENT_FLAG_ADDRESS;
-        if (!map_set(m, strdup(name, s), ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR])); # FIX leak later (i dont remember what the leak is or if this still applies, curse you)
+        if (!map_set(m, strdup_task(name, s, c.[CTASK]), ident)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", name, c.[CIP]), free(s.[STRINGPTR])); # FIX leak later (i dont remember what the leak is or if this still applies, curse you)
     }
     else
     {
@@ -1783,7 +1789,7 @@ function compiler_string_get(c, s, should_free)
 
     x = c.[CSTRING_OFFSET];
     c.[CSTRING_OFFSET] += 8 + s.[STRINGLEN];
-    if (!map_set(&c{CSTRINGS}, should_free ? s : strdup(s, y), &x)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, x));
+    if (!map_set(&c{CSTRINGS}, should_free ? s : strdup_task(s, y, c.[CTASK]), &x)) compiler_throw(c, $@, $*, format(print, "map_set(\"%s\", 0x%x) failed", s, x));
 
     return 0;
 }

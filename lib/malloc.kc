@@ -98,12 +98,14 @@ function free(p)
     }
 }
 
-function realloc(p, n)
+function realloc_task(p, n, task)
 (new)
 {
-    new = malloc(n);
+    new = malloc_task(n, task);
     if (!new) return NULL;
     if (p) memcpy(new, p, minu(n, p.[-MEM_HEADER + MEM_HEADER_SIZE]));
     free(p);
     return new;
 }
+
+function realloc(p, n) return realloc_task(p, n, task);

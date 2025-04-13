@@ -15,6 +15,7 @@ include "adam/window.kc"
 include "adam/mouse.kc"
 include "adam/pci.kc"
 include "net/init.kc"
+include "sound/init.kc"
 
 function eve(compiler)
 (c{4}, olm, orm, omm, w, k, m{MOUSE_EVENT}, dragging, startx, starty, ox, oy, hover_toggle)
@@ -46,6 +47,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
 
     new_task("Seth", seth, 0);
     new_task("Networking", net_init, 0);
+    new_task("Sound", sound_init, 0);
 
     draw_cursor();
     dragging = NULL;

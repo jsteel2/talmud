@@ -55,7 +55,7 @@ function new_task(name, entry, arg)
 (t)
 {
     t = malloc_task(TASK, ADAM);
-    strdup(name, &t{TASK_NAME});
+    strdup_task(name, &t{TASK_NAME}, t);
     memcpy(&t{TASK_CWD}, &task{TASK_CWD}, FILE);
     t.[TASK_WINDOW] = NULL;
     t.[TASK_PRINT] = NULL;

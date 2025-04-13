@@ -1,12 +1,15 @@
-struct VEC = [VEC_LEN], [VEC_PTR], [VEC_SIZE], [VEC_ENTRY_SIZE];
+struct VEC = [VEC_LEN], [VEC_PTR], [VEC_SIZE], [VEC_ENTRY_SIZE], [VEC_TASK];
 
-function vec_init(v, size, entry_size)
+function vec_init_task(v, size, entry_size, task)
 {
+    v.[VEC_TASK] = task;
     v.[VEC_ENTRY_SIZE] = entry_size;
     v.[VEC_SIZE] = size;
     v.[VEC_LEN] = 0;
-    return v.[VEC_PTR] = malloc(size *! entry_size);
+    return v.[VEC_PTR] = malloc_task(size *! entry_size, task);
 }
+
+function vec_init(v, size, entry_size) return vec_init_task(v, size, entry_size, task);
 
 function vec_free(v)
 {
@@ -18,7 +21,7 @@ function vec_resize(v, new_len)
     if (new_len >! v.[VEC_SIZE])
     {
         v.[VEC_SIZE] = maxu(new_len, v.[VEC_SIZE] *! 2);
-        v.[VEC_PTR] = realloc(v.[VEC_PTR], v.[VEC_SIZE] *! v.[VEC_ENTRY_SIZE]);
+        v.[VEC_PTR] = realloc_task(v.[VEC_PTR], v.[VEC_SIZE] *! v.[VEC_ENTRY_SIZE], v.[VEC_TASK]);
         if (!v.[VEC_PTR]) return FALSE;
     }
     return TRUE;

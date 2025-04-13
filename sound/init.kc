@@ -1,0 +1,26 @@
+function sb16_detect()
+{
+    MOV DX, 0x226
+    MOV AL, 1
+    OUT DX, AL
+    MOV AL, 0
+    OUT 0x80, AL
+    OUT 0x80, AL
+    OUT 0x80, AL
+    OUT DX, AL
+    MOV DX, 0x22A
+    IN AL, DX
+    CMP AL, 0xAA
+    SETNZ AL
+}
+
+function sound_init()
+(soundhw_init)
+{
+    if (sb16_detect()) compile(&ADAM{TASK_COMPILER}, "sound_init", "include \"/sound/driver/sb16.kc\"");
+    else return print("No supported sound card found.\n");
+    if (compiler_ident_get(&ADAM{TASK_COMPILER}, "soundhw_init", &soundhw_init))
+    {
+        soundhw_init();
+    }
+}

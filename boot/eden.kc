@@ -6,7 +6,8 @@ const TSS = $!;
 const TSS_SIZE = 104 + 8192;
 const TSS_ESP0 = 0x04, TSS_SS0 = 0x08, TSS_IOPB = 0x66;
 const DISK_BUF = TSS + TSS_SIZE;
-const ADAM = DISK_BUF + 512 *! 128;
+const DMA_BUF = (DISK_BUF + 512 *! 128 + 0xFFFF) & ~0xFFFF;
+const ADAM = DMA_BUF + 0xFFFF;
 const HEAP_START = ADAM + TASK;
 
 global first_free;
@@ -41,6 +42,7 @@ function eden()
     ADAM.[TASK_WAIT] = FALSE;
     ADAM.[TASK_NEXT] = ADAM;
     ADAM.[TASK_PREV] = ADAM;
+    ADAM.[TASK_PRINT] = NULL;
     memcpy(&ADAM{TASK_NAME}, "Adam", STRING);
     task = ADAM;
     compiler = &ADAM{TASK_COMPILER};
@@ -83,6 +85,7 @@ function eden()
 
     if (!compiler_const_set(compiler, "interrupt", interrupt)) JMP .hlt
     if (!compiler_const_set(compiler, "DISK_BUF", DISK_BUF)) JMP .hlt
+    if (!compiler_const_set(compiler, "DMA_BUF", DMA_BUF)) JMP .hlt
     if (!compiler_const_set(compiler, "lba_read", lba_read)) JMP .hlt
     if (!compiler_const_set(compiler, "lba_write", lba_write)) JMP .hlt
     if (!compiler_const_set(compiler, "pic_clear_mask", pic_clear_mask)) JMP .hlt

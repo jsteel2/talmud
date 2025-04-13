@@ -124,14 +124,16 @@ function strtok(s, delim, out, state)
     return TRUE;
 }
 
-function strdup(s, new)
+function strdup_task(s, new, task)
 {
-    new.[STRINGPTR] = malloc(s.[STRINGLEN]);
+    new.[STRINGPTR] = malloc_task(s.[STRINGLEN], task);
     if (!new.[STRINGPTR]) return NULL;
     new.[STRINGLEN] = s.[STRINGLEN];
     memcpy(new.[STRINGPTR], s.[STRINGPTR], new.[STRINGLEN]);
     return new;
 }
+
+function strdup(s, new) return strdup_task(s, new);
 
 function reverse(s)
 (i, c)

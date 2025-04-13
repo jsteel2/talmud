@@ -1,9 +1,10 @@
-struct MAP = [MAP_ENTRIES], [MAP_LEN], [MAP_SIZE], [MAP_KEY_SIZE], [MAP_ENTRY_SIZE], [MAP_COMPARE], [MAP_HASH], [MAP_FREE], [MAP_FIRST], [MAP_LAST];
+struct MAP = [MAP_ENTRIES], [MAP_LEN], [MAP_SIZE], [MAP_KEY_SIZE], [MAP_ENTRY_SIZE], [MAP_COMPARE], [MAP_HASH], [MAP_FREE], [MAP_FIRST], [MAP_LAST], [MAP_TASK];
 
 struct MAP_ENTRY = {MAP_ENTRY_USED}, [MAP_ENTRY_NEXT], [MAP_ENTRY_PREV];
 
-function map_init(m, size, key_size, value_size, compare, hash, free)
+function map_init_task(m, size, key_size, value_size, compare, hash, free, task)
 {
+    m.[MAP_TASK] = task;
     m.[MAP_FIRST] = NULL;
     m.[MAP_LAST] = NULL;
     m.[MAP_COMPARE] = compare;
@@ -13,11 +14,13 @@ function map_init(m, size, key_size, value_size, compare, hash, free)
     m.[MAP_SIZE] = size;
     m.[MAP_KEY_SIZE] = key_size;
     m.[MAP_ENTRY_SIZE] = key_size + value_size + MAP_ENTRY;
-    m.[MAP_ENTRIES] = malloc(m.[MAP_ENTRY_SIZE] *! size);
+    m.[MAP_ENTRIES] = malloc_task(m.[MAP_ENTRY_SIZE] *! size, task);
     if (!m.[MAP_ENTRIES]) return FALSE;
     memset(m.[MAP_ENTRIES], 0, m.[MAP_ENTRY_SIZE] *! size);
     return TRUE;
 }
+
+function map_init(m, size, key_size, value_size, compare, hash, free) return map_init_task(m, size, key_size, value_size, compare, hash, free, task);
 
 function map_free2(m)
 (state, s)
@@ -99,7 +102,7 @@ function map_expand(m)
     m.[MAP_SIZE] *!= 2;
     m.[MAP_LEN] = 0;
     m.[MAP_FIRST] = NULL;
-    m.[MAP_ENTRIES] = malloc(m.[MAP_SIZE] *! m.[MAP_ENTRY_SIZE]);
+    m.[MAP_ENTRIES] = malloc_task(m.[MAP_SIZE] *! m.[MAP_ENTRY_SIZE], m.[MAP_TASK]);
     if (!m.[MAP_ENTRIES]) return FALSE;
     memset(m.[MAP_ENTRIES], 0, m.[MAP_SIZE] *! m.[MAP_ENTRY_SIZE]);
 
