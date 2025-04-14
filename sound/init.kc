@@ -1,5 +1,6 @@
 function sb16_detect()
 {
+    XOR EAX, EAX
     MOV DX, 0x226
     MOV AL, 1
     OUT DX, AL
@@ -11,7 +12,7 @@ function sb16_detect()
     MOV DX, 0x22A
     IN AL, DX
     CMP AL, 0xAA
-    SETNZ AL
+    SETZ AL
 }
 
 function sound_init()
