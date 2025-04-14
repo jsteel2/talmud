@@ -94,7 +94,7 @@ keyboard_handler:
     MOV EBX, [adam_key_events]
     TEST EBX, EBX
     JZ .e
-    MOV DWORD [ADAM + TASK_WAIT], FALSE
+    MOV BYTE [ADAM + TASK_WAIT], FALSE
     PUSH EAX
     PUSH EBX
     CALL vec_push1_circ
@@ -153,7 +153,7 @@ mouse_handler:
     MOV EBX, [adam_mouse_events]
     TEST EBX, EBX
     JZ .e
-    MOV DWORD [ADAM + TASK_WAIT], FALSE
+    MOV BYTE [ADAM + TASK_WAIT], FALSE
     PUSH DWORD mouse_packet
     PUSH EBX
     CALL vec_push_circ

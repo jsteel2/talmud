@@ -22,25 +22,25 @@ global sound_task;
 function next_task()
 (f, c)
 {
-    if (sound_task and !sound_task.[TASK_WAIT]) return switch_task(sound_task);
+    if (sound_task and !sound_task{TASK_WAIT}) return switch_task(sound_task);
     f = c = task.[TASK_NEXT];
-    while (c.[TASK_WAIT])
+    while (c{TASK_WAIT})
     {
-        if (c.[TASK_WAIT] >! 1 and timer_ms >! c.[TASK_WAIT])
+        if (c{TASK_WAIT} == 2 and timer_ms >! c.[TASK_WAIT_UNTIL])
         {
-            c.[TASK_WAIT] = FALSE;
+            c{TASK_WAIT} = FALSE;
             break;
         }
         c = c.[TASK_NEXT];
         if (c == f) HLT
-        if (sound_task and !sound_task.[TASK_WAIT]) return switch_task(sound_task);
+        if (sound_task and !sound_task{TASK_WAIT}) return switch_task(sound_task);
     }
     switch_task(c);
 }
 
 function wait()
 {
-    task.[TASK_WAIT] = TRUE;
+    task{TASK_WAIT} = TRUE;
     next_task();
 }
 
@@ -50,7 +50,8 @@ function sleep(ms)
     x = timer_ms + ms;
     while (timer_ms <! x)
     {
-        task.[TASK_WAIT] = x;
+        task{TASK_WAIT} = 2;
+        task.[TASK_WAIT_UNTIL] = x;
         next_task();
     }
 }
@@ -70,7 +71,7 @@ function new_task(name, entry, arg)
     t.[TASK_ESP][0] = exit;
     t.[TASK_ESP][1] = arg;
     t.[TASK_EIP] = entry;
-    t.[TASK_WAIT] = FALSE;
+    t{TASK_WAIT} = FALSE;
     t.[TASK_NEXT].[TASK_PREV] = t;
     task.[TASK_NEXT] = t;
     return t;

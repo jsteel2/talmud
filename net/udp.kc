@@ -35,7 +35,7 @@ function udp_packet_handle(packet, length)
         memcpy(sock.[UDP_SOCK_BUF], packet + UDP_HEADER, sock.[UDP_SOCK_BUF_LEN]);
         sock.[UDP_SOCK_BUF] = NULL;
         sock.[UDP_SOCK_SRC] = swap32(packet + IPV4_SRC - IPV4_HEADER);
-        sock.[UDP_SOCK_TASK].[TASK_WAIT] = FALSE;
+        sock.[UDP_SOCK_TASK]{TASK_WAIT} = FALSE;
     }
 }
 

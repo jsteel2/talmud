@@ -31,7 +31,6 @@ function soundhw_test()
 }
 
 global soundhw_running;
-# kills itself on KVM? worked fine last commit with the 8bit audio
 function soundhw_start()
 {
     if (soundhw_running) return;
@@ -88,8 +87,13 @@ function soundhw_stop()
 sb16_irq_handler:
     PUSH EAX
     PUSH EDX
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
     MOV EAX, [placeholder]
-    MOV DWORD [EAX + TASK_WAIT], FALSE
+    MOV BYTE [EAX + TASK_WAIT], FALSE
     MOV DWORD [placeholder2], TRUE
     MOV DX, 0x22F
     IN AL, DX

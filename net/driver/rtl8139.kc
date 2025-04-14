@@ -122,6 +122,11 @@ function nic_rx_packet(data, size)
 rtl_irq_handler:
     PUSH EAX
     PUSH EDX
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
     MOV DX, [rtl_io]
     ADD DX, 0x3E
     IN AX, DX
@@ -130,7 +135,7 @@ rtl_irq_handler:
     OUT DX, AX
     JZ .e
     MOV EAX, [net_task]
-    MOV DWORD [EAX + TASK_WAIT], FALSE
+    MOV BYTE [EAX + TASK_WAIT], FALSE
 .e:
     MOV AX, 0x0E
     OUT DX, AX

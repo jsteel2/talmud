@@ -39,7 +39,7 @@ function eden()
     ADAM{TASK_CWD + FILE_DRIVE} = r;
     ADAM{TASK_CWD + FILE_PARTITION} = r >> 8;
 
-    ADAM.[TASK_WAIT] = FALSE;
+    ADAM{TASK_WAIT} = FALSE;
     ADAM.[TASK_NEXT] = ADAM;
     ADAM.[TASK_PREV] = ADAM;
     ADAM.[TASK_PRINT] = NULL;

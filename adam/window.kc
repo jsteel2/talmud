@@ -26,7 +26,11 @@ function create_window(x, y, w, h)
     win{WINDOW_FLAGS} = WINDOW_FPRINT_SCROLL;
     win.[WINDOW_BUFFER] = malloc(w *! (h + TITLEBAR_SIZE) *! 4);
     win.[WINDOW_BELOW] = windows;
-    if (windows) windows.[WINDOW_ABOVE] = win;
+    if (windows)
+    {
+        windows.[WINDOW_TASK]{TASK_WAIT} = FALSE;
+        windows.[WINDOW_ABOVE] = win;
+    }
     windows = task.[TASK_WINDOW] = win;
     window_draw_titlebar(win);
     window_fill_rect(win, 0, 0, win.[WINDOW_W], win.[WINDOW_H], 0xFFFFFF);
@@ -60,8 +64,8 @@ function focus_window(w)
     w.[WINDOW_ABOVE] = NULL;
     w.[WINDOW_BELOW] = windows;
     windows.[WINDOW_ABOVE] = w;
-    windows.[WINDOW_TASK].[TASK_WAIT] = FALSE;
-    w.[WINDOW_TASK].[TASK_WAIT] = FALSE;
+    windows.[WINDOW_TASK]{TASK_WAIT} = FALSE;
+    w.[WINDOW_TASK]{TASK_WAIT} = FALSE;
     windows = w;
     framebuffer_refresh(w.[WINDOW_X], w.[WINDOW_Y], w.[WINDOW_W], w.[WINDOW_H] + TITLEBAR_SIZE, w);
     release_mouse();

@@ -268,7 +268,7 @@ function tcp_packet_handle(packet, length)
         x{TCP_SOCK_STATE} = TCP_STATE_SYN_RECEIVED;
         sock.[TCP_SOCKL + sock.[TCP_SOCKL_BACKLOG_LEN] *! 4] = x;
         sock.[TCP_SOCKL_BACKLOG_LEN] += 1;
-        sock.[TCP_SOCK_TASK].[TASK_WAIT] = FALSE;
+        sock.[TCP_SOCK_TASK]{TASK_WAIT} = FALSE;
         return;
     }
 
@@ -287,7 +287,7 @@ function tcp_packet_handle(packet, length)
         {
             sock.[TCP_SOCK_SEQ] = sock.[TCP_SOCK_SEQ_UNA]; # ???
             sock{TCP_SOCK_STATE} = TCP_STATE_ESTABLISHED;
-            sock.[TCP_SOCK_TASK].[TASK_WAIT] = FALSE;
+            sock.[TCP_SOCK_TASK]{TASK_WAIT} = FALSE;
         }
     }
 
@@ -302,7 +302,7 @@ function tcp_packet_handle(packet, length)
             if (length >! x) memcpy(&sock{TCP_SOCK_RECV}, &packet{TCP_HEADER + x}, length - x);
             sock.[TCP_SOCK_RECV_WRITE] = (sock.[TCP_SOCK_RECV_WRITE] + length) %! TCP_SOCK_RECV_SIZE;
             sock.[TCP_SOCK_ACK] += length;
-            sock.[TCP_SOCK_TASK].[TASK_WAIT] = FALSE;
+            sock.[TCP_SOCK_TASK]{TASK_WAIT} = FALSE;
         }
         ack = TRUE;
     }
