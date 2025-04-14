@@ -1,0 +1,19 @@
+function sound_main()
+(f{FILE}, flip)
+{
+    open("/adam/music.wav", f, 0);
+    seek(f, 44);
+    read(f, 0xFFFC, DMA_BUF);
+    soundhw_start();
+    wait();
+    flip = FALSE;
+    while (TRUE)
+    {
+        while (read(f, 0x7FFE, flip ? DMA_BUF + 0x7FFE : DMA_BUF))
+        {
+            wait();
+            flip = !flip;
+        }
+        seek(f, 44);
+    }
+}

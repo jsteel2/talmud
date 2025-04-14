@@ -9,27 +9,6 @@ function soundhw_init()
     pic_clear_mask(0x05);
 }
 
-global placeholder, placeholder2;
-function soundhw_test()
-(f{FILE}, flip)
-{
-    open("/adam/music.wav", f, 0);
-    seek(f, 44);
-    placeholder = task;
-    read(f, 0xFFFC, DMA_BUF);
-    soundhw_start();
-    while (!placeholder2) wait();
-    placeholder2 = FALSE;
-    flip = FALSE;
-    while (read(f, 0x7FFE, flip ? DMA_BUF + 0x7FFE : DMA_BUF))
-    {
-        while (!placeholder2) wait();
-        placeholder2 = FALSE;
-        flip = !flip;
-    }
-    soundhw_stop();
-}
-
 global soundhw_running;
 function soundhw_start()
 {
@@ -92,9 +71,8 @@ sb16_irq_handler:
     MOV ES, AX
     MOV FS, AX
     MOV GS, AX
-    MOV EAX, [placeholder]
+    MOV EAX, [sound_task]
     MOV BYTE [EAX + TASK_WAIT], FALSE
-    MOV DWORD [placeholder2], TRUE
     MOV DX, 0x22F
     IN AL, DX
     MOV AL, 0x20
