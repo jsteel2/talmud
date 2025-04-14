@@ -22,6 +22,9 @@ function sound_init()
     else return print("No supported sound card found.\n");
     if (compiler_ident_get(&ADAM{TASK_COMPILER}, "soundhw_init", &soundhw_init))
     {
+        sound_task = task;
         soundhw_init();
+        compiler_ident_get(&ADAM{TASK_COMPILER}, "soundhw_test", &soundhw_init);
+        while (TRUE) soundhw_init();
     }
 }

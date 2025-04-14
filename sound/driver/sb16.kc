@@ -11,45 +11,49 @@ function soundhw_init()
 
 global placeholder, placeholder2;
 function soundhw_test()
-(f{FILE})
+(f{FILE}, flip)
 {
     open("/adam/music.wav", f, 0);
     seek(f, 44);
     placeholder = task;
-    read(f, 0xFFFF, DMA_BUF);
+    read(f, 0xFFFC, DMA_BUF);
     soundhw_start();
     while (!placeholder2) wait();
     placeholder2 = FALSE;
-    while (read(f, 0xFFFF, DMA_BUF))
+    flip = FALSE;
+    while (read(f, 0x7FFE, flip ? DMA_BUF + 0x7FFE : DMA_BUF))
     {
         while (!placeholder2) wait();
         placeholder2 = FALSE;
+        flip = !flip;
     }
     soundhw_stop();
 }
 
 global soundhw_running;
+# kills itself on KVM? worked fine last commit with the 8bit audio
 function soundhw_start()
 {
     if (soundhw_running) return;
     soundhw_running = TRUE;
     MOV AL, 5
-    OUT 0x0A, AL
+    OUT 0xD4, AL
     MOV AL, 0
-    OUT 0x0C, AL
+    OUT 0xD8, AL
     MOV AL, 0x59
-    OUT 0x0B, AL
-    MOV AL, DMA_BUF >> 16
-    OUT 0x83, AL
-    MOV AL, DMA_BUF & 0xFF
-    OUT 0x02, AL
-    MOV AL, (DMA_BUF >> 8) & 0xFF
-    OUT 0x02, AL
+    OUT 0xD6, AL
+    MOV AL, (DMA_BUF >> 16) & 0xFE
+    OUT 0x8B, AL
+    MOV AL, (DMA_BUF >> 1) & 0xFF
+    OUT 0xC4, AL
+    MOV AL, (DMA_BUF >> 9) & 0xFF
+    OUT 0xC4, AL
     MOV AL, 0xFF
-    OUT 0x03, AL
-    OUT 0x03, AL
+    OUT 0xC6, AL
+    MOV AL, 0x7F
+    OUT 0xC6, AL
     MOV AL, 1
-    OUT 0x0A, AL
+    OUT 0xD4, AL
 
     MOV DX, 0x22C
     MOV AL, 0x41
@@ -61,14 +65,14 @@ function soundhw_start()
 
     MOV AL, 0xD1
     OUT DX, AL
-    MOV AL, 0xC6
+    MOV AL, 0xB6
     OUT DX, AL
-    MOV AL, 0
+    MOV AL, 0x30
     OUT DX, AL
 
-    MOV AL, 0xFE
-    OUT DX, AL
     MOV AL, 0xFF
+    OUT DX, AL
+    MOV AL, 0x3F
     OUT DX, AL
 }
 
@@ -76,7 +80,7 @@ function soundhw_stop()
 {
     if (!soundhw_running) return;
     MOV DX, 0x22C
-    MOV AL, 0xD0
+    MOV AL, 0xD5
     OUT DX, AL
     soundhw_running = FALSE;
 }
@@ -87,7 +91,7 @@ sb16_irq_handler:
     MOV EAX, [placeholder]
     MOV DWORD [EAX + TASK_WAIT], FALSE
     MOV DWORD [placeholder2], TRUE
-    MOV DX, 0x22E
+    MOV DX, 0x22F
     IN AL, DX
     MOV AL, 0x20
     OUT 0x20, AL

@@ -17,9 +17,12 @@ function switch_task(t)
     POP EBP
 }
 
+global sound_task;
+
 function next_task()
 (f, c)
 {
+    if (sound_task and !sound_task.[TASK_WAIT]) return switch_task(sound_task);
     f = c = task.[TASK_NEXT];
     while (c.[TASK_WAIT])
     {
@@ -30,6 +33,7 @@ function next_task()
         }
         c = c.[TASK_NEXT];
         if (c == f) HLT
+        if (sound_task and !sound_task.[TASK_WAIT]) return switch_task(sound_task);
     }
     switch_task(c);
 }

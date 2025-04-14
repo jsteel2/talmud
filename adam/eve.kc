@@ -232,6 +232,7 @@ Welcome to TalmudOS (Formerly ChucksOS)
             orm = c{0} & 2;
             omm = c{0} & 4;
         }
+        next_task();
     }
 }
 
