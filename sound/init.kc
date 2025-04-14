@@ -19,7 +19,7 @@ function sound_init()
 (soundhw_init, sound_main)
 {
     if (sb16_detect()) compile(&ADAM{TASK_COMPILER}, "sound_init", "include \"/sound/driver/sb16.kc\"");
-    else return print("No supported sound card found.\n");
+    else print("No supported sound card found.\n", compile(&ADAM{TASK_COMPILER}, "sound_init", "include \"/sound/driver/dummy.kc\""));
     if (!compile(&ADAM{TASK_COMPILER}, "sound_init", "
 include \"sound/task.kc\"
 ")) return;

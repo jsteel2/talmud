@@ -1,19 +1,73 @@
-function sound_main()
-(f{FILE}, flip)
+struct AUDIO_STREAM = [AUDIO_STREAM_NEXT], [AUDIO_STREAM_PREV], [AUDIO_STREAM_READ_FN], [AUDIO_STREAM_LOOP_FN], [AUDIO_STREAM_LOOPS];
+global audio_streams;
+
+function play_wav_file_read(a, b, n)
 {
-    open("/adam/music.wav", f, 0);
-    seek(f, 44);
-    read(f, 0xFFFC, DMA_BUF);
-    soundhw_start();
-    wait();
-    flip = FALSE;
+    return read(&a{AUDIO_STREAM}, n, b);
+}
+
+function play_wav_file_loop(a)
+{
+    return seek(&a{AUDIO_STREAM}, 44);
+}
+
+function play_wav_file(path, loops)
+(a)
+{
+    a = malloc(AUDIO_STREAM + FILE);
+    if (!open(path, &a{AUDIO_STREAM}, 0) or !seek(&a{AUDIO_STREAM}, 44))
+    {
+        free(a);
+        return NULL;
+    }
+    a.[AUDIO_STREAM_READ_FN] = play_wav_file_read;
+    a.[AUDIO_STREAM_LOOP_FN] = play_wav_file_loop;
+    a.[AUDIO_STREAM_LOOPS] = loops;
+    audio_stream_add(a);
+    return a;
+}
+
+function audio_stream_add(a)
+{
+    a.[AUDIO_STREAM_NEXT] = audio_streams;
+    a.[AUDIO_STREAM_PREV] = NULL;
+    if (!audio_streams) sound_task{TASK_WAIT} = FALSE;
+    audio_streams = a;
+}
+
+function audio_stream_remove(a)
+{
+    if (a.[AUDIO_STREAM_NEXT]) a.[AUDIO_STREAM_NEXT].[AUDIO_STREAM_PREV] = a.[AUDIO_STREAM_PREV];
+    if (a.[AUDIO_STREAM_PREV]) a.[AUDIO_STREAM_PREV].[AUDIO_STREAM_NEXT] = a.[AUDIO_STREAM_NEXT];
+    if (a == audio_streams) audio_streams = NULL;
+    free(a);
+}
+
+# todo implement
+function audio_streams_read(n, flip)
+{
+    if (audio_streams) audio_streams.[AUDIO_STREAM_READ_FN](audio_streams, flip ? DMA_BUF + 0x7FFE : DMA_BUF, 0x7FFE);
+}
+
+# todo add removing all audio streams owned by task on task_clean
+function sound_main()
+(flip)
+{
+    play_wav_file("/adam/music.wav", 1);
     while (TRUE)
     {
-        while (read(f, 0x7FFE, flip ? DMA_BUF + 0x7FFE : DMA_BUF))
+        while (!audio_streams) wait();
+        audio_streams_read(0xFFFC, FALSE);
+        soundhw_start();
+        wait();
+        flip = FALSE;
+        while (audio_streams)
         {
+            audio_streams_read(0x7FFE, flip);
             wait();
             flip = !flip;
         }
-        seek(f, 44);
+        wait();
+        soundhw_stop();
     }
 }

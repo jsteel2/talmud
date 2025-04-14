@@ -64,9 +64,24 @@ function vnc_window(p)
     }
 }
 
-function vnc(ip, port)
-(s, buf{256}, name{STRING}, t, p{VNC_TPASS}, x, i)
+const VNC_AUDIO_BUFSIZE = 256 *! 1024;
+struct VNC_AUDIO_STREAM = AUDIO_STREAM{VNC_AUDIO_STREAM_AS}, [VNC_AUDIO_STREAM_READ], [VNC_AUDIO_STREAM_WRITE], VNC_AUDIO_BUFSIZE{VNC_AUDIO_STREAM_BUF};
+
+function vnc_audio_read(a, b, n)
+(x)
 {
+    n = minu(n, (a.[VNC_AUDIO_STREAM_WRITE] + VNC_AUDIO_BUFSIZE - a.[VNC_AUDIO_STREAM_READ]) %! VNC_AUDIO_BUFSIZE);
+    x = minu(VNC_AUDIO_BUFSIZE - a.[VNC_AUDIO_STREAM_READ], n);
+    memcpy(b, &a{VNC_AUDIO_STREAM_BUF + a.[VNC_AUDIO_STREAM_READ]}, x);
+    if (n >! x) memcpy(&b{x}, &a{VNC_AUDIO_STREAM_BUF + a.[VNC_AUDIO_STREAM_READ]}, n - x);
+    a.[VNC_AUDIO_STREAM_READ] = (a.[VNC_AUDIO_STREAM_READ] + n) %! VNC_AUDIO_BUFSIZE;
+    return n;
+}
+
+function vnc(ip, port)
+(s, buf{256}, name{STRING}, t, p{VNC_TPASS}, x, i, as)
+{
+    as = NULL;
     t = NULL;
     name.[STRINGPTR] = NULL;
     s = tcp_connect(ip, port);
@@ -125,9 +140,10 @@ function vnc(ip, port)
     buf{16} = 0;
     if (!tcp_send(s, buf, 20)) JMP .e
     buf{0} = 2;
-    buf.<2> = 0x0100;
+    buf.<2> = 0x0200;
     buf.[4] = 0;
-    if (!tcp_send(s, buf, 8)) JMP .e
+    buf.[8] = swap32(-259);
+    if (!tcp_send(s, buf, 12)) JMP .e
     p.[VNC_TPASS_SOCK] = s;
     switch_task(t = new_task(name, vnc_window, p));
     buf{1} = FALSE;
@@ -147,21 +163,45 @@ function vnc(ip, port)
             while (x)
             {
                 if (!tcp_recvall(s, buf, 12)) JMP .e
-                if (buf.[8] != 0)
+                if (buf.[8] == 0)
                 {
-                    format(print, "Unsupported encoding %d\n", buf.[8]);
-                    JMP .e
+                    buf.<0> = swap16(buf.<0>);
+                    buf.<2> = swap16(buf.<2>);
+                    buf.<4> = swap16(buf.<4>);
+                    buf.<6> = swap16(buf.<6>);
+                    i = 0;
+                    while (i <! buf.<6>)
+                    {
+                        if (!tcp_recvall(s, &t.[TASK_WINDOW].[WINDOW_BUFFER]{buf.<0> *! 4 + (buf.<2> + i + TITLEBAR_SIZE) *! p.<VNC_TPASS_W> *! 4}, buf.<4> *! 4)) JMP .e
+                        framebuffer_refresh(t.[TASK_WINDOW].[WINDOW_X] + buf.<0>, t.[TASK_WINDOW].[WINDOW_Y] + buf.<2> + i + TITLEBAR_SIZE, buf.<4>, 1, t.[TASK_WINDOW]);
+                        i += 1;
+                    }
                 }
-                buf.<0> = swap16(buf.<0>);
-                buf.<2> = swap16(buf.<2>);
-                buf.<4> = swap16(buf.<4>);
-                buf.<6> = swap16(buf.<6>);
-                i = 0;
-                while (i <! buf.<6>)
+                else if (buf.[8] == swap32(-259))
                 {
-                    if (!tcp_recvall(s, &t.[TASK_WINDOW].[WINDOW_BUFFER]{buf.<0> *! 4 + (buf.<2> + i + TITLEBAR_SIZE) *! p.<VNC_TPASS_W> *! 4}, buf.<4> *! 4)) JMP .e
-                    framebuffer_refresh(t.[TASK_WINDOW].[WINDOW_X] + buf.<0>, t.[TASK_WINDOW].[WINDOW_Y] + buf.<2> + i + TITLEBAR_SIZE, buf.<4>, 1, t.[TASK_WINDOW]);
-                    i += 1;
+                    buf{0} = 255;
+                    buf{1} = 1;
+                    buf.<2> = 0x0200;
+                    buf{4} = 3;
+                    buf{5} = 2;
+                    buf.[6] = swap32(44100);
+                    if (!tcp_send(s, buf, 10)) JMP .e
+                    buf{0} = 255;
+                    buf{1} = 1;
+                    buf.<2> = 0;
+                    if (!tcp_send(s, buf, 4)) JMP .e
+                    as = malloc(VNC_AUDIO_STREAM);
+                    as.[VNC_AUDIO_STREAM_READ] = 0;
+                    as.[VNC_AUDIO_STREAM_WRITE] = 0;
+                    as.[AUDIO_STREAM_READ_FN] = vnc_audio_read;
+                    as.[AUDIO_STREAM_LOOP_FN] = NULL;
+                    as.[AUDIO_STREAM_LOOPS] = -1;
+                    audio_stream_add(as);
+                }
+                else
+                {
+                    format(print, "Unsupported encoding %d\n", swap32(buf.[8]));
+                    JMP .e
                 }
                 x -= 1;
             }
@@ -176,6 +216,39 @@ function vnc(ip, port)
             i = swap32(buf.[3]);
             while (i) i -= tcp_recv(s, buf, minu(256, i));
         }
+        else if (buf{0} == 255)
+        {
+            if (!tcp_recvall(s, buf, 1)) JMP .e
+            if (buf{0} == 1)
+            {
+                if (!tcp_recvall(s, buf, 2)) JMP .e
+                if (buf.<0> == 0)
+                {
+                    # ignore
+                }
+                else if (buf.<0> == 0x0100)
+                {
+                    # ignore
+                }
+                else if (buf.<0> == 0x0200)
+                {
+                    if (!tcp_recvall(s, buf, 4)) JMP .e
+                    i = minu(buf.[0] = swap32(buf.[0]), (as.[VNC_AUDIO_STREAM_READ] + VNC_AUDIO_BUFSIZE - as.[VNC_AUDIO_STREAM_WRITE] - 1) %! VNC_AUDIO_BUFSIZE);
+                    x = minu(VNC_AUDIO_BUFSIZE - as.[VNC_AUDIO_STREAM_WRITE], i);
+                    # TODO instead of tcp_recvall make a vnc_audio_write function that updates VNC_AUDIO_STREAM_WRITE while reading
+                    if (!tcp_recvall(s, &as{VNC_AUDIO_STREAM_BUF + as.[VNC_AUDIO_STREAM_WRITE]}, x)) JMP .e
+                    if (i >! x and !tcp_recvall(s, &as{VNC_AUDIO_STREAM_BUF}, i - x)) JMP .e
+                    as.[VNC_AUDIO_STREAM_WRITE] = (as.[VNC_AUDIO_STREAM_WRITE] + i) %! VNC_AUDIO_BUFSIZE;
+                    i = buf.[0] - i;
+                    while (i) i -= tcp_recv(s, buf, minu(256, i));
+                }
+            }
+            else
+            {
+                format(print, "Unsupported QEMU submessage type %d\n", buf{0});
+                JMP .e
+            }
+        }
         else
         {
             format(print, "Unsupported message type %d\n", buf{0});
@@ -187,4 +260,5 @@ function vnc(ip, port)
     if (t) kill(t);
     tcp_close(s);
     free(name.[STRINGPTR]);
+    if (as) audio_stream_remove(as);
 }

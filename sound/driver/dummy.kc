@@ -1,0 +1,4 @@
+soundhw_start:
+    RET
+soundhw_stop:
+    RET

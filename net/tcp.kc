@@ -184,6 +184,7 @@ function tcp_close(sock)
 function tcp_recv(sock, buf, len)
 (x)
 {
+    if (!len) return 0;
     while (sock.[TCP_SOCK_RECV_READ] == sock.[TCP_SOCK_RECV_WRITE] and sock{TCP_SOCK_STATE} != TCP_STATE_CLOSED)
     {
         # todo add timeout
