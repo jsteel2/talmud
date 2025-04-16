@@ -67,7 +67,7 @@ function dhcp_send_request(xid, ip, siaddr)
     return udp_packet_tx(p, DHCP_REQUEST);
 }
 
-function dhcp_parse_offer(m, len, xid, yiaddr, dns, router, submask)
+function dhcp_parse_offer(m, len, xid, yiaddr, dns, router, submask, siaddr)
 (type)
 {
     if (len <! DHCP_HEADER) return FALSE;
@@ -86,6 +86,7 @@ function dhcp_parse_offer(m, len, xid, yiaddr, dns, router, submask)
         else if (m{0} == DHCP_OPTION_DNS and m{1} == 4) *dns = swap32(m.[2]);
         else if (m{0} == DHCP_OPTION_ROUTER and m{1} == 4) *router = swap32(m.[2]);
         else if (m{0} == DHCP_OPTION_SUBNETMASK and m{1} == 4) *submask = swap32(m.[2]);
+        else if (m{0} == DHCP_OPTION_SERVER_ID and m{1} == 4) *siaddr = swap32(m.[2]);
         len -= 2 + m{1};
         m += 2 + m{1};
     }
@@ -109,15 +110,15 @@ function dhcp_parse_ack(m, len, xid)
 }
 
 function dhcp_configure()
-(s, xid, buf{576}, len, yiaddr, dns, router, submask)
+(s, xid, buf{576}, len, yiaddr, siaddr, dns, router, submask)
 {
     # todo add retries and timeout and handle multiple offers
     s = udp_bind(68);
     xid = rand();
     if (!dhcp_send_discover(xid)) return print("DHCP Send Discover failed\n", udp_unbind(s));
     len = udp_recv(s, buf, 576);
-    if (!dhcp_parse_offer(buf, len, xid, &yiaddr, &dns, &router, &submask)) return print("DHCP Offer failed\n");
-    if (!dhcp_send_request(xid, yiaddr, s.[UDP_SOCK_SRC])) return print("DHCP Send Request failed\n", udp_unbind(s));
+    if (!dhcp_parse_offer(buf, len, xid, &yiaddr, &dns, &router, &submask, &siaddr)) return print("DHCP Offer failed\n");
+    if (!dhcp_send_request(xid, yiaddr, siaddr)) return print("DHCP Send Request failed\n", udp_unbind(s));
     len = udp_recv(s, buf, 576);
     if (!dhcp_parse_ack(buf, len, xid)) return print("DHCP ACK failed\n");
     ipv4_addr = yiaddr;
