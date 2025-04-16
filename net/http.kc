@@ -1,0 +1,28 @@
+function http_fetch(ip, port, path, destpath)
+(s, buf{4096}, str{STRING}, f{FILE}, l, x)
+{
+    if (!open(destpath, f, FILE_FCREATE)) return print("Could not open file\n");
+    s = tcp_connect(ip, port);
+    if (!s) return print("Could not connect\n");
+    if (!tcp_sends(s, "GET ")) JMP .e
+    if (!tcp_sends(s, path)) JMP .e
+    if (!tcp_sends(s, " HTTP/1.0\r\n\r\n")) JMP .e
+    str.[STRINGPTR] = buf;
+    if (!(str.[STRINGLEN] = tcp_recvuntil(s, buf, 4096, '\n'))) JMP .e
+    if (!strcmp(str, "HTTP/1.0 200 OK\r\n") and !strcmp(str, "HTTP/1.1 200 OK\r\n"))
+    {
+        print(str);
+        JMP .e
+    }
+    while ((l = tcp_recvuntil(s, buf, 4096, '\n')) >! 2);
+    if (!l) JMP .e
+    l = 0;
+    while ((x = tcp_recv(s, buf, 4096)))
+    {
+        l += x;
+        write(f, x, buf);
+    }
+    resize(f, l);
+.e:
+    tcp_close(s);
+}

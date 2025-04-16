@@ -17,6 +17,7 @@ include \"net/dns.kc\"
 include \"net/tcp.kc\"
 include \"net/telnet.kc\"
 include \"net/vnc.kc\"
+include \"net/http.kc\"
 ")) return;
     if (compiler_ident_get(&ADAM{TASK_COMPILER}, "nic_init", &nic_init) and compiler_ident_get(&ADAM{TASK_COMPILER}, "net_main", &net_main))
     {
