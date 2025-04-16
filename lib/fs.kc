@@ -134,12 +134,31 @@ function name2f83(s, o83)
 (x)
 {
     memset(o83, ' ', 11);
-    if (s.[STRINGPTR]{0} == '.') return uppersl(o83, s.[STRINGPTR], s.[STRINGLEN]);
+    if (s.[STRINGPTR]{0} == '.') return uppersl(o83, s.[STRINGPTR], minu(s.[STRINGLEN], 8));
 
     x = strchr(s, '.');
-    uppersl(o83, s.[STRINGPTR], x);
+    uppersl(o83, s.[STRINGPTR], minu(x, 8));
     if (x == s.[STRINGLEN]) return;
-    uppersl(o83 + 8, s.[STRINGPTR] + x + 1, s.[STRINGLEN] - x - 1);
+    uppersl(o83 + 8, s.[STRINGPTR] + x + 1, minu(s.[STRINGLEN] - x - 1, 3));
+}
+
+function f83tos(f83, s)
+(p, l)
+{
+    p = s.[STRINGPTR];
+    s.[STRINGLEN] = 11;
+    s.[STRINGPTR] = f83;
+    s.[STRINGLEN] = minu(8, strchr(s, ' '));
+    memcpy(p, f83, s.[STRINGLEN]);
+    l = s.[STRINGLEN] + 1;
+    s.[STRINGLEN] = 3;
+    s.[STRINGPTR] += 8;
+    s.[STRINGLEN] = minu(3, strchr(s, ' '));
+    if (s.[STRINGLEN]) p{l - 1} = '.';
+    else l -= 1;
+    memcpy(p + l, f83 + 8, s.[STRINGLEN]);
+    s.[STRINGLEN] += l;
+    s.[STRINGPTR] = p;
 }
 
 function fnamecmp(s, d83)

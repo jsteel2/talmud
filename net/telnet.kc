@@ -65,7 +65,7 @@ function telnetd()
 {
     s = tcp_listen(23, 3);
     if (!s) print("Could not listen\n");
-    format(print, "Listening on port 23\n");
+    print("Listening on port 23\n");
     while ((n = tcp_accept(s)))
     {
         n.[TCP_SOCK_TASK] = n.[MEM_HEADER_TASK - MEM_HEADER] = new_task("Telnet", telnetd_task, n);

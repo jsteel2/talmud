@@ -1,3 +1,57 @@
+function httpd_task(s)
+(buf{4096}, str{STRING}, f{FILE}, d{DIR_ENTRY})
+{
+    if (!(str.[STRINGLEN] = tcp_recvuntil(s, buf, 4096, '\n'))) JMP .e
+    if (str.[STRINGLEN] <! 14 or buf.[0] != ' TEG')
+    {
+        tcp_sends(s, "HTTP/1.0 400 Bad Request\r\n\r\n");
+        JMP .e
+    }
+    str.[STRINGLEN] -= 4;
+    str.[STRINGPTR] = buf + 4;
+    str.[STRINGLEN] = strchr(str, ' ');
+    if (!open(str, f, 0))
+    {
+        tcp_sends(s, "HTTP/1.0 404 Not Found\r\n\r\n");
+        JMP .e
+    }
+    tcp_sends(s, "HTTP/1.0 200 OK\r\n\r\n");
+    if (f{FILE_FLAGS} & FILE_FDIRECTORY)
+    {
+        if (!tcp_sends(s, "<body><html><ul>")) JMP .e
+        while (dir_next(f, d))
+        {
+            f83tos(d, str);
+            if (!tcp_sends(s, "<li><a href=\"")) JMP .e
+            if (!tcp_sends(s, str)) JMP .e
+            if (d{DIR_ENTRY_ATTR} & FILE_FDIRECTORY and !tcp_sends(s, "/")) JMP .e
+            if (!tcp_sends(s, "\">")) JMP .e
+            if (!tcp_sends(s, str)) JMP .e
+            if (!tcp_sends(s, "</a></li>")) JMP .e
+        }
+        if (!tcp_sends(s, "</ul></body></html>")) JMP .e
+    }
+    else
+    {
+        while (tcp_send(s, buf, read(f, 4096, buf)));
+    }
+.e:
+    tcp_close(s);
+}
+
+function httpd()
+(s, n)
+{
+    s = tcp_listen(80, 3);
+    if (!s) print("Could not listen\n");
+    print("Listening on port 80\n");
+    while ((n = tcp_accept(s)))
+    {
+        n.[TCP_SOCK_TASK] = n.[MEM_HEADER_TASK - MEM_HEADER] = new_task("HTTP", httpd_task, n);
+    }
+    tcp_close(s);
+}
+
 function http_fetch(ip, port, path, destpath)
 (s, buf{4096}, str{STRING}, f{FILE}, l, x)
 {
