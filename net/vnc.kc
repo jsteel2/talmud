@@ -64,7 +64,7 @@ function vnc_window(p)
     }
 }
 
-const VNC_AUDIO_BUFSIZE = 256 *! 1024;
+const VNC_AUDIO_BUFSIZE = 256 *! 1024 + 1;
 struct VNC_AUDIO_STREAM = AUDIO_STREAM{VNC_AUDIO_STREAM_AS}, [VNC_AUDIO_STREAM_READ], [VNC_AUDIO_STREAM_WRITE], VNC_AUDIO_BUFSIZE{VNC_AUDIO_STREAM_BUF};
 
 function vnc_audio_read(a, b, n)
@@ -73,7 +73,7 @@ function vnc_audio_read(a, b, n)
     n = minu(n, (a.[VNC_AUDIO_STREAM_WRITE] + VNC_AUDIO_BUFSIZE - a.[VNC_AUDIO_STREAM_READ]) %! VNC_AUDIO_BUFSIZE);
     x = minu(VNC_AUDIO_BUFSIZE - a.[VNC_AUDIO_STREAM_READ], n);
     memcpy(b, &a{VNC_AUDIO_STREAM_BUF + a.[VNC_AUDIO_STREAM_READ]}, x);
-    if (n >! x) memcpy(&b{x}, &a{VNC_AUDIO_STREAM_BUF + a.[VNC_AUDIO_STREAM_READ]}, n - x);
+    if (n >! x) memcpy(&b{x}, &a{VNC_AUDIO_STREAM_BUF}, n - x);
     a.[VNC_AUDIO_STREAM_READ] = (a.[VNC_AUDIO_STREAM_READ] + n) %! VNC_AUDIO_BUFSIZE;
     return n;
 }
@@ -235,7 +235,6 @@ function vnc(ip, port)
                     if (!tcp_recvall(s, buf, 4)) JMP .e
                     i = minu(buf.[0] = swap32(buf.[0]), (as.[VNC_AUDIO_STREAM_READ] + VNC_AUDIO_BUFSIZE - as.[VNC_AUDIO_STREAM_WRITE] - 1) %! VNC_AUDIO_BUFSIZE);
                     x = minu(VNC_AUDIO_BUFSIZE - as.[VNC_AUDIO_STREAM_WRITE], i);
-                    # TODO instead of tcp_recvall make a vnc_audio_write function that updates VNC_AUDIO_STREAM_WRITE while reading
                     if (!tcp_recvall(s, &as{VNC_AUDIO_STREAM_BUF + as.[VNC_AUDIO_STREAM_WRITE]}, x)) JMP .e
                     if (i >! x and !tcp_recvall(s, &as{VNC_AUDIO_STREAM_BUF}, i - x)) JMP .e
                     as.[VNC_AUDIO_STREAM_WRITE] = (as.[VNC_AUDIO_STREAM_WRITE] + i) %! VNC_AUDIO_BUFSIZE;

@@ -43,21 +43,49 @@ function audio_stream_remove(a)
     free(a);
 }
 
-# todo implement
 function audio_streams_read(n, flip)
+(c, p, l, i, buf{0x7FFE})
 {
-    if (audio_streams) audio_streams.[AUDIO_STREAM_READ_FN](audio_streams, flip ? DMA_BUF + 0x7FFE : DMA_BUF, 0x7FFE);
+    p = flip ? DMA_BUF + 0x7FFE : DMA_BUF;
+    memset(p, 0, 0x7FFE);
+    c = audio_streams;
+    while (c)
+    {
+        l = c.[AUDIO_STREAM_READ_FN](c, buf, 0x7FFE);
+        while (l != 0x7FFE and c.[AUDIO_STREAM_LOOP_FN] and c.[AUDIO_STREAM_LOOPS])
+        {
+            c.[AUDIO_STREAM_LOOPS] -= 1;
+            c.[AUDIO_STREAM_LOOP_FN](c);
+            l += c.[AUDIO_STREAM_READ_FN](c, buf + l, 0x7FFE - l);
+        }
+        if (l == 0 and !c.[AUDIO_STREAM_LOOPS])
+        {
+            l = c.[AUDIO_STREAM_NEXT];
+            audio_stream_remove(c);
+            c = l;
+            JMP .l
+        }
+        i = 0;
+        while (i <! l)
+        {
+            p.<i> += buf.<i>; # todo deal with overflow
+            i += 2;
+        }
+        c = c.[AUDIO_STREAM_NEXT];
+.l:
+    }
 }
 
 # todo add removing all audio streams owned by task on task_clean
 function sound_main()
 (flip)
 {
-    play_wav_file("/adam/music.wav", 1);
+    play_wav_file("/adam/music.wav", 0);
     while (TRUE)
     {
         while (!audio_streams) wait();
-        audio_streams_read(0xFFFC, FALSE);
+        audio_streams_read(0x7FFE, FALSE);
+        audio_streams_read(0x7FFE, TRUE);
         soundhw_start();
         wait();
         flip = FALSE;
