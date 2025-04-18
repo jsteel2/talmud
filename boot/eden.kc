@@ -43,6 +43,8 @@ function eden()
     ADAM.[TASK_NEXT] = ADAM;
     ADAM.[TASK_PREV] = ADAM;
     ADAM.[TASK_PRINT] = NULL;
+    ADAM.[TASK_RUNTIME] = 0;
+    ADAM.[TASK_RUNTIME_START] = 0;
     memcpy(&ADAM{TASK_NAME}, "Adam", STRING);
     task = ADAM;
     compiler = &ADAM{TASK_COMPILER};

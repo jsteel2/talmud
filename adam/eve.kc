@@ -325,6 +325,30 @@ function memrep()
     map_free(m);
 }
 
+function taskrep()
+(t, x, m{MAP}, r)
+{
+    map_init(m, 8, 4, 4, intcmp, hashint, NULL);
+    x = timer_ms;
+    t = task;
+    do
+    {
+        map_set(m, &t, &t.[TASK_RUNTIME]);
+        t = t.[TASK_NEXT];
+    } while (t != task);
+    sleep(1000);
+    do
+    {
+        if (map_get(m, &t, &r))
+        {
+            r = ((t.[TASK_RUNTIME] - r) *! 10000) /! (timer_ms - x);
+            format(print, "%s (%x) %d.%d%%\n", &t{TASK_NAME}, t, r /! 100, r %! 100);
+        }
+        t = t.[TASK_NEXT];
+    } while (t != task);
+    map_free(m);
+}
+
 function clear()
 {
     task.[TASK_WINDOW].[WINDOW_PRINT_X] = 0;

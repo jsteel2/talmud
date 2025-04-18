@@ -167,15 +167,22 @@ function format(fn, fmt)
 
             i += 1;
             c = fmt.[STRINGPTR]{i};
-            if (c == 's') fn(vararg(v));
-            else if (c == 'x') format_hex(fn, s, vararg(v));
-            else if (c == 'd') format_dec(fn, s, vararg(v));
-            else if (c == 'u') format_udec(fn, s, vararg(v));
-            else if (c == 'c') format_char(fn, s, vararg(v));
-            else if (c == 'i') format_ip(fn, s, vararg(v));
-
             start = i + 1;
-            v += 1;
+            if (c == '%')
+            {
+                fn("%");
+            }
+            else
+            {
+                if (c == 's') fn(vararg(v));
+                else if (c == 'x') format_hex(fn, s, vararg(v));
+                else if (c == 'd') format_dec(fn, s, vararg(v));
+                else if (c == 'u') format_udec(fn, s, vararg(v));
+                else if (c == 'c') format_char(fn, s, vararg(v));
+                else if (c == 'i') format_ip(fn, s, vararg(v));
+
+                v += 1;
+            }
         }
         i += 1;
     }

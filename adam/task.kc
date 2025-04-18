@@ -1,5 +1,6 @@
 function switch_task2(t)
 {
+    t.[TASK_RUNTIME_START] = timer_ms;
     MOV EAX, [t]
     MOV [task], EAX
     MOV ESP, [EAX + TASK_ESP]
@@ -8,6 +9,7 @@ function switch_task2(t)
 
 function switch_task(t)
 {
+    task.[TASK_RUNTIME] += timer_ms - task.[TASK_RUNTIME_START];
     MOV EAX, [task]
     PUSH EBP
     MOV [EAX + TASK_ESP], ESP
@@ -20,7 +22,7 @@ function switch_task(t)
 global sound_task;
 
 function next_task()
-(f, c)
+(f, c, x)
 {
     if (sound_task and !sound_task{TASK_WAIT}) return switch_task(sound_task);
     f = c = task.[TASK_NEXT];
@@ -32,7 +34,12 @@ function next_task()
             break;
         }
         c = c.[TASK_NEXT];
-        if (c == f) HLT
+        if (c == f)
+        {
+            x = timer_ms;
+            HLT
+            task.[TASK_RUNTIME] -= timer_ms - x;
+        }
         if (sound_task and !sound_task{TASK_WAIT}) return switch_task(sound_task);
     }
     switch_task(c);
@@ -64,6 +71,7 @@ function new_task(name, entry, arg)
     memcpy(&t{TASK_CWD}, &task{TASK_CWD}, FILE);
     t.[TASK_WINDOW] = NULL;
     t.[TASK_PRINT] = NULL;
+    t.[TASK_RUNTIME] = 0;
     t.[TASK_NEXT] = task.[TASK_NEXT];
     t.[TASK_PREV] = task;
     compiler_init(&t{TASK_COMPILER}, t);
