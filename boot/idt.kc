@@ -117,7 +117,7 @@ timer_handler:
     MOV ES, AX
     MOV FS, AX
     MOV GS, AX
-    ADD DWORD [timer_ms], 4
+    INC DWORD [timer_ms]
     MOV AL, PIC_EOI
     OUT PIC1, AL
     POP EAX
