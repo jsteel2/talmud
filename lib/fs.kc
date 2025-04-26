@@ -271,9 +271,9 @@ function read(file, n, buf)
 function seek(file, w)
 (e, i, x)
 {
-    x = file.[FILE_SEEK] /! 512;
+    x = file.[FILE_SEEK];
     e = w /! 512 /! file{FILE_SECTORS_PER_CLUSTER};
-    i = x /! file{FILE_SECTORS_PER_CLUSTER};
+    i = x /! 512 /! file{FILE_SECTORS_PER_CLUSTER};
     if (e <! i)
     {
         file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER];
@@ -286,7 +286,7 @@ function seek(file, w)
         i += 1;
     }
     file.[FILE_SEEK] = w;
-    if (w & 511 and x != w /! 512)
+    if (w & 511 and (x /! 512 != w /! 512 or x == 0))
     {
         if (!lba_read(file{FILE_DRIVE}, 1, cur_sector(file), file)) return FALSE;
     }

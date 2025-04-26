@@ -261,8 +261,34 @@ function load_elf(path, osymtab, ostrtab, osyms)
     return mem;
 }
 
+global doom_get_sound_buffer;
+function doom_sound_read(a, b, n)
+(d, i)
+{
+    d = doom_get_sound_buffer();
+    i = 0;
+    while (i <! minu(512, n /! 4))
+    {
+        b<i *! 8> = d<i>;
+        b<i *! 8 + 1> = d<i + 1>;
+        b<i *! 8 + 2> = d<i>;
+        b<i *! 8 + 3> = d<i + 1>;
+        b<i *! 8 + 4> = d<i>;
+        b<i *! 8 + 5> = d<i + 1>;
+        b<i *! 8 + 6> = d<i>;
+        b<i *! 8 + 7> = d<i + 1>;
+        i += 1;
+    }
+    return minu(n, 2048 *! 4);
+}
+
+function doom_sound_loop(a)
+{
+
+}
+
 function doom()
-(mem, symtab, strtab, syms, i, p, k, doom_init, doom_set_malloc, doom_set_print, doom_set_exit, doom_set_getenv, doom_set_file_io, doom_set_gettime, doom_update, doom_get_framebuffer, doom_key_down, doom_key_up, doom_button_down, doom_button_up, doom_mouse_move, doom_set_default_int, m{MOUSE_EVENT}, mx, my)
+(mem, symtab, strtab, syms, i, p, k, doom_init, doom_set_malloc, doom_set_print, doom_set_exit, doom_set_getenv, doom_set_file_io, doom_set_gettime, doom_update, doom_get_framebuffer, doom_key_down, doom_key_up, doom_button_down, doom_button_up, doom_mouse_move, doom_set_default_int, m{MOUSE_EVENT}, mx, my, sas)
 {
     create_window(100, 100, 320, 200);
     mem = load_elf("doom.elf", &symtab, &strtab, &syms);
@@ -287,6 +313,7 @@ function doom()
         else if (cstrcmp(p, "doom_button_up")) doom_button_up = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         else if (cstrcmp(p, "doom_mouse_move")) doom_mouse_move = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         else if (cstrcmp(p, "doom_set_default_int")) doom_set_default_int = mem + symtab.[i *! ELF_SYM + ST_VALUE];
+        else if (cstrcmp(p, "doom_get_sound_buffer")) doom_get_sound_buffer = mem + symtab.[i *! ELF_SYM + ST_VALUE];
         i += 1;
     }
 
@@ -313,6 +340,11 @@ function doom()
     doom_set_default_int("key_use\0".[STRINGPTR], 'e');
     doom_set_default_int("mouse_move\0".[STRINGPTR], 0);
     doom_init(0, 0, 0);
+    sas = malloc(AUDIO_STREAM);
+    sas.[AUDIO_STREAM_READ_FN] = doom_sound_read;
+    sas.[AUDIO_STREAM_LOOP_FN] = doom_sound_loop;
+    sas.[AUDIO_STREAM_LOOPS] = -1;
+    audio_stream_add(sas);
     task.[TASK_WINDOW]{WINDOW_FLAGS} = WINDOW_FGET_KEY_EVENTS | WINDOW_FGET_MOUSE_EVENTS;
     while (TRUE)
     {
@@ -426,6 +458,7 @@ function doom()
         sleep(maxs(0, 16 - (timer_ms - i)));
     }
 .end:
+    audio_stream_remove(sas);
     free(mem);
 }
 
