@@ -44,19 +44,19 @@ function audio_stream_remove(a)
 }
 
 function audio_streams_read(n, flip)
-(c, p, l, i, buf{0x7FFE})
+(c, p, l, i, buf{0x7FFC})
 {
-    p = flip ? DMA_BUF + 0x7FFE : DMA_BUF;
-    memset(p, 0, 0x7FFE);
+    p = flip ? DMA_BUF + 0x7FFC : DMA_BUF;
+    memset(p, 0, 0x7FFC);
     c = audio_streams;
     while (c)
     {
-        l = c.[AUDIO_STREAM_READ_FN](c, buf, 0x7FFE);
-        while (l != 0x7FFE and c.[AUDIO_STREAM_LOOP_FN] and c.[AUDIO_STREAM_LOOPS])
+        l = c.[AUDIO_STREAM_READ_FN](c, buf, 0x7FFC);
+        while (l != 0x7FFC and c.[AUDIO_STREAM_LOOP_FN] and c.[AUDIO_STREAM_LOOPS])
         {
             c.[AUDIO_STREAM_LOOPS] -= 1;
             c.[AUDIO_STREAM_LOOP_FN](c);
-            l += c.[AUDIO_STREAM_READ_FN](c, buf + l, 0x7FFE - l);
+            l += c.[AUDIO_STREAM_READ_FN](c, buf + l, 0x7FFC - l);
         }
         if (l == 0 and !c.[AUDIO_STREAM_LOOPS])
         {
@@ -84,14 +84,14 @@ function sound_main()
     while (TRUE)
     {
         while (!audio_streams) wait();
-        audio_streams_read(0x7FFE, FALSE);
-        audio_streams_read(0x7FFE, TRUE);
+        audio_streams_read(0x7FFC, FALSE);
+        audio_streams_read(0x7FFC, TRUE);
         soundhw_start();
         wait();
         flip = FALSE;
         while (audio_streams)
         {
-            audio_streams_read(0x7FFE, flip);
+            audio_streams_read(0x7FFC, flip);
             wait();
             flip = !flip;
         }

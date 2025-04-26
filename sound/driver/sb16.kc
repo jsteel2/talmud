@@ -26,7 +26,7 @@ function soundhw_start()
     OUT 0xC4, AL
     MOV AL, (DMA_BUF >> 9) & 0xFF
     OUT 0xC4, AL
-    MOV AL, 0xFF
+    MOV AL, 0xFD
     OUT 0xC6, AL
     MOV AL, 0x7F
     OUT 0xC6, AL
@@ -48,7 +48,7 @@ function soundhw_start()
     MOV AL, 0x30
     OUT DX, AL
 
-    MOV AL, 0xFF
+    MOV AL, 0xFE
     OUT DX, AL
     MOV AL, 0x3F
     OUT DX, AL
