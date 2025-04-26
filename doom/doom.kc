@@ -263,20 +263,45 @@ function load_elf(path, osymtab, ostrtab, osyms)
 
 global doom_get_sound_buffer;
 function doom_sound_read(a, b, n)
-(d, i)
+(d, i, left0, right0, left1, right1)
 {
     d = doom_get_sound_buffer();
     i = 0;
     while (i <! minu(512, n /! 4))
     {
-        b<i *! 8> = d<i>;
-        b<i *! 8 + 1> = d<i + 1>;
-        b<i *! 8 + 2> = d<i>;
-        b<i *! 8 + 3> = d<i + 1>;
-        b<i *! 8 + 4> = d<i>;
-        b<i *! 8 + 5> = d<i + 1>;
-        b<i *! 8 + 6> = d<i>;
-        b<i *! 8 + 7> = d<i + 1>;
+        left0 = d<i>;
+        right0 = d<i+1>;
+        MOVSX EAX, WORD [left0]
+        MOV [left0], EAX
+        MOVSX EAX, WORD [right0]
+        MOV [right0], EAX
+        if (i + 1 <! minu(512, n /! 4))
+        {
+            left1 = d<i+2>;
+            right1 = d<i+3>;
+            MOVSX EAX, WORD [left1]
+            MOV [left1], EAX
+            MOVSX EAX, WORD [right1]
+            MOV [right1], EAX
+        }
+        else
+        {
+            left1 = left0;
+            right1 = right0;
+        }
+
+        b<i *! 8> = left0;
+        b<i *! 8 + 1> = right0;
+
+        b<i *! 8 + 2> = (left0 *$ 3 + left1 *$ 1) /$ 4;
+        b<i *! 8 + 3> = (right0 *$ 3 + right1 *$ 1) /$ 4;
+
+        b<i *! 8 + 4> = (left0 *$ 2 + left1 *$ 2) /$ 4;
+        b<i *! 8 + 5> = (right0 *$ 2 + right1 *$ 2) /$ 4;
+
+        b<i *! 8 + 6> = (left0 *$ 1 + left1 *$ 3) /$ 4;
+        b<i *! 8 + 7> = (right0 *$ 1 + right1 *$ 3) /$ 4;
+
         i += 1;
     }
     return minu(n, 2048 *! 4);
