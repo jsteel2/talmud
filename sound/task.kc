@@ -1,4 +1,4 @@
-struct AUDIO_STREAM = [AUDIO_STREAM_NEXT], [AUDIO_STREAM_PREV], [AUDIO_STREAM_READ_FN], [AUDIO_STREAM_LOOP_FN], [AUDIO_STREAM_LOOPS];
+struct AUDIO_STREAM = [AUDIO_STREAM_NEXT], [AUDIO_STREAM_PREV], [AUDIO_STREAM_TASK], [AUDIO_STREAM_READ_FN], [AUDIO_STREAM_LOOP_FN], [AUDIO_STREAM_LOOPS];
 global audio_streams;
 
 function play_wav_file_read(a, b, n)
@@ -31,6 +31,7 @@ function audio_stream_add(a)
 {
     a.[AUDIO_STREAM_NEXT] = audio_streams;
     a.[AUDIO_STREAM_PREV] = NULL;
+    a.[AUDIO_STREAM_TASK] = task;
     if (!audio_streams) sound_task{TASK_WAIT} = FALSE;
     audio_streams = a;
 }
@@ -76,10 +77,25 @@ function audio_streams_read(n, flip)
     }
 }
 
-# todo add removing all audio streams owned by task on task_clean
+global sound_task_clean_old;
+function sound_task_clean(t)
+(c, n)
+{
+    c = audio_streams;
+    while (c)
+    {
+        n = c.[AUDIO_STREAM_NEXT];
+        if (c.[AUDIO_STREAM_TASK] == t) audio_stream_remove(c);
+        c = n;
+    }
+    if (sound_task_clean_old) sound_task_clean_old(t);
+}
+
 function sound_main()
 (flip)
 {
+    sound_task_clean_old = task_clean;
+    task_clean = sound_task_clean;
     play_wav_file("/adam/music.wav", 0);
     while (TRUE)
     {
