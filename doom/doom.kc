@@ -261,50 +261,49 @@ function load_elf(path, osymtab, ostrtab, osyms)
     return mem;
 }
 
-global doom_get_sound_buffer;
+global doom_get_sound_buffer, doom_sound_buf, doom_sound_i;
 function doom_sound_read(a, b, n)
-(d, i, left0, right0, left1, right1)
+(left, right, i, r)
 {
-    d = doom_get_sound_buffer();
+    r = n;
     i = 0;
-    while (i <! minu(512, n /! 4))
+    while (n)
     {
-        left0 = d<i>;
-        right0 = d<i+1>;
-        MOVSX EAX, WORD [left0]
-        MOV [left0], EAX
-        MOVSX EAX, WORD [right0]
-        MOV [right0], EAX
-        if (i + 1 <! minu(512, n /! 4))
+        if (doom_sound_i >=! 1024 or !doom_sound_buf)
         {
-            left1 = d<i+2>;
-            right1 = d<i+3>;
-            MOVSX EAX, WORD [left1]
-            MOV [left1], EAX
-            MOVSX EAX, WORD [right1]
-            MOV [right1], EAX
+            doom_sound_buf = doom_get_sound_buffer();
+            doom_sound_i = 0;
         }
-        else
-        {
-            left1 = left0;
-            right1 = right0;
-        }
+        left = doom_sound_buf<doom_sound_i>;
+        right = doom_sound_buf<doom_sound_i + 1>;
+        MOVSX EAX, WORD [left]
+        MOV [left], EAX
+        MOVSX EAX, WORD [right]
+        MOV [right], EAX
+        doom_sound_i += 2;
 
-        b<i *! 8> = left0;
-        b<i *! 8 + 1> = right0;
+        b<i> = left;
+        b<i + 1> = right;
+        n -= 4;
+        if (!n) break;
 
-        b<i *! 8 + 2> = (left0 *$ 3 + left1 *$ 1) /$ 4;
-        b<i *! 8 + 3> = (right0 *$ 3 + right1 *$ 1) /$ 4;
+        b<i + 2> = left;
+        b<i + 3> = right;
+        n -= 4;
+        if (!n) break;
 
-        b<i *! 8 + 4> = (left0 *$ 2 + left1 *$ 2) /$ 4;
-        b<i *! 8 + 5> = (right0 *$ 2 + right1 *$ 2) /$ 4;
+        b<i + 4> = left;
+        b<i + 5> = right;
+        n -= 4;
+        if (!n) break;
 
-        b<i *! 8 + 6> = (left0 *$ 1 + left1 *$ 3) /$ 4;
-        b<i *! 8 + 7> = (right0 *$ 1 + right1 *$ 3) /$ 4;
+        b<i + 6> = left;
+        b<i + 7> = right;
+        n -= 4;
 
-        i += 1;
+        i += 8;
     }
-    return minu(n, 2048 *! 4);
+    return r;
 }
 
 function doom_sound_loop(a)
