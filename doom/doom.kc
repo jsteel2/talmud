@@ -276,10 +276,6 @@ function doom_sound_read(a, b, n)
         }
         left = doom_sound_buf<doom_sound_i>;
         right = doom_sound_buf<doom_sound_i + 1>;
-        MOVSX EAX, WORD [left]
-        MOV [left], EAX
-        MOVSX EAX, WORD [right]
-        MOV [right], EAX
         doom_sound_i += 2;
 
         b<i> = left;
@@ -304,11 +300,6 @@ function doom_sound_read(a, b, n)
         i += 8;
     }
     return r;
-}
-
-function doom_sound_loop(a)
-{
-
 }
 
 function doom()
@@ -366,7 +357,7 @@ function doom()
     doom_init(0, 0, 0);
     sas = malloc(AUDIO_STREAM);
     sas.[AUDIO_STREAM_READ_FN] = doom_sound_read;
-    sas.[AUDIO_STREAM_LOOP_FN] = doom_sound_loop;
+    sas.[AUDIO_STREAM_LOOP_FN] = NULL;
     sas.[AUDIO_STREAM_LOOPS] = -1;
     audio_stream_add(sas);
     task.[TASK_WINDOW]{WINDOW_FLAGS} = WINDOW_FGET_KEY_EVENTS | WINDOW_FGET_MOUSE_EVENTS;
