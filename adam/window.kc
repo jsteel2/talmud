@@ -475,6 +475,11 @@ function input(s, editable_start, multiline)
             {
                 break;
             }
+            else if (c == K_F7)
+            {
+                print(celestia());
+                JMP .l
+            }
             else if (c >=! QWERTY_SIZE) JMP .l
             c = shift_pressed ? qwerty_upper{c} : qwerty{c};
             if (!c) JMP .l

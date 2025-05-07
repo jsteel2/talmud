@@ -88,6 +88,10 @@ Welcome to TalmudOS (Formerly ChucksOS)
             {
                 new_task("Seth", seth, 0);
             }
+            else if (k == K_DELETE and ctrl_pressed and alt_pressed)
+            {
+                reboot();
+            }
             else if (k == K_PGUP and windows{WINDOW_FLAGS} & WINDOW_FPRINT_SCROLL)
             {
                 window_print_scroll_up(windows, windows.[WINDOW_H] /! 8);
@@ -399,3 +403,94 @@ reboot:
 
 function screenshot_rect(p, x, y, w, h) return save_qoi(p, &framebuffer{y *! fb_pitch + x *! 4}, w, h, fb_pitch, 3, 0);
 function screenshot(p) return screenshot_rect(p, 0, 0, fb_width, fb_height);
+
+function _linerep(from, path, i)
+(f{FILE}, d{FILE}, e{DIR_ENTRY}, b{12}, s{STRING}, x, n, buf, count)
+{
+    if (!openat(from, path, f, 0)) return 0;
+    s.[STRINGPTR] = b;
+    count = 0;
+    if (f{FILE_FLAGS} & FILE_FDIRECTORY)
+    {
+        memcpy(d, f, FILE);
+        while (dir_next(d, e))
+        {
+            if (e{0} == '.' or (!(e{DIR_ENTRY_ATTR} & FILE_FDIRECTORY) and e{8} != 'K' and e{9} != 'C' and e{10} != ' ')) JMP .l
+            f83tos(e, s);
+            count += _linerep(f, s, i + 1);
+.l:
+        }
+    }
+    else
+    {
+        buf = malloc(4096);
+        if (!buf) return 0;
+        while ((n = read(f, 4096, buf)))
+        {
+            x = 0;
+            while (x <! n)
+            {
+                if (buf{x} == '\n') count += 1;
+                x += 1;
+            }
+        }
+        free(buf);
+    }
+    x = 0;
+    while (x <! i)
+    {
+        print("    ");
+        x += 1;
+    }
+    format(print, "%s: %d\n", path, count);
+    return count;
+}
+
+function linerep(path)
+{
+    _linerep(&task{TASK_CWD}, path, 0);
+}
+
+function celestia()
+{
+    return .celestia_answers[rand() %! ((.celestia_answers_end - .celestia_answers) /! 4)];
+.celestia_answers:
+DD "I told you that you needed to make some friends, nothing more. I saw the signs of Nightmare Moon's return, and I knew it was you who had the magic inside to defeat her, but you could not unleash it until you let true friendship into your heart."
+DD "I've missed you, too."
+DD "Spike, take a note please. I, Princess Celestia, hereby decree that the unicorn Twilight Sparkle shall take on a new mission for Equestria. She must continue to study the magic of friendship. She must report to me her findings from her new home in Ponyville.'"
+DD "Gotcha!"
+DD "We are gathered here today to once again honor the heroism of these six friends who stood up to the villain Discord and saved Equestria from eternal chaos."
+DD "You are a wonderful student, Twilight. I don't have to get a letter every week to know that."
+DD "Hm, a very valuable lesson to have learned."
+DD "Good morning, Twilight. Love the new hairstyle. Well, happy Tuesday!"
+DD "You may have made it impossible for Shining Armor to perform his spell, but now that you have so foolishly revealed your true self, I can protect my subjects from you!"
+DD "Mares and gentlecolts, we are gathered here today to celebrate the union of the real Princess Mi Amore Cadenza..."
+DD "You persisted in the face of doubt, and your actions led to you being able to bring the real Princess Cadance back to us. Learning to trust your instincts is a valuable lesson to learn."
+DD "Far better that I have a student who understands the meaning of self-sacrifice than one who only looks out for her own best interests."
+DD "The lessons you've learned here in Ponyville have taught you well. You have proven that you're ready, Twilight."
+DD "My most faithful student, Twilight Sparkle, has done many extraordinary things since she's lived in Ponyville. She even helped reunite me with my sister Princess Luna. But today, Twilight Sparkle did something extraordinary. She created new magic, proving without a doubt that she is ready to be crowned Equestria's newest princess."
+DD "You may no longer be my student, Princess Twilight, but I hope you know that I will always be here if you need me. Just as I hope that you will always be there when I need you."
+DD "Luna, I will not fight you! You must lower the moon, it is your duty!"
+DD "Playtime is over for you, Discord!"
+DD "You will not prevail, Tirek!"
+DD "Can you imagine how dull it would have been if I hadn't invited Discord? Come on! Whoo! The night is still young!"
+DD "Thorax, as the new leader of the changelings, I look forward to discussing how we can improve our relationship in the future. However, for the moment, perhaps it is best that we leave the Changeling Kingdom to the changelings."
+DD "So you have an overachieving student. Sounds familiar."
+DD "Hmm. I was not aware that I was an expression. An appropriate one, of course, for even I don't know the answers."
+DD "If Luna can turn into Nightmare Moon, you can absolutely turn into me — Daybreaker! The better, prettier, and more powerful version of you!"
+DD "I never should've banished you to the moon! I should've destroyed you!"
+DD "Ugh. So much black. We get it. You're sad."
+DD "I never felt I had to be on stage to be a part of the show. All I ever wanted was to share an honest bond of creativity, artistry, and happiness with my friends. And that's exactly what I got to do."
+DD "Remember, sister. From now on, we are regular, carefree ponies!"
+DD "My sister and I have decided. The time for us to retire is upon us. You and your friends have proven you are ready to lead Equestria. So let this be the last Summer Sun Celebration as Equestria leaves behind the old to embrace the new!"
+DD "When I sent you to Ponyville, I had high hopes. When you became Princess of Friendship, I knew I made the right choice. But nothing could prepare me for how proud I am right now. Equestria is definitely in the right hooves. You are ready."
+DD "We know Equestria is in the perfect hooves with you and your friends looking out for it. And while we'll always be here if you need us, it's time for us to be on our way."
+DD "I'm switching you to decaf!"
+DD "I told you it felt good to do things for others."
+DD "I feel like you've learned a valuable lesson here today, Discord."
+DD "And yes, sometimes I have let Twilight take care of an incident that I could have cleared away easily. But I do not do this because I am cruel, or because I want to play a joke on Twilight... I do this because I am her teacher, and sometimes, this is how she must learn."
+DD "Raven is one of my most trusted aides. Any endeavor she oversees meets, and often exceeds, my expectations."
+DD "The day shall last FOREVER!"
+DD "I will light the way!"
+.celestia_answers_end:
+}

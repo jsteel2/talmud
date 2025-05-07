@@ -17,6 +17,22 @@ function load_qoi(path, ow, oh)
     return x;
 }
 
+function _view_qoi(path)
+(p, w, h)
+{
+    p = load_qoi(path, &w, &h);
+    if (!p) return;
+    create_window(0, 0, w, h){WINDOW_FLAGS} = 0;
+    write_rect(0, 0, w, h, p);
+    free(p);
+    while (TRUE) wait();
+}
+
+function view_qoi(path)
+{
+    new_task(path, _view_qoi, path);
+}
+
 function save_qoi(path, img, w, h, pitch, channels, colorspace)
 (file{FILE}, x, size)
 {
