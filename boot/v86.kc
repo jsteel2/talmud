@@ -1,7 +1,5 @@
 struct V86_CTX = [V86_ESI], [V86_EDI], [V86_EBX], [V86_EDX], [V86_ECX], [V86_EAX], [V86_CODE], [V86_EIP], [V86_CS], [V86_EFLAGS], [V86_ESP], [V86_SS], [V86_ES], [V86_DS], [V86_FS], [V86_GS];
 
-global v86_if;
-
 function v86_monitor(ctx)
 (ip, sp)
 {
@@ -44,6 +42,7 @@ function v86_monitor(ctx)
                 sp<2> = ctx.<V86_EFLAGS>;
                 if (v86_if) sp<2> |= 0x200;
                 else sp<2> &= ~0x200;
+                v86_if = FALSE;
                 ctx.<V86_CS> = 0<ip{1} *! 2 + 1>;
                 ctx.<V86_EIP> = 0<ip{1} *! 2>;
                 return;

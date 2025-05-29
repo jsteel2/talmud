@@ -1,5 +1,5 @@
 struct IDT_ENTRY = <IDT_ENTRY_ISR_LOW>, <IDT_ENTRY_CS>, {IDT_ENTRY_RESERVED}, {IDT_ENTRY_ATTRIBUTES}, <IDT_ENTRY_ISR_HIGH>;
-const IDT_ENTRIES = 45;
+const IDT_ENTRIES = 48;
 global idt{IDT_ENTRY *! IDT_ENTRIES};
 
 function idt_init()
@@ -17,6 +17,9 @@ function idt_init()
     idt_set_entry(0x20, timer_handler, 0x8E);
     idt_set_entry(0x21, keyboard_handler, 0x8E);
     idt_set_entry(0x2C, mouse_handler, 0x8E);
+
+    idt_set_entry(0x2E, ide_handler1, 0x8E);
+    idt_set_entry(0x2F, ide_handler2, 0x8E);
 
     idt_set_entry(0xD, gpf_handler, 0x8E);
 
@@ -77,6 +80,76 @@ gpf_handler:
     POP EAX
     ADD ESP, 4
     IRET
+
+ide_handler1:
+    PUSH EAX
+    PUSH ECX
+    PUSH EDX
+    PUSH EBX
+    PUSH EDI
+    PUSH ESI
+    PUSH ESP
+    PUSH DWORD 0x76
+    CALL ide_handler
+    ADD ESP, 8
+    POP ESI
+    POP EDI
+    POP EBX
+    POP EDX
+    POP ECX
+    POP EAX
+    IRET
+
+ide_handler2:
+    PUSH EAX
+    PUSH ECX
+    PUSH EDX
+    PUSH EBX
+    PUSH EDI
+    PUSH ESI
+    PUSH ESP
+    PUSH DWORD 0x77
+    CALL ide_handler
+    ADD ESP, 8
+    POP ESI
+    POP EDI
+    POP EBX
+    POP EDX
+    POP ECX
+    POP EAX
+    IRET
+
+global v86_if;
+
+function ide_handler(irq, ctx)
+(sp)
+{
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
+
+    ctx -= 4;
+    if (!(ctx.[V86_EFLAGS] & 0x20000)) JMP .r
+
+    sp = (ctx.[V86_SS] << 4) + ctx.[V86_ESP] - 6;
+    ctx.<V86_ESP> -= 6;
+    sp<0> = ctx.<V86_EIP>;
+    sp<1> = ctx.<V86_CS>;
+    sp<2> = ctx.<V86_EFLAGS>;
+    if (v86_if) sp<2> |= 0x200;
+    else sp<2> &= ~0x200;
+    v86_if = FALSE;
+    ctx.<V86_CS> = 0<irq *! 2 + 1>;
+    ctx.<V86_EIP> = 0<irq *! 2>;
+    return;
+
+.r:
+    MOV AL, PIC_EOI
+    OUT PIC2, AL
+    OUT PIC1, AL
+}
 
 keyboard_handler:
     PUSH EAX

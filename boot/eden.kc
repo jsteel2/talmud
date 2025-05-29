@@ -2,10 +2,10 @@ ORG 0x1000
 USE16
 
 const LOW_STACK = $$;
-const TSS = $!;
+const PTSS = $!;
 const TSS_SIZE = 104 + 8192;
 const TSS_ESP0 = 0x04, TSS_SS0 = 0x08, TSS_IOPB = 0x66;
-const DISK_BUF = TSS + TSS_SIZE;
+const DISK_BUF = PTSS + TSS_SIZE;
 const DMA_BUF = (DISK_BUF + 512 *! 128 + 0xFFFF) & ~0xFFFF;
 const ADAM = DMA_BUF + 0xFFFF;
 const HEAP_START = ADAM + TASK;
@@ -117,7 +117,7 @@ function eden()
 }
 
 switch_v86:
-    MOV [TSS + TSS_ESP0], ESP
+    MOV [PTSS + TSS_ESP0], ESP
     PUSH 0x0
     PUSH 0x0
     PUSH 0x0
@@ -127,6 +127,7 @@ switch_v86:
     PUSHF
     POP EAX
     OR EAX, 0x20000
+    AND EAX, ~(3 << 12)
     PUSH EAX
     PUSH 0x0
     PUSH ESI
@@ -149,9 +150,9 @@ USE32
     MOV SS, AX
     MOV FS, AX
     MOV GS, AX
-    memset(TSS, 0, TSS_SIZE);
-    MOV WORD [TSS + TSS_SS0], 0x10
-    MOV WORD [TSS + TSS_IOPB], 104
+    memset(PTSS, 0, TSS_SIZE);
+    MOV WORD [PTSS + TSS_SS0], 0x10
+    MOV WORD [PTSS + TSS_IOPB], 104
     MOV AX, 0x18
     LTR AX
     JMP ESI
@@ -217,7 +218,7 @@ gdtr:
     DD 0, 0
     DB 0xFF, 0xFF, 0, 0, 0, 0x9A, 0xCF, 0
     DB 0xFF, 0xFF, 0, 0, 0, 0x92, 0xCF, 0
-    DB (TSS_SIZE - 1) & 0xFF, ((TSS_SIZE - 1) >> 8) & 0xFF, TSS & 0xFF, (TSS >> 8) & 0xFF, (TSS >> 16) & 0xFF, 0x89, 0, (TSS >> 24) & 0xFF
+    DB (TSS_SIZE - 1) & 0xFF, ((TSS_SIZE - 1) >> 8) & 0xFF, PTSS & 0xFF, (PTSS >> 8) & 0xFF, (PTSS >> 16) & 0xFF, 0x89, 0, (PTSS >> 24) & 0xFF
 .end:
 
 function print(s)

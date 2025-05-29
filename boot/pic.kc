@@ -45,7 +45,7 @@ function pic_map(m1, m2)
 
     MOV AL, 0xF8
     OUT PIC1_DATA, AL
-    MOV AL, 0xEF
+    MOV AL, 0x2F
     OUT PIC2_DATA, AL
 }
 
