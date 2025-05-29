@@ -19,16 +19,36 @@ global timer_ms;
 global mouse_packet_stop;
 struct IDTR = <IDTR_LIMIT>, [IDTR_BASE];
 global idtr{IDTR};
+global lowmem, himem, extmem;
 
 IN AL, 0x92
 OR AL, 2
 OUT 0x92, AL
+
+MOV SI, DX
+INT 0x12
+PUSH AX
+XOR CX, CX
+XOR DX, DX
+MOV AX, 0xE801
+INT 0x15
+TEST CX, CX
+JZ skip
+MOV AX, CX
+MOV BX, DX
+skip:
+PUSH AX
+PUSH BX
+MOV DX, SI
 
 MOV ESI, pmode
 JMP switch_protected
 
 USE32
 pmode:
+    POP WORD [extmem]
+    POP WORD [himem]
+    POP WORD [lowmem]
     MOV ESP, ADAM + TASK_STACK + TASK_STACK_SIZE
     JMP eden
 
@@ -38,6 +58,10 @@ function eden()
     MOV [r], DX
     ADAM{TASK_CWD + FILE_DRIVE} = r;
     ADAM{TASK_CWD + FILE_PARTITION} = r >> 8;
+
+    lowmem = lowmem *! 1024 - HEAP_START;
+    himem = himem *! 1024;
+    extmem = extmem *! 1024 *! 64;
 
     ADAM{TASK_WAIT} = FALSE;
     ADAM.[TASK_NEXT] = ADAM;
@@ -93,6 +117,9 @@ function eden()
     if (!compiler_const_set(compiler, "pic_clear_mask", pic_clear_mask)) JMP .hlt
     if (!compiler_const_set(compiler, "idt_set_entry", idt_set_entry)) JMP .hlt
     if (!compiler_const_set(compiler, "ADAM", ADAM)) JMP .hlt
+    if (!compiler_global_set(compiler, "lowmem", &lowmem)) JMP .hlt
+    if (!compiler_global_set(compiler, "himem", &himem)) JMP .hlt
+    if (!compiler_global_set(compiler, "extmem", &extmem)) JMP .hlt
     if (!compiler_global_set(compiler, "first_free", &first_free)) JMP .hlt
     if (!compiler_global_set(compiler, "task", &task)) JMP .hlt
     if (!compiler_global_set(compiler, "adam_key_events", &adam_key_events)) JMP .hlt

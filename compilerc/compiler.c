@@ -1477,6 +1477,16 @@ bool compiler_test(Compiler *c)
             return true;
         }
     }
+    else if (compiler_reg16(c, &d))
+    {
+        HANDLE(compiler_consume(c, TCOMMA));
+        if (compiler_reg16(c, &s))
+        {
+            HANDLE(compiler_emit8(c, 0x85));
+            HANDLE(compiler_emit8(c, MODRM(0b11, d, s)));
+            return true;
+        }
+    }
     else if (compiler_reg8(c, &d))
     {
         HANDLE(compiler_consume(c, TCOMMA));

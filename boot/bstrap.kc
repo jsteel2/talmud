@@ -9,6 +9,7 @@ const HEAP_START = STACK;
 global first_free;
 global task;
 global ADAM;
+global lowmem, himem, extmem;
 const TASK_COMPILER = 0;
 const TASK_CWD = 0;
 
@@ -16,11 +17,30 @@ IN AL, 0x92
 OR AL, 2
 OUT 0x92, AL
 
+MOV SI, DX
+INT 0x12
+PUSH AX
+XOR CX, CX
+XOR DX, DX
+MOV AX, 0xE801
+INT 0x15
+TEST CX, CX
+JZ skip
+MOV AX, CX
+MOV BX, DX
+skip:
+PUSH AX
+PUSH BX
+MOV DX, SI
+
 MOV ESI, pmode
 JMP switch_protected
 
 USE32
 pmode:
+    POP WORD [extmem]
+    POP WORD [himem]
+    POP WORD [lowmem]
     MOV ESP, STACK
 
 function bstrap()
@@ -29,6 +49,11 @@ function bstrap()
     MOV [r], DX
     file{FILE_DRIVE} = r;
     file{FILE_PARTITION} = r >> 8;
+
+    lowmem = lowmem *! 1024 - HEAP_START;
+    himem = himem *! 1024;
+    extmem = extmem *! 1024 *! 64;
+
     cwd{FILE_DRIVE} = r;
     cwd{FILE_PARTITION} = r >> 8;
     task = cwd;
