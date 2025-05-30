@@ -107,7 +107,7 @@ function kill(t)
 function exit()
 (t)
 {
-    t = task.[TASK_PREV];
+    t = task.[TASK_NEXT];
     kill(task);
     switch_task2(t);
 }
