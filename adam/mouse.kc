@@ -40,15 +40,28 @@ init_mouse:
     RET
 
 mouse_waits:
+    MOV ECX, 100000
+.l:
+    DEC ECX
+    JZ no_mouse
     IN AL, 0x64
     TEST AL, 2
-    JNZ mouse_waits
+    JNZ .l
     RET
 
 mouse_waitd:
+    MOV ECX, 100000
+.l:
+    DEC ECX
+    JZ no_mouse
     IN AL, 0x64
     TEST AL, 1
-    JZ mouse_waitd
+    JZ .l
+    RET
+
+no_mouse:
+    POP EAX
+    STI
     RET
 
 function mouse_write(b)
