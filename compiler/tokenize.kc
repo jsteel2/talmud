@@ -21,7 +21,7 @@ enum TINVALID, TNUM, TIDENT, TCHARS, TSTRING,
 
     TORG, TUSE16, TUSE32, TDB, TDW, TDD, TRB,
 
-    TAAA, TAAD, TAAM, TAAS, TADC, TADD, TAND, TCALL, TCBW, TCLC, TCLD, TCLI, TCMC, TCMP, TCMPSB, TCMPSW, TCWDE, TCWD, TCDQ, TDAA, TDAS, TDEC, TDIV, TESC, THLT, TIDIV, TIMUL, TIN, TINC, TINT, TINTO, TIRET, TJO, TJNO, TJB, TJNB, TJZ, TJNZ, TJBE, TJA, TJS, TJNS, TJPE, TJPO, TJL, TJGE, TJLE, TJG, TJCXZ, TJMP, TLAHF, TLDS, TLEAVE, TLEA, TLES, TLGDT, TLIDT, TLOCK, TLODSB, TLODSW, TLODSD, TLOOP, TLOOPZ, LOOPNZ, TLTR, TMOV, TMOVSB, TMOVSW, TMOVSD, TMOVZX, TMOVSX, TMUL, TNEG, TNOP, TNOT, TOR, TOUT, TPOPAD, TPOP, TPOPF, TPUSHAD, TPUSH, TPUSHF, TRCL, TRCR, TREP, TREPNZ, TRET, TRETF, TRETN, TROL, TROR, TSAHF, TSAL, TSAR, TSBB, TSCASB, TSCASW, TSETB, TSETZ, TSETNZ, TSHL, TSHR, TSTC, TSTD, TSTI, TSTOSB, TSTOSW, TSTOSD, TSUB, TTEST, TWAIT, TXCHG, TXLAT, TXOR,
+    TAAA, TAAD, TAAM, TAAS, TADC, TADD, TAND, TCALL, TCBW, TCLC, TCLD, TCLI, TCMC, TCMP, TCMPSB, TCMPSW, TCWDE, TCWD, TCDQ, TDAA, TDAS, TDEC, TDIV, TESC, THLT, TIDIV, TIMUL, TIN, TINSB, TINC, TINT, TINTO, TIRET, TJO, TJNO, TJB, TJNB, TJZ, TJNZ, TJBE, TJA, TJS, TJNS, TJPE, TJPO, TJL, TJGE, TJLE, TJG, TJCXZ, TJMP, TLAHF, TLDS, TLEAVE, TLEA, TLES, TLGDT, TLIDT, TLOCK, TLODSB, TLODSW, TLODSD, TLOOP, TLOOPZ, LOOPNZ, TLTR, TMOV, TMOVSB, TMOVSW, TMOVSD, TMOVZX, TMOVSX, TMUL, TNEG, TNOP, TNOT, TOR, TOUT, TOUTSB, TPOPAD, TPOP, TPOPF, TPUSHAD, TPUSH, TPUSHF, TRCL, TRCR, TREP, TREPNZ, TRET, TRETF, TRETN, TROL, TROR, TSAHF, TSAL, TSAR, TSBB, TSCASB, TSCASW, TSETB, TSETZ, TSETNZ, TSHL, TSHR, TSTC, TSTD, TSTI, TSTOSB, TSTOSW, TSTOSD, TSUB, TTEST, TWAIT, TXCHG, TXLAT, TXOR,
 
     TAX, TCX, TDX, TBX, TSP, TBP, TSI, TDI,
     TAL, TCL, TDL, TBL, TAH, TCH, TDH, TBH,
@@ -154,7 +154,8 @@ function tokenizer_ident_token(t, out)
             else break;
             return TRUE;
         case 'I':
-            if (strcmp(s, "IRET")) out.[TOKEN_TYPE] = TIRET;
+            if (strcmp(s, "INSB")) out.[TOKEN_TYPE] = TINSB;
+            else if (strcmp(s, "IRET")) out.[TOKEN_TYPE] = TIRET;
             else if (strcmp(s, "IDIV")) out.[TOKEN_TYPE] = TIDIV;
             else if (strcmp(s, "IMUL")) out.[TOKEN_TYPE] = TIMUL;
             else if (strcmp(s, "INC")) out.[TOKEN_TYPE] = TINC;
@@ -166,6 +167,7 @@ function tokenizer_ident_token(t, out)
             if (strcmp(s, "JMP")) out.[TOKEN_TYPE] = TJMP;
             else if (strcmp(s, "JNZ")) out.[TOKEN_TYPE] = TJNZ;
             else if (strcmp(s, "JNB")) out.[TOKEN_TYPE] = TJNB;
+            else if (strcmp(s, "JA")) out.[TOKEN_TYPE] = TJA;
             else if (strcmp(s, "JB")) out.[TOKEN_TYPE] = TJB;
             else if (strcmp(s, "JZ")) out.[TOKEN_TYPE] = TJZ;
             else break;
@@ -198,7 +200,8 @@ function tokenizer_ident_token(t, out)
             else break;
             return TRUE;
         case 'O':
-            if (strcmp(s, "ORG")) out.[TOKEN_TYPE] = TORG;
+            if (strcmp(s, "OUTSB")) out.[TOKEN_TYPE] = TOUTSB;
+            else if (strcmp(s, "ORG")) out.[TOKEN_TYPE] = TORG;
             else if (strcmp(s, "OUT")) out.[TOKEN_TYPE] = TOUT;
             else if (strcmp(s, "OR")) out.[TOKEN_TYPE] = TOR;
             else break;

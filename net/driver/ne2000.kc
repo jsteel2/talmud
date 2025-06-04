@@ -1,0 +1,294 @@
+global mac{6}, ne2k_io, ne2k_next;
+
+function nic_init(bus, dev, fun)
+(irq, buf{32})
+{
+    ne2k_io = pci_read32(bus, dev, fun, PCI_REG_BAR0) & 0xFFFFFFFC;
+
+    MOV DX, [ne2k_io]
+    ADD DX, 0x1F
+    IN AL, DX
+    OUT DX, AL
+    SUB DX, 0x18
+.l:
+    IN AL, DX
+    TEST AL, 0x80
+    JZ .l
+    MOV AL, 0xFF
+    OUT DX, AL
+
+    MOV AL, 0xFF
+    OUT DX, AL
+    SUB DX, 0x7
+    MOV AL, 0x21
+    OUT DX, AL
+    ADD DX, 0xE
+    MOV AL, 0x58
+    OUT DX, AL
+    SUB DX, 0x4
+    MOV AL, 0x20
+    OUT DX, AL
+    INC DX
+    XOR AL, AL
+    OUT DX, AL
+    SUB DX, 0x3
+    OUT DX, AL
+    INC DX
+    OUT DX, AL
+    SUB DX, 0x9
+    MOV AL, 0xA
+    OUT DX, AL
+    ADD DX, 0xC
+    MOV AL, 0xE
+    OUT DX, AL
+    INC DX
+    MOV AL, 0x4
+    OUT DX, AL
+
+    ADD DX, 0x3
+    CLD
+    MOV ECX, 32
+    LEA EDI, [buf]
+    REP INSB
+
+    SUB DX, 0xC
+    MOV AL, 0x40
+    OUT DX, AL
+    SUB DX, 0x3
+    MOV AL, 0x46
+    OUT DX, AL
+    ADD DX, 0x2
+    MOV AL, 0x46
+    OUT DX, AL
+    DEC DX
+    MOV AL, 0x60
+    OUT DX, AL
+    ADD DX, 0xD
+    MOV AL, 0x1
+    OUT DX, AL
+    SUB DX, 0xF
+    MOV AL, 0x61
+    OUT DX, AL
+    OUT DX, AL
+
+    MOV AL, [buf]
+    INC DX
+    OUT DX, AL
+    MOV [mac], AL
+    MOV AL, [buf + 2]
+    INC DX
+    OUT DX, AL
+    MOV [mac + 1], AL
+    MOV AL, [buf + 4]
+    INC DX
+    OUT DX, AL
+    MOV [mac + 2], AL
+    MOV AL, [buf + 6]
+    INC DX
+    OUT DX, AL
+    MOV [mac + 3], AL
+    MOV AL, [buf + 8]
+    INC DX
+    OUT DX, AL
+    MOV [mac + 4], AL
+    MOV AL, [buf + 10]
+    INC DX
+    OUT DX, AL
+    MOV [mac + 5], AL
+
+    ADD DX, 2
+    MOV AL, 0xFF
+    OUT DX, AL
+    INC DX
+    OUT DX, AL
+    INC DX
+    OUT DX, AL
+    INC DX
+    OUT DX, AL
+    INC DX
+    OUT DX, AL
+    INC DX
+    OUT DX, AL
+    INC DX
+    OUT DX, AL
+    INC DX
+    OUT DX, AL
+
+    DEC DX
+    MOV AL, 0x58
+    OUT DX, AL
+    SUB DX, 0x7
+    MOV AL, 0x47
+    OUT DX, AL
+    SUB DX, 0x7
+    MOV AL, 0x22
+    OUT DX, AL
+    ADD DX, 0xD
+    XOR AL, AL
+    OUT DX, AL
+    DEC DX
+    MOV AL, 0xC
+    OUT DX, AL
+
+    irq = pci_read32(bus, dev, fun, PCI_REG_INTERRUPT_LINE) & 0xFF;
+    idt_set_entry(0x20 + irq, ne2k_irq_handler, 0x8E);
+    pic_clear_mask(irq);
+    format(print, "MAC: %x:%x:%x:%x:%x:%x\n", mac{0}, mac{1}, mac{2}, mac{3}, mac{4}, mac{5});
+    ne2k_next = 0x47;
+}
+
+function nic_tx_packet(data, size)
+{
+    MOV DX, [ne2k_io]
+    ADD DX, 0x8
+    XOR AL, AL
+    OUT DX, AL
+    INC DX
+    MOV AL, 0x40
+    OUT DX, AL
+    INC DX
+    MOV AL, [size]
+    OUT DX, AL
+    INC DX
+    MOV AL, [size + 1]
+    OUT DX, AL
+    SUB DX, 0xB
+    MOV AL, 0x12
+    OUT DX, AL
+
+    ADD DX, 0x10
+    MOV ECX, [size]
+    MOV ESI, [data]
+    CLD
+    REP OUTSB
+
+    SUB DX, 0xC
+    MOV AL, 0x40
+    OUT DX, AL
+    INC DX
+    MOV AL, [size]
+    OUT DX, AL
+    INC DX
+    MOV AL, [size + 1]
+    OUT DX, AL
+    SUB DX, 0x6
+    MOV AL, 0x26
+    OUT DX, AL
+
+    free(data);
+    return TRUE;
+}
+
+function nic_rx_packet(data, size)
+(ret)
+{
+    MOV DWORD [ret], FALSE
+    MOV DX, [ne2k_io]
+    MOV AL, 0x62
+    OUT DX, AL
+    ADD DX, 0x7
+    IN AL, DX
+    SUB DX, 0x7
+    MOV AL, 0x22
+    OUT DX, AL
+    MOV AH, [ne2k_next]
+    CMP AL, AH
+    JZ .f
+    ADD DX, 0xA
+    MOV AL, 4
+    OUT DX, AL
+    INC DX
+    XOR AL, AL
+    OUT DX, AL
+    SUB DX, 0x3
+    OUT DX, AL
+    INC DX
+    MOV AL, AH
+    OUT DX, AL
+    SUB DX, 0x9
+    MOV AL, 0xA
+    OUT DX, AL
+    ADD DX, 0x10
+    IN AL, DX
+    MOV BL, AL
+    IN AL, DX
+    MOV BH, AL
+    IN AL, DX
+    XOR ECX, ECX
+    MOV CL, AL
+    IN AL, DX
+    MOV CH, AL
+    SUB CX, 4
+    SUB DX, 0x9
+    MOV AL, 0x40
+    OUT DX, AL
+    TEST BL, 31
+    JZ .s
+    CMP BH, 0x46
+    JB .s
+    CMP BH, 0x80
+    JA .s
+    CMP CX, 1518
+    JA .s
+    MOV DWORD [ret], TRUE
+    MOV ESI, [size]
+    MOV [ESI], ECX
+    ADD DX, 0x3
+    MOV AL, CL
+    OUT DX, AL
+    INC DX
+    MOV AL, CH
+    OUT DX, AL
+    SUB DX, 0x3
+    MOV AL, 4
+    OUT DX, AL
+    INC DX
+    MOV AL, AH
+    OUT DX, AL
+    SUB DX, 0x9
+    MOV AL, 0xA
+    OUT DX, AL
+    ADD DX, 0x10
+    CLD
+    MOV EDI, [data]
+    REP INSB
+    SUB DX, 0x9
+    MOV AL, 0x40
+    OUT DX, AL
+    CMP BH, 0x80
+    JZ .p
+    MOV [ne2k_next], BH
+    JMP .s
+.p: MOV BYTE [ne2k_next], 0x46
+.s: SUB DX, 0x4
+    CMP BYTE [ne2k_next], 0x46
+    JNZ .n
+    MOV AL, 0x7F
+    JMP .o
+.n: MOV AL, [ne2k_next]
+    DEC AX
+.o: OUT DX, AL
+    return ret;
+.f: return FALSE;
+}
+
+ne2k_irq_handler:
+    PUSH EAX
+    PUSH EDX
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
+    MOV EAX, [net_task]
+    MOV BYTE [EAX + TASK_WAIT], FALSE
+    MOV DX, [ne2k_io]
+    ADD DX, 7
+    IN AL, DX
+    OUT DX, AL
+    MOV AL, 0x20
+    OUT 0xA0, AL
+    OUT 0x20, AL
+    POP EDX
+    POP EAX
+    IRET

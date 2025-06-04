@@ -294,6 +294,8 @@ function compiler_statement(c)
         case TMOVSB: return compiler_aemit8(c, OMOVSB);
         case TMOVSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OMOVSW);
         case TMOVSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OMOVSW);
+        case TINSB: return compiler_aemit8(c, OINSB);
+        case TOUTSB: return compiler_aemit8(c, OOUTSB);
         case TCMPSB: return compiler_aemit8(c, OCMPSB);
         case TSTOSB: return compiler_aemit8(c, OSTOSB);
         case TSTOSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OSTOSW);
@@ -340,6 +342,7 @@ function compiler_statement(c)
         case TJZ: return compiler_asm_jcc(c, OJZB, OJZW);
         case TJNZ: return compiler_asm_jcc(c, OJNZB, OJNZW);
         case TJB: return compiler_asm_jcc(c, OJBB, OJBW);
+        case TJA: return compiler_asm_jcc(c, OJAB, OJAW);
         case TJNB: return compiler_asm_jcc(c, OJNBB, OJNBW);
         case TLOOP: return compiler_asm_jcc(c, OLOOP, -1);
         case TSETZ: return compiler_asm_setcc(c, OSETZ);
