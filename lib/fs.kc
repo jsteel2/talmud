@@ -97,7 +97,8 @@ function openat(cwd, path, file, flags)
                 }
                 seek(file, x);
                 memset(d, 0, DIR_ENTRY);
-                name2f83(s, d);
+                if (flags & FILE_F83) memcpy(d, s.[STRINGPTR], 11);
+                else name2f83(s, d);
                 d{DIR_ENTRY_ATTR} = flags & ~FILE_FCREATE;
                 x = alloc_cluster(file);
                 d.<DIR_ENTRY_CLUSTER_LO> = x;
