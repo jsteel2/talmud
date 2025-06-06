@@ -15,6 +15,7 @@ global net_task_clean_old;
 function net_task_clean(t)
 {
     udp_unbind_task(t);
+    icmp_unbind_task(t);
     tcp_close_task(t);
     if (net_task_clean_old) net_task_clean_old(t);
 }
@@ -27,6 +28,7 @@ function net_main()
     new_task("DHCP", dhcp_configure, 0);
     if (!arp_init()) return print("Could not init ARP\n");
     if (!udp_init()) return print("Could not init UDP\n");
+    if (!icmp_init()) return print("Could not init ICMP\n");
     if (!tcp_init()) return print("Could not init TCP\n");
     while (TRUE)
     {

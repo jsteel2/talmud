@@ -1,0 +1,120 @@
+const IPV4_PROTO_ICMP = 1;
+struct ICMP_HEADER = {ICMP_TYPE}, {ICMP_CODE}, <ICMP_CHECKSUM>;
+struct ICMP_ECHO = ICMP_HEADER{ICMP_ECHO_HEADER}, <ICMP_ECHO_ID>, <ICMP_ECHO_SEQ>;
+const ICMP_TYPE_ECHO_REPLY = 0, ICMP_TYPE_ECHO_REQUEST = 8;
+
+global icmp_sockets{MAP};
+struct ICMP_SOCK = [ICMP_SOCK_TASK], <ICMP_SOCK_ID>, [ICMP_SOCK_BUF], [ICMP_SOCK_BUF_LEN];
+
+function icmp_init()
+{
+    return map_init(icmp_sockets, 4, 2, 4, shortcmp, hashshort, NULL);
+}
+
+function icmp_echo_alloc(src, dest, type, id, seq, length)
+(p)
+{
+    p = ipv4_packet_alloc(src, dest, IPV4_PROTO_ICMP, ICMP_ECHO + length);
+    if (!p) return NULL;
+    p{ICMP_TYPE} = type;
+    p{ICMP_CODE} = 0;
+    p.<ICMP_CHECKSUM> = 0;
+    p.<ICMP_ECHO_ID> = swap16(id);
+    p.<ICMP_ECHO_SEQ> = swap16(seq);
+    return p + ICMP_ECHO;
+}
+
+function icmp_echo_tx(packet, length)
+{
+    packet -= ICMP_ECHO;
+    packet.<ICMP_CHECKSUM> = ipv4_checksum(packet, length += ICMP_ECHO);
+    return ipv4_packet_tx(packet, length);
+}
+
+function icmp_packet_handle(packet, length)
+(sock)
+{
+    if (packet{ICMP_TYPE} == ICMP_TYPE_ECHO_REPLY and packet{ICMP_CODE} == 0)
+    {
+        packet.<ICMP_ECHO_ID> = swap16(packet.<ICMP_ECHO_ID>);
+        if (!map_get(icmp_sockets, &packet.<ICMP_ECHO_ID>, &sock) or !sock.[ICMP_SOCK_BUF]) return;
+        if (length - ICMP_ECHO_SEQ <! sock.[ICMP_SOCK_BUF_LEN]) sock.[ICMP_SOCK_BUF_LEN] = length - ICMP_ECHO_SEQ;
+        memcpy(sock.[ICMP_SOCK_BUF], packet + ICMP_ECHO_SEQ, sock.[ICMP_SOCK_BUF_LEN]);
+        sock.[ICMP_SOCK_BUF] = NULL;
+        sock.[ICMP_SOCK_TASK]{TASK_WAIT} = FALSE;
+    }
+    else if (packet{ICMP_TYPE} == ICMP_TYPE_ECHO_REQUEST and packet{ICMP_CODE} == 0)
+    {
+        sock = icmp_echo_alloc(ipv4_addr, swap32(packet.[IPV4_SRC - IPV4_HEADER]), ICMP_TYPE_ECHO_REPLY, swap16(packet.[ICMP_ECHO_ID]), swap16(packet.[ICMP_ECHO_SEQ]), length -= ICMP_ECHO);
+        memcpy(sock, packet + ICMP_ECHO, length);
+        icmp_echo_tx(sock, length);
+    }
+}
+
+function icmp_bind(id)
+(sock)
+{
+    if (!id)
+    {
+        do id = rand() & 0xFFFE; while (map_ref(icmp_sockets, &id, NULL));
+    }
+    else if (map_ref(icmp_sockets, &id, NULL)) return NULL;
+    sock = malloc(ICMP_SOCK);
+    if (!sock) return NULL;
+    sock.<ICMP_SOCK_ID> = id;
+    sock.[ICMP_SOCK_BUF] = NULL;
+    sock.[ICMP_SOCK_TASK] = task;
+    if (!map_set(icmp_sockets, &id, &sock))
+    {
+        free(sock);
+        return NULL;
+    }
+    return sock;
+}
+
+function icmp_unbind(sock)
+{
+    map_del(icmp_sockets, &sock.<ICMP_SOCK_ID>);
+    free(sock);
+}
+
+function icmp_unbind_task(task)
+(state)
+{
+    state = 0;
+    while (map_iter(icmp_sockets, &state))
+    {
+        if (state.[2].[ICMP_SOCK_TASK] == task)
+        {
+            map_delr(udp_sockets, state);
+            free(state.[2]);
+        }
+    }
+}
+
+# todo add timeout and esc stop
+function ping(ip)
+(sock, p, st, buf{58}, seq)
+{
+    format(print, "PING %i 56(84) bytes of data.\n", ip);
+    sock = icmp_bind(0);
+    seq = 1;
+    while (TRUE)
+    {
+        st = timer_ms;
+        p = icmp_echo_alloc(ipv4_addr, ip, ICMP_TYPE_ECHO_REQUEST, sock.<ICMP_SOCK_ID>, seq, 56);
+        seq += 1;
+        p[0] = timer_ms;
+        memset(&p[1], 'A', 52);
+        sock.[ICMP_SOCK_BUF] = buf;
+        sock.[ICMP_SOCK_BUF_LEN] = 58;
+        if (!icmp_echo_tx(p, 56)) return icmp_unbind(sock);
+        while (sock.[ICMP_SOCK_BUF])
+        {
+            wait();
+        }
+        format(print, "%d bytes from %i: icmp_seq=%d time=%d ms\n", sock.[ICMP_SOCK_BUF_LEN] + ICMP_ECHO_SEQ, ip, swap16(buf.<0>), timer_ms - buf.[2]);
+        sleep(1000 - (timer_ms - st));
+    }
+    icmp_unbind(sock);
+}
