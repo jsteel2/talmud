@@ -38,8 +38,9 @@ function icmp_packet_handle(packet, length)
     {
         packet.<ICMP_ECHO_ID> = swap16(packet.<ICMP_ECHO_ID>);
         if (!map_get(icmp_sockets, &packet.<ICMP_ECHO_ID>, &sock) or !sock.[ICMP_SOCK_BUF]) return;
-        if (length - ICMP_ECHO_SEQ <! sock.[ICMP_SOCK_BUF_LEN]) sock.[ICMP_SOCK_BUF_LEN] = length - ICMP_ECHO_SEQ;
-        memcpy(sock.[ICMP_SOCK_BUF], packet + ICMP_ECHO_SEQ, sock.[ICMP_SOCK_BUF_LEN]);
+        if (length - ICMP_ECHO_SEQ + 1 <! sock.[ICMP_SOCK_BUF_LEN]) sock.[ICMP_SOCK_BUF_LEN] = length - ICMP_ECHO_SEQ + 1;
+        memcpy(sock.[ICMP_SOCK_BUF] + 1, packet + ICMP_ECHO_SEQ, sock.[ICMP_SOCK_BUF_LEN] - 1);
+        sock.[ICMP_SOCK_BUF]{0} = packet{IPV4_TTL - IPV4_HEADER};
         sock.[ICMP_SOCK_BUF] = NULL;
         sock.[ICMP_SOCK_TASK]{TASK_WAIT} = FALSE;
     }
@@ -92,13 +93,15 @@ function icmp_unbind_task(task)
     }
 }
 
-# todo add timeout and esc stop
 function ping(ip)
-(sock, p, st, buf{58}, seq)
+(sock, p, st, buf{59}, seq, c, trans, recv, fst)
 {
     format(print, "PING %i 56(84) bytes of data.\n", ip);
     sock = icmp_bind(0);
     seq = 1;
+    fst = timer_ms;
+    trans = 0;
+    recv = 0;
     while (TRUE)
     {
         st = timer_ms;
@@ -107,14 +110,35 @@ function ping(ip)
         p[0] = timer_ms;
         memset(&p[1], 'A', 52);
         sock.[ICMP_SOCK_BUF] = buf;
-        sock.[ICMP_SOCK_BUF_LEN] = 58;
+        sock.[ICMP_SOCK_BUF_LEN] = 59;
         if (!icmp_echo_tx(p, 56)) return icmp_unbind(sock);
+        trans += 1;
         while (sock.[ICMP_SOCK_BUF])
         {
-            wait();
+            while (task.[TASK_WINDOW].[WINDOW_KEY_EVENTS + VEC_LEN])
+            {
+                c = 0;
+                vec_shift(&task.[TASK_WINDOW]{WINDOW_KEY_EVENTS}, &c);
+                if (c == K_ESC) JMP .e
+            }
+            if (wait_for(maxs(0, 1000 - (timer_ms - st)))) break;
         }
-        format(print, "%d bytes from %i: icmp_seq=%d time=%d ms\n", sock.[ICMP_SOCK_BUF_LEN] + ICMP_ECHO_SEQ, ip, swap16(buf.<0>), timer_ms - buf.[2]);
-        sleep(1000 - (timer_ms - st));
+        if (!sock.[ICMP_SOCK_BUF])
+        {
+            recv += 1;
+            format(print, "%d bytes from %i: icmp_seq=%d ttl=%d time=%d ms\n", sock.[ICMP_SOCK_BUF_LEN] + ICMP_ECHO_SEQ - 1, ip, swap16(buf.<1>), buf{0}, timer_ms - buf.[3]);
+        }
+        while (!wait_for(maxs(0, 1000 - (timer_ms - st))))
+        {
+            while (task.[TASK_WINDOW].[WINDOW_KEY_EVENTS + VEC_LEN])
+            {
+                c = 0;
+                vec_shift(&task.[TASK_WINDOW]{WINDOW_KEY_EVENTS}, &c);
+                if (c == K_ESC) JMP .e
+            }
+        }
     }
+.e:
+    format(print, "--- %i ping statistics ---\n%d packets transmitted, %d received, %d%% packet loss, time %dms\n", ip, trans, recv, ((trans - recv) *! 100) /! trans, timer_ms - fst);
     icmp_unbind(sock);
 }

@@ -63,6 +63,18 @@ function sleep(ms)
     }
 }
 
+function wait_for(ms)
+(x)
+{
+    x = timer_ms + ms;
+    if (timer_ms >=! x) return TRUE;
+    task{TASK_WAIT} = 2;
+    task.[TASK_WAIT_UNTIL] = x;
+    next_task();
+    if (timer_ms >=! x) return TRUE;
+    return FALSE;
+}
+
 function new_task(name, entry, arg)
 (t)
 {
