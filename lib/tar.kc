@@ -1,0 +1,41 @@
+struct TAR = 100{TAR_NAME}, 8{TAR_MODE}, 8{TAR_UID}, 8{TAR_GID}, 12{TAR_SIZE}, 12{TAR_MTIME}, 8{TAR_CHKSUM}, {TAR_TYPE}, 100{TAR_LINKNAME}, 6{TAR_MAGIC}, 2{TAR_VERSION}, 32{TAR_UNAME}, 32{TAR_GNAME}, 8{TAR_DEVMAJOR}, 8{TAR_DEVMINOR}, 155{TAR_PREFIX}, 12{TAR_PAD};
+
+function oct2bin(p, l)
+(s{STRING})
+{
+    s.[STRINGPTR] = p;
+    s.[STRINGLEN] = l;
+    return str2int(s, 8, NULL);
+}
+
+function untar(path)
+(file{FILE}, f{FILE}, buf{4096}, s{STRING}, size, i)
+{
+    if (!open(path, file, 0)) return print("Could not open tar archive\n");
+    s.[STRINGPTR] = buf;
+    while (TRUE)
+    {
+        if (read(file, TAR, buf) != TAR) break;
+        if (!buf{0}) break;
+        s.[STRINGLEN] = 0;
+        while (buf{s.[STRINGLEN]}) s.[STRINGLEN] += 1;
+        size = oct2bin(&buf{TAR_SIZE}, 12);
+        format(print, "%s %dK\n", s, size /! 1024);
+        if (buf{TAR_TYPE} == '5')
+        {
+            mkdir(s);
+        }
+        else if (buf{TAR_TYPE} == '0' or buf{TAR_TYPE} == 0)
+        {
+            if (!open(s, f, FILE_FCREATE)) return format(print, "Could not open \"%s\"\n", s);
+            i = size;
+            while (i) i -= write(f, read(file, minu(4096, i), buf), buf);
+            resize(f, size);
+            if (!seek(file, ((file.[FILE_SEEK] + TAR - 1) /! TAR) *! TAR)) break;
+        }
+        else
+        {
+            if (!seek(file, file.[FILE_SEEK] + ((size + TAR - 1) /! TAR) *! TAR)) break;
+        }
+    }
+}

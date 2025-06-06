@@ -233,6 +233,7 @@ function read(file, n, buf)
 (sectors_read, x, i)
 {
     if (!(file{FILE_FLAGS} & FILE_FDIRECTORY)) n = minu(n, file.[FILE_SIZE] - file.[FILE_SEEK]);
+    if (file.[FILE_CLUSTER_CUR] >=! 0x0FFFFFF7) return 0;
     i = n;
     while (n)
     {
@@ -437,6 +438,7 @@ function dir2path(v, p)
 function _mkdiratf(cwd, path, file, flags)
 (buf{DIR_ENTRY *! 2 + 1})
 {
+    if (openat(cwd, path, file, 0)) return FALSE;
     if (!openat(cwd, path, file, FILE_FCREATE | FILE_FDIRECTORY | flags)) return FALSE;
     memcpy(buf, ".          ".[STRINGPTR], 11);
     buf{DIR_ENTRY_ATTR} = FILE_FDIRECTORY;
