@@ -46,7 +46,7 @@ function icmp_packet_handle(packet, length)
     }
     else if (packet{ICMP_TYPE} == ICMP_TYPE_ECHO_REQUEST and packet{ICMP_CODE} == 0)
     {
-        sock = icmp_echo_alloc(ipv4_addr, swap32(packet.[IPV4_SRC - IPV4_HEADER]), ICMP_TYPE_ECHO_REPLY, swap16(packet.[ICMP_ECHO_ID]), swap16(packet.[ICMP_ECHO_SEQ]), length -= ICMP_ECHO);
+        sock = icmp_echo_alloc(ipv4_addr, swap32(packet.[IPV4_SRC - IPV4_HEADER]), ICMP_TYPE_ECHO_REPLY, swap16(packet.<ICMP_ECHO_ID>), swap16(packet.<ICMP_ECHO_SEQ>), length -= ICMP_ECHO);
         memcpy(sock, packet + ICMP_ECHO, length);
         icmp_echo_tx(sock, length);
     }
