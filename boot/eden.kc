@@ -25,7 +25,8 @@ IN AL, 0x92
 OR AL, 2
 OUT 0x92, AL
 
-MOV SI, DX
+MOV ESI, EDX
+MOV DI, BX
 INT 0x12
 PUSH AX
 XOR CX, CX
@@ -39,7 +40,8 @@ MOV BX, DX
 skip:
 PUSH AX
 PUSH BX
-MOV DX, SI
+MOV EDX, ESI
+MOV BX, DI
 
 MOV ESI, pmode
 JMP switch_protected
@@ -53,11 +55,10 @@ pmode:
     JMP eden
 
 function eden()
-(file{FILE}, r, eve, s{STRING}, compiler)
+(file{FILE}, r, i, eve, s{STRING}, compiler)
 {
-    MOV [r], DX
-    ADAM{TASK_CWD + FILE_DRIVE} = r;
-    ADAM{TASK_CWD + FILE_PARTITION} = r >> 8;
+    MOV [ADAM + TASK_CWD + FILE_DRIVE], BL
+    MOV [r], EDX
 
     lowmem = lowmem *! 1024 - HEAP_START;
     himem = himem *! 1024;
@@ -76,6 +77,27 @@ function eden()
     idt_init();
 
     print("Hello, World!\n");
+    
+    if (!lba_read(ADAM{TASK_CWD + FILE_DRIVE}, 1, 0, file))
+    {
+        print("Could not read MBR\n");
+        JMP .hlt
+    }
+    i = 0;
+    while (i <! 4)
+    {
+        if (file.[PARTITION_TABLE + i *! PARTITION + PARTITION_LBA] == r and file{PARTITION_TABLE + i *! PARTITION + PARTITION_TYPE})
+        {
+            ADAM{TASK_CWD + FILE_PARTITION} = i;
+            break;
+        }
+        i += 1;
+    }
+    if (i == 4)
+    {
+        print("Could not find partition\n");
+        JMP .hlt
+    }
 
     if (!cd("/"))
     {

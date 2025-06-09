@@ -17,7 +17,8 @@ IN AL, 0x92
 OR AL, 2
 OUT 0x92, AL
 
-MOV SI, DX
+MOV ESI, EDX
+MOV DI, BX
 INT 0x12
 PUSH AX
 XOR CX, CX
@@ -31,7 +32,8 @@ MOV BX, DX
 skip:
 PUSH AX
 PUSH BX
-MOV DX, SI
+MOV EDX, ESI
+MOV BX, DI
 
 MOV ESI, pmode
 JMP switch_protected
@@ -44,18 +46,37 @@ pmode:
     MOV ESP, STACK
 
 function bstrap()
-(file{FILE}, cwd{FILE}, r, eden, s{STRING}, compiler{COMPILER})
+(file{FILE}, cwd{FILE}, i, r, eden, s{STRING}, compiler{COMPILER})
 {
-    MOV [r], DX
-    file{FILE_DRIVE} = r;
-    file{FILE_PARTITION} = r >> 8;
+    MOV [i], BL
+    MOV [r], EDX
+    cwd{FILE_DRIVE} = i;
+    if (!lba_read(cwd{FILE_DRIVE}, 1, 0, file))
+    {
+        print("Could not read MBR\n");
+        JMP .hlt
+    }
+    i = 0;
+    while (i <! 4)
+    {
+        if (file.[PARTITION_TABLE + i *! PARTITION + PARTITION_LBA] == r and file{PARTITION_TABLE + i *! PARTITION + PARTITION_TYPE})
+        {
+            cwd{FILE_PARTITION} = i;
+            JMP .b
+        }
+        i += 1;
+    }
+.b:
+    if (i == 4)
+    {
+        print("Could not find partition\n");
+        JMP .hlt
+    }
 
     lowmem = lowmem *! 1024 - HEAP_START;
     himem = himem *! 1024;
     extmem = extmem *! 1024 *! 64;
 
-    cwd{FILE_DRIVE} = r;
-    cwd{FILE_PARTITION} = r >> 8;
     task = cwd;
     ADAM = compiler;
 
@@ -67,7 +88,7 @@ function bstrap()
         JMP .hlt
     }
 
-    if (!openat(NULL, "/boot/eden.kc", file, 0))
+    if (!open("/boot/eden.kc", file, 0))
     {
         print("Could not open /boot/eden.kc\n");
         JMP .hlt
@@ -101,7 +122,7 @@ function bstrap()
         JMP .hlt
     }
 
-    if (!openat(NULL, "/eden.exe", file, 0))
+    if (!open("/eden.exe", file, 0))
     {
         print("Could not open /eden.exe\n");
         JMP .hlt

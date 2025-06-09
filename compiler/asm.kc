@@ -598,7 +598,7 @@ function compiler_asm_pushpop(c, is_push)
     else if (is_push)
     {
         compiler_emit8(c, OPUSHIMMW);
-        dest= compiler_asm_immw(c);
+        dest = compiler_asm_immw(c);
         compiler_asm_emitw(c, dest);
     }
 }

@@ -36,7 +36,6 @@ bsFileSystemName:         RB 8
 start:
     CLD
     MOV CX, DI
-    MOV DH, CL
 
     INT 0x12
     SHL AX, 6
@@ -59,7 +58,6 @@ main:
     PUSH CS
     POP DS
 
-    MOV [bsreserved1], DH
     MOV [bsDriveNumber], DL
 
     PUSH 0x100
@@ -107,8 +105,8 @@ FileReadContinue:
     CALL ReadCluster
     JB SHORT FileReadContinue
 
-    MOV DL, [bsDriveNumber]
-    MOV DH, [bsreserved1]
+    MOV BL, [bsDriveNumber]
+    MOV EDX, [bpbHiddenSectors]
 
     XOR AX, AX
     MOV ES, AX
