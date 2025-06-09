@@ -52,15 +52,18 @@ function httpd()
     tcp_close(s);
 }
 
-function http_fetch(ip, port, path, destpath)
-(s, buf{4096}, str{STRING}, f{FILE}, l, x)
+function http_fetch(host, port, path, destpath)
+(s, buf{4096}, str{STRING}, f{FILE}, l, x, ip)
 {
-    if (!open(destpath, f, FILE_FCREATE)) return print("Could not open file\n");
+    if (!(ip = ipv4_parse(host))) ip = dns_resolve(host);
+    if (!strcmp(destpath, "-") and !open(destpath, f, FILE_FCREATE)) return print("Could not open file\n");
     s = tcp_connect(ip, port);
     if (!s) return print("Could not connect\n");
     if (!tcp_sends(s, "GET ")) JMP .e
     if (!tcp_sends(s, path)) JMP .e
-    if (!tcp_sends(s, " HTTP/1.0\r\n\r\n")) JMP .e
+    if (!tcp_sends(s, " HTTP/1.0\r\nUser-Agent: curl/Talmud\r\nHost: ")) JMP .e
+    if (!tcp_sends(s, host)) JMP .e
+    if (!tcp_sends(s, "\r\n\r\n")) JMP .e
     str.[STRINGPTR] = buf;
     if (!(str.[STRINGLEN] = tcp_recvuntil(s, buf, 4096, '\n'))) JMP .e
     if (!strcmp(str, "HTTP/1.0 200 OK\r\n") and !strcmp(str, "HTTP/1.1 200 OK\r\n"))
@@ -71,12 +74,14 @@ function http_fetch(ip, port, path, destpath)
     while ((l = tcp_recvuntil(s, buf, 4096, '\n')) >! 2);
     if (!l) JMP .e
     l = 0;
-    while ((x = tcp_recv(s, buf, 4096)))
+    str.[STRINGPTR] = buf;
+    while ((str.[STRINGLEN] = tcp_recv(s, buf, 4096)))
     {
-        l += x;
-        write(f, x, buf);
+        l += str.[STRINGLEN];
+        if (strcmp(destpath, "-")) print(str);
+        else write(f, str.[STRINGLEN], buf);
     }
-    resize(f, l);
+    if (!strcmp(destpath, "-")) resize(f, l);
 .e:
     tcp_close(s);
 }

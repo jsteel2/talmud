@@ -83,14 +83,15 @@ function ipv4_packet_handle(packet, length)
 }
 
 function ipv4_parse(s)
-(state, o{STRING}, ip, n)
+(state, o{STRING}, ip, l)
 {
     ip = 0;
     state = 0;
     while (strtok(s, '.', o, &state))
     {
         ip <<= 8;
-        ip |= str2int(o, 10, NULL) & 0xFF;
+        ip |= str2int(o, 10, &l);
+        if (l != o.[STRINGLEN]) return 0;
     }
     return ip;
 }
