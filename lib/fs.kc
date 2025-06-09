@@ -30,7 +30,7 @@ function cd(path)
 }
 
 function openat(cwd, path, file, flags)
-(s{STRING}, d{DIR_ENTRY}, state, end, read, x, r)
+(s{STRING}, d{DIR_ENTRY}, state, end, read, x, r, y)
 {
     if (cwd) memcpy(file, cwd, FILE);
 
@@ -77,9 +77,10 @@ function openat(cwd, path, file, flags)
                 if (r == 3 and (flags & FILE_F83 ? memcmp(s.[STRINGPTR], d, 11) : fnamecmp(s, d)))
                 {
 .f:
+                    seek(file, file.[FILE_SEEK] - DIR_ENTRY);
                     file.[FILE_DIR_CLUSTER] = file.[FILE_CLUSTER];
                     file.[FILE_DIR_CLUSTER_CUR] = file.[FILE_CLUSTER_CUR];
-                    file.[FILE_DIR_SEEK] = file.[FILE_SEEK] - DIR_ENTRY;
+                    file.[FILE_DIR_SEEK] = file.[FILE_SEEK];
                     file.[FILE_SIZE] = d.[DIR_ENTRY_FILE_SIZE];
                     file.[FILE_CLUSTER_CUR] = file.[FILE_CLUSTER] = d.<DIR_ENTRY_CLUSTER_HI> << 16 | d.<DIR_ENTRY_CLUSTER_LO>;
                     file.[FILE_SEEK] = 0;
@@ -100,17 +101,15 @@ function openat(cwd, path, file, flags)
                 if (flags & FILE_F83) memcpy(d, s.[STRINGPTR], 11);
                 else name2f83(s, d);
                 d{DIR_ENTRY_ATTR} = flags & ~FILE_FCREATE;
-                x = alloc_cluster(file);
-                d.<DIR_ENTRY_CLUSTER_LO> = x;
-                d.<DIR_ENTRY_CLUSTER_HI> = x >> 16;
+                y = alloc_cluster(file);
+                d.<DIR_ENTRY_CLUSTER_LO> = y;
+                d.<DIR_ENTRY_CLUSTER_HI> = y >> 16;
                 write(file, DIR_ENTRY, d);
                 if (r == 4)
                 {
                     d{0} = 0;
-                    x = file.[FILE_CLUSTER_CUR];
                     write(file, DIR_ENTRY, d);
-                    file.[FILE_CLUSTER_CUR] = x;
-                    file.[FILE_SEEK] -= DIR_ENTRY;
+                    seek(file, file.[FILE_SEEK] - DIR_ENTRY);
                 }
                 JMP .f
             }
