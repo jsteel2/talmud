@@ -67,7 +67,7 @@ function malloc(n) return malloc_task(n, task);
 
 function free(p)
 {
-    if (!p) return;
+    if (!p) return NULL;
     p -= MEM_HEADER;
 
     p{MEM_HEADER_FLAGS} &= ~MEM_HEADER_FUSED;
@@ -87,6 +87,7 @@ function free(p)
         p.[MEM_HEADER_NEXT] = p.[MEM_HEADER_NEXT].[MEM_HEADER_NEXT];
         if (p.[MEM_HEADER_NEXT]) p.[MEM_HEADER_NEXT].[MEM_HEADER_PREV] = p;
     }
+    return p;
 }
 
 function realloc_task(p, n, task)
