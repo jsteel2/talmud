@@ -52,30 +52,37 @@ function httpd()
     tcp_close(s);
 }
 
-function http_fetch(host, port, path, destpath)
+function _httpx_fetch(connect, close, sends, recvuntil, recv, resolve, host, port, path, destpath)
 (s, buf{4096}, str{STRING}, f{FILE}, l, x, ip)
 {
-    if (!(ip = ipv4_parse(host))) ip = dns_resolve(host);
+    if (resolve)
+    {
+        if (!(ip = ipv4_parse(host))) ip = dns_resolve(host);
+    }
+    else
+    {
+        ip = host;
+    }
     if (!strcmp(destpath, "-") and !open(destpath, f, FILE_FCREATE)) return print("Could not open file\n");
-    s = tcp_connect(ip, port);
+    s = connect(ip, port);
     if (!s) return print("Could not connect\n");
-    if (!tcp_sends(s, "GET ")) JMP .e
-    if (!tcp_sends(s, path)) JMP .e
-    if (!tcp_sends(s, " HTTP/1.0\r\nUser-Agent: curl/Talmud\r\nHost: ")) JMP .e
-    if (!tcp_sends(s, host)) JMP .e
-    if (!tcp_sends(s, "\r\n\r\n")) JMP .e
+    if (!sends(s, "GET ")) JMP .e
+    if (!sends(s, path)) JMP .e
+    if (!sends(s, " HTTP/1.0\r\nUser-Agent: curl/Talmud\r\nHost: ")) JMP .e
+    if (!sends(s, host)) JMP .e
+    if (!sends(s, "\r\n\r\n")) JMP .e
     str.[STRINGPTR] = buf;
-    if (!(str.[STRINGLEN] = tcp_recvuntil(s, buf, 4096, '\n'))) JMP .e
+    if (!(str.[STRINGLEN] = recvuntil(s, buf, 4096, '\n'))) JMP .e
     if (!strcmp(str, "HTTP/1.0 200 OK\r\n") and !strcmp(str, "HTTP/1.1 200 OK\r\n"))
     {
         print(str);
         JMP .e
     }
-    while ((l = tcp_recvuntil(s, buf, 4096, '\n')) >! 2);
+    while ((l = recvuntil(s, buf, 4096, '\n')) >! 2);
     if (!l) JMP .e
     l = 0;
     str.[STRINGPTR] = buf;
-    while ((str.[STRINGLEN] = tcp_recv(s, buf, 4096)))
+    while ((str.[STRINGLEN] = recv(s, buf, 4096)))
     {
         l += str.[STRINGLEN];
         if (strcmp(destpath, "-")) print(str);
@@ -83,5 +90,8 @@ function http_fetch(host, port, path, destpath)
     }
     if (!strcmp(destpath, "-")) resize(f, l);
 .e:
-    tcp_close(s);
+    close(s);
 }
+
+function http_fetch(host, port, path, destpath) return _httpx_fetch(tcp_connect, tcp_close, tcp_sends, tcp_recvuntil, tcp_recv, TRUE, host, port, path, destpath);
+function https_fetch(host, port, path, destpath) return _httpx_fetch(tls_connect, tls_close, tls_sends, tls_recvuntil, tls_recv, FALSE, host, port, path, destpath);

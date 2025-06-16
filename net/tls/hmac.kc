@@ -1,0 +1,40 @@
+function _hmac_h(fn, x, xlen, y, ylen, out)
+(buflen, buf)
+{
+    buflen = xlen + ylen;
+    buf = malloc(buflen);
+    memcpy(buf, x, xlen);
+    memcpy(buf + xlen, y, ylen);
+    fn(out, buf, buflen);
+    free(buf);
+}
+
+function _hmac(hash_size, fn, key, keylen, data, datalen, out, outlen)
+(k{64}, k_ipad{64}, k_opad{64}, ihash{32}, ohash{32}, sz, i)
+{
+    memset(k, 0, 64);
+    memset(k_ipad, 0x36, 64);
+    memset(k_opad, 0x5C, 64);
+
+    if (keylen >! 64) fn(k, key, keylen);
+    else memcpy(k, key, keylen);
+
+    i = 0;
+    while (i <! 64)
+    {
+        k_ipad.[i] ^= k.[i];
+        k_opad.[i] ^= k.[i];
+        i += 4;
+    }
+
+    _hmac_h(fn, k_ipad, 64, data, datalen, ihash);
+    _hmac_h(fn, k_opad, 64, ihash, hash_size, ohash);
+
+    if (outlen >! hash_size) sz = hash_size;
+    else sz = outlen;
+    memcpy(out, ohash, sz);
+    return sz;
+}
+
+function hmac_sha256(key, keylen, data, datalen, out, outlen) return _hmac(32, sha256_calc, key, keylen, data, datalen, out, outlen);
+function hmac_sha1(key, keylen, data, datalen, out, outlen) return _hmac(20, sha1_calc, key, keylen, data, datalen, out, outlen);

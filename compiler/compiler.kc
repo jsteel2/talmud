@@ -1388,7 +1388,7 @@ function compiler_binary(c, prec, econst, iconst)
             {
                 # FIXME: read back the value, and check last token for >]}
                 compiler_emit8(c, OGRP2MWIMMB);
-                compiler_emit8(c, modrm(MODMEM, t == TSHIFTRIGHT ? OGRP2SHR : OGRP2SHL, REAX));
+                compiler_emit8(c, modrm(MODMEM, t == TSHIFTRIGHTEQUALS ? OGRP2SHR : OGRP2SHL, REAX));
                 compiler_emit8(c, r);
             }
             else

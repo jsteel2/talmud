@@ -1,0 +1,112 @@
+function sha1_rotate_left(value, bits) return (value << bits) | (value >> (32 - bits));
+
+function sha1_calc(digest, data, databytes)
+(W[80], H[5], a, b, c, d, e, f, k, idx, lidx, widx, didx, wcount, temp, databits, loopcount, tailbytes, datatail{128})
+{
+    H[0] = 0x67452301;
+    H[1] = 0xEFCDAB89;
+    H[2] = 0x98BADCFE;
+    H[3] = 0x10325476;
+    H[4] = 0xC3D2E1F0;
+    f = 0;
+    k = 0;
+    didx = 0;
+    databits = databytes *! 8;
+    loopcount = (databytes + 8) /! 64 + 1;
+    tailbytes = loopcount *! 64 - databytes;
+    memset(datatail, 0, 128);
+
+    datatail{0} = 0x80;
+    datatail{tailbytes - 4} = databits >> 24;
+    datatail{tailbytes - 3} = databits >> 16;
+    datatail{tailbytes - 2} = databits >> 8;
+    datatail{tailbytes - 1} = databits;
+
+    lidx = 0;
+    while (lidx <! loopcount)
+    {
+        memsetd(W, 0, 80);
+        widx = 0;
+        while (widx <=! 15)
+        {
+            wcount = 24;
+            while (didx <! databytes and wcount >=$ 0)
+            {
+                W[widx] += data{didx} << wcount;
+                didx += 1;
+                wcount -= 8;
+            }
+            while (wcount >=$ 0)
+            {
+                W[widx] += datatail{didx - databytes} << wcount;
+                didx += 1;
+                wcount -= 8;
+            }
+            widx += 1;
+        }
+        while (widx <=! 31)
+        {
+            W[widx] = sha1_rotate_left(W[widx - 3] ^ W[widx - 8] ^ W[widx - 14] ^ W[widx - 16], 1);
+            widx += 1;
+        }
+        while (widx <=! 79)
+        {
+            W[widx] = sha1_rotate_left(W[widx - 6] ^ W[widx - 16] ^ W[widx - 28] ^ W[widx - 32], 2);
+            widx += 1;
+        }
+        a = H[0];
+        b = H[1];
+        c = H[2];
+        d = H[3];
+        e = H[4];
+
+        idx = 0;
+        while (idx <=! 79)
+        {
+            if (idx <=! 19)
+            {
+                f = (b & c) | ((~b) & d);
+                k = 0x5A827999;
+            }
+            else if (idx <=! 39)
+            {
+                f = b ^ c ^ d;
+                k = 0x6ED9EBA1;
+            }
+            else if (idx <=! 59)
+            {
+                f = (b & c) | (b & d) | (c & d);
+                k = 0x8F1BBCDC;
+            }
+            else if (idx <=! 79)
+            {
+                f = b ^ c ^ d;
+                k = 0xCA62C1D6;
+            }
+            temp = sha1_rotate_left(a, 5) + f + e + k + W[idx];
+            e = d;
+            d = c;
+            c = sha1_rotate_left(b, 30);
+            b = a;
+            a = temp;
+            idx += 1;
+        }
+
+        H[0] += a;
+        H[1] += b;
+        H[2] += c;
+        H[3] += d;
+        H[4] += e;
+        lidx += 1;
+    }
+
+    idx = 0;
+    while (idx <! 5)
+    {
+        digest{idx *! 4} = (H[idx] >> 24);
+        digest{idx *! 4 + 1} = (H[idx] >> 16);
+        digest{idx *! 4 + 2} = (H[idx] >> 8);
+        digest{idx *! 4 + 3} = H[idx];
+        idx += 1;
+    }
+}
