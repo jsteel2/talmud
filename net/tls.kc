@@ -241,22 +241,32 @@ function tls_accept(s)
     memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD}, TLS_SERVER_HELLO + TLS_EXT + 1 - TLS_RECORD);
     handshake.[VEC_LEN] += TLS_SERVER_HELLO + TLS_EXT + 1 - TLS_RECORD;
 
-    vec_resize(handshake, handshake.[VEC_LEN] + TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN]);
+    vec_resize(handshake, handshake.[VEC_LEN] + TLS_HANDSHAKE + 3);
     handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD_TYPE} = 0x16;
     handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_VERSION> = 0x0303;
-    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_LENGTH> = swap16(TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN] - TLS_RECORD);
     handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_TYPE} = 0x0B;
     handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_HI} = 0;
-    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_LO> = swap16(6 + s.[TLSL_CERT_LEN]);
     handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE} = 0;
-    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE + 1> = swap16(3 + s.[TLSL_CERT_LEN]);
-    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 3} = 0;
-    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE + 4> = swap16(s.[TLSL_CERT_LEN]);
-    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 6}, &s{TLS_SOCKL}, s.[TLSL_CERT_LEN]);
 
-    if (!tcp_send(n.[TLS_TCP_SOCK], &handshake.[VEC_PTR]{handshake.[VEC_LEN]}, TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN])) JMP .e
-    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD}, TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN] - TLS_RECORD);
-    handshake.[VEC_LEN] += TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN] - TLS_RECORD;
+    i = 0;
+    len = 0;
+    while (len <! s.[TLSL_CERT_LEN])
+    {
+        vec_resize(handshake, handshake.[VEC_LEN] + TLS_HANDSHAKE + i + swap16(s.<TLS_SOCKL + len + 2>) + 12);
+        handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + i + 3} = 0;
+        handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE + i + 4> = swap16(swap16(s.<TLS_SOCKL + len + 2>) + 4);
+        memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + i + 6}, &s{TLS_SOCKL + len}, swap16(s.<TLS_SOCKL + len + 2>) + 4);
+        i += swap16(s.<TLS_SOCKL + len + 2>) + 4 + 3;
+        len += swap16(s.<TLS_SOCKL + len + 2>) + 4;
+    }
+
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE + 1> = swap16(i);
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_LO> = swap16(i + 3);
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_LENGTH> = swap16(i + 3 + TLS_HANDSHAKENR);
+
+    if (!tcp_send(n.[TLS_TCP_SOCK], &handshake.[VEC_PTR]{handshake.[VEC_LEN]}, TLS_HANDSHAKE + 3 + i)) JMP .e
+    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD}, TLS_HANDSHAKE + 3 + i - TLS_RECORD);
+    handshake.[VEC_LEN] += TLS_HANDSHAKE + 3 + i - TLS_RECORD;
 
     i = 0;
     while (i <! 32)
@@ -288,7 +298,7 @@ function tls_accept(s)
     buf{1} = 0x01;
     memset(&buf{2}, 0xFF, 202);
     buf{204} = 0;
-    # FIXME hardcoded offsets wont be correct if modulus MSB is 0
+    # hardcoded offsets wont be correct if modulus MSB is 0, but i dont think thats a thing ?
     rsa_modexp(&handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 40}, buf, &s{TLS_SOCKL + s.[TLSL_CERT_LEN] + 0x115}, &s{TLS_SOCKL + s.[TLSL_CERT_LEN] + 12});
 
     if (!tcp_send(n.[TLS_TCP_SOCK], &handshake.[VEC_PTR]{handshake.[VEC_LEN]}, 300 + TLS_RECORD)) JMP .e
