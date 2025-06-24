@@ -1,0 +1,114 @@
+# direly needs to be optimized
+
+function rsa_mul(out, a, b)
+(i, j, carry, prod, sum)
+{
+    memsetd(out, 0, 128);
+    i = 0;
+    while (i <! 128)
+    {
+        carry = 0;
+        j = 0;
+        while (j <! 128)
+        {
+            prod = a<i> *! b<j>;
+            sum = out<i + j> + prod + carry;
+            out<i + j> = sum;
+            carry = sum >> 16;
+            j += 1;
+        }
+        out<i + 128> = carry;
+        i += 1;
+    }
+}
+
+function rsa_sub(out, a, b)
+{
+    MOV ESI, [a]
+    MOV EDI, [out]
+    MOV EDX, [b]
+    MOV ECX, 128
+    CLC
+.l:
+    LODSD
+    SBB EAX, [EDX]
+    STOSD
+    LEA EDX, [EDX + 4]
+    LOOP .l
+}
+
+function rsa_lshift1(x)
+(i)
+{
+    i = 127;
+    while (i >=$ 0)
+    {
+        if (i == 0) x[0] <<= 1;
+        else x[i] = (x[i] << 1) | (x[i - 1] >> 31);
+        i -= 1;
+    }
+}
+
+function rsa_cmp(x, y)
+(i)
+{
+    i = 127;
+    while (i >=$ 0)
+    {
+        if (x[i] <! y[i]) return -1;
+        if (x[i] >! y[i]) return 1;
+        i -= 1;
+    }
+    return 0;
+}
+
+function rsa_mod(out, a, b)
+(i)
+{
+    memsetd(out, 0, 128);
+    i = 4095;
+    while (i >=$ 0)
+    {
+        rsa_lshift1(out);
+        out{0} |= (a{i >> 3} >> (i & 7)) & 1;
+        if (rsa_cmp(out, b) >=$ 0) rsa_sub(out, out, b);
+        i -= 1;
+    }
+}
+
+function rsa_modmul(out, x, y, mod)
+(tmp[128])
+{
+    rsa_mul(tmp, x, y);
+    rsa_mod(out, tmp, mod);
+}
+
+function rsa_modexp(out, base, e, m)
+(b[128], r[128], exp[64], mod[128], i)
+{
+    memsetd(r, 0, 128);
+    memsetd(&b[64], 0, 64);
+    memsetd(&mod[64], 0, 64);
+    r{0} = 1;
+    i = 0;
+    while (i <! 256)
+    {
+        b{i} = base{255 - i};
+        exp{i} = e{255 - i};
+        mod{i} = m{255 - i};
+        i += 1;
+    }
+    i = 0;
+    while (i <! 2048)
+    {
+        if ((exp{i >> 3} >> (i & 7)) & 1) rsa_modmul(r, r, b, mod);
+        rsa_modmul(b, b, b, mod);
+        i += 1;
+    }
+    i = 0;
+    while (i <! 256)
+    {
+        out{i} = r{255 - i};
+        i += 1;
+    }
+}

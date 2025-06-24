@@ -281,6 +281,7 @@ function compiler_statement(c)
         case TDW: return compiler_asm_dx(c, compiler_emit16, compiler_asm_imm16);
         case TDD: return compiler_asm_dx(c, compiler_emit32, compiler_const_expression);
         case TRB: compiler_advance(c); return c.[CIP] += compiler_const_expression(c);
+        case TCLC: return compiler_aemit8(c, OCLC);
         case TCLD: return compiler_aemit8(c, OCLD);
         case TCLI: return compiler_aemit8(c, OCLI);
         case TSTD: return compiler_aemit8(c, OSTD);
@@ -316,6 +317,7 @@ function compiler_statement(c)
         case TADD: return compiler_asm_grp1(c, OADDMRB, OGRP1ADD);
         case TADC: return compiler_asm_grp1(c, OADCMRB, OGRP1ADC);
         case TSUB: return compiler_asm_grp1(c, OSUBMRB, OGRP1SUB);
+        case TSBB: return compiler_asm_grp1(c, OSBBMRB, OGRP1SBB);
         case TOR: return compiler_asm_grp1(c, OORMRB, OGRP1OR);
         case TXOR: return compiler_asm_grp1(c, OXORMRB, OGRP1XOR);
         case TAND: return compiler_asm_grp1(c, OANDMRB, OGRP1AND);

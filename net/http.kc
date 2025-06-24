@@ -1,10 +1,16 @@
-function httpd_task(s)
-(buf{4096}, str{STRING}, f{FILE}, d{DIR_ENTRY})
+function httpd_task(x)
+(buf{4096}, str{STRING}, f{FILE}, d{DIR_ENTRY}, s, send, sends, close, recvuntil)
 {
-    if (!(str.[STRINGLEN] = tcp_recvuntil(s, buf, 4096, '\n'))) JMP .e
+    s = x[0];
+    send = x[1];
+    sends = x[2];
+    close = x[3];
+    recvuntil = x[4];
+    free(x);
+    if (!(str.[STRINGLEN] = recvuntil(s, buf, 4096, '\n'))) JMP .e
     if (str.[STRINGLEN] <! 14 or buf.[0] != ' TEG')
     {
-        tcp_sends(s, "HTTP/1.0 400 Bad Request\r\n\r\n");
+        sends(s, "HTTP/1.0 400 Bad Request\r\n\r\n");
         JMP .e
     }
     str.[STRINGLEN] -= 4;
@@ -12,45 +18,57 @@ function httpd_task(s)
     str.[STRINGLEN] = strchr(str, ' ');
     if (!open(str, f, 0))
     {
-        tcp_sends(s, "HTTP/1.0 404 Not Found\r\n\r\n");
+        sends(s, "HTTP/1.0 404 Not Found\r\n\r\n");
         JMP .e
     }
-    tcp_sends(s, "HTTP/1.0 200 OK\r\n\r\n");
+    sends(s, "HTTP/1.0 200 OK\r\n\r\n");
     if (f{FILE_FLAGS} & FILE_FDIRECTORY)
     {
-        if (!tcp_sends(s, "<body><html><ul>")) JMP .e
+        if (!sends(s, "<body><html><ul>")) JMP .e
         while (dir_next(f, d))
         {
             f83tos(d, str);
-            if (!tcp_sends(s, "<li><a href=\"")) JMP .e
-            if (!tcp_sends(s, str)) JMP .e
-            if (d{DIR_ENTRY_ATTR} & FILE_FDIRECTORY and !tcp_sends(s, "/")) JMP .e
-            if (!tcp_sends(s, "\">")) JMP .e
-            if (!tcp_sends(s, str)) JMP .e
-            if (!tcp_sends(s, "</a></li>")) JMP .e
+            if (!sends(s, "<li><a href=\"")) JMP .e
+            if (!sends(s, str)) JMP .e
+            if (d{DIR_ENTRY_ATTR} & FILE_FDIRECTORY and !sends(s, "/")) JMP .e
+            if (!sends(s, "\">")) JMP .e
+            if (!sends(s, str)) JMP .e
+            if (!sends(s, "</a></li>")) JMP .e
         }
-        if (!tcp_sends(s, "</ul></body></html>")) JMP .e
+        if (!sends(s, "</ul></body></html>")) JMP .e
     }
     else
     {
-        while (tcp_send(s, buf, read(f, 4096, buf)));
+        while (send(s, buf, read(f, 4096, buf)));
     }
 .e:
-    tcp_close(s);
+    close(s);
 }
 
-function httpd()
-(s, n)
+function _httpxd(listen, cert, priv, accept, port, close, send, sends, recv, recvuntil, e)
+(s, n, x, p)
 {
-    s = tcp_listen(80, 3);
-    if (!s) print("Could not listen\n");
-    print("Listening on port 80\n");
-    while ((n = tcp_accept(s)))
+    s = listen(port, 3, cert, priv);
+    if (!s) return print("Could not listen\n");
+    format(print, "Listening on port %d\n", port);
+    while (TRUE)
     {
-        n.[TCP_SOCK_TASK] = n.[MEM_HEADER_TASK - MEM_HEADER] = new_task("HTTP", httpd_task, n);
+.l:     n = accept(s);
+        if (!n) JMP .l
+        p = e ? n.[TLS_TCP_SOCK] : n;
+        x = malloc(5 *! 4);
+        x[0] = n;
+        x[1] = send;
+        x[2] = sends;
+        x[3] = close;
+        x[4] = recvuntil;
+        x.[MEM_HEADER_TASK - MEM_HEADER] = p.[TCP_SOCK_TASK] = new_task("HTTP", httpd_task, x);
     }
-    tcp_close(s);
+    close(s);
 }
+
+function httpd() _httpxd(tcp_listen, 0, 0, tcp_accept, 80, tcp_close, tcp_send, tcp_sends, tcp_recv, tcp_recvuntil, FALSE);
+function httpsd(cert, priv) _httpxd(tls_listen, cert, priv, tls_accept, 443, tls_close, tls_send, tls_sends, tls_recv, tls_recvuntil, TRUE);
 
 function _httpx_fetch(connect, close, sends, recvuntil, recv, resolve, host, port, path, destpath)
 (s, buf{4096}, str{STRING}, f{FILE}, l, x, ip)

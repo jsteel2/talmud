@@ -3,16 +3,19 @@ include "net/tls/sha256.kc"
 include "net/tls/sha1.kc"
 include "net/tls/hmac.kc"
 include "net/tls/aes256.kc"
+include "net/tls/rsa.kc"
 
+struct TLS_SOCKL = [TLSL_TCP_SOCK], [TLSL_CERT_LEN], [TLSL_PRIV_LEN];
 struct TLS_SOCK = [TLS_TCP_SOCK], [TLS_READ_LEFT], AES256_CTX{TLS_CLIENT_CTX}, AES256_CTX{TLS_SERVER_CTX}, 20{TLS_CLIENT_MAC}, [TLS_SEQ], 48{TLS_CHUNK}, [TLS_CHUNK_LEFT];
 struct TLS_RECORD = {TLS_RECORD_TYPE}, <TLS_RECORD_VERSION>, <TLS_RECORD_LENGTH>;
 struct TLS_HANDSHAKENR = {TLS_HANDSHAKENR_TYPE}, {TLS_HANDSHAKENR_LEN_HI}, <TLS_HANDSHAKENR_LEN_LO>;
 struct TLS_HANDSHAKE = TLS_RECORD{TLS_HANDSHAKE_RECORD}, {TLS_HANDSHAKE_TYPE}, {TLS_HANDSHAKE_LEN_HI}, <TLS_HANDSHAKE_LEN_LO>;
 struct TLS_CLIENT_HELLO = TLS_HANDSHAKE{TLS_CLIENT_HELLO_HANDSHAKE}, <TLS_CLIENT_HELLO_VERSION>, 32{TLS_CLIENT_HELLO_RANDOM}, {TLS_CLIENT_HELLO_ID_LEN}, <TLS_CLIENT_HELLO_CIPHERS_LEN>, {TLS_CLIENT_HELLO_COMPRESSIONS_LEN}, <TLS_CLIENT_HELLO_EXTENSIONS_LEN>;
+struct TLS_SERVER_HELLO = TLS_HANDSHAKE{TLS_SERVER_HELLO_HANDSHAKE}, <TLS_SERVER_HELLO_VERSION>, 32{TLS_SERVER_HELLO_RANDOM}, {TLS_SERVER_HELLO_ID_LEN}, <TLS_SERVER_HELLO_CIPHER>, {TLS_SERVER_HELLO_COMPRESSION}, <TLS_SERVER_HELLO_EXTENSIONS_LEN>;
 struct TLS_EXT = <TLS_EXT_TYPE>, <TLS_EXT_LEN>;
 
 function tls_connect(host, port)
-(sock, buf{128}, i, el, handshake{VEC}, client_priv{32}, client_rand{32}, server_rand, server_pub, pre_master_secret{32}, master_secret{48}, p{136})
+(sock, buf{128}, i, el, handshake{VEC}, client_priv{32}, client_rand{32}, server_rand, server_pub, master_secret{48})
 {
     sock = malloc(TLS_SOCK);
     if (!sock) return NULL;
@@ -134,9 +137,223 @@ function tls_connect(host, port)
     handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE} = 32;
     x25519_scalarmult_base(&handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 1}, client_priv);
     if (!tcp_send(sock.[TLS_TCP_SOCK], &handshake.[VEC_PTR]{handshake.[VEC_LEN]}, TLS_HANDSHAKE + 33)) JMP .e
-    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD}, handshake.[VEC_LEN] += TLS_HANDSHAKE + 33 - TLS_RECORD);
+    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD}, TLS_HANDSHAKE + 33 - TLS_RECORD);
+    handshake.[VEC_LEN] += TLS_HANDSHAKE + 33 - TLS_RECORD;
 
-    x25519_scalarmult(pre_master_secret, client_priv, server_pub);
+    tls_keyexpand(sock, client_priv, server_pub, client_rand, server_rand, master_secret, TRUE);
+
+    buf{TLS_RECORD_TYPE} = 0x14;
+    buf.<TLS_RECORD_VERSION> = 0x0303;
+    buf.<TLS_RECORD_LENGTH> = 0x0100;
+    buf{TLS_RECORD} = 0x01;
+    if (!tcp_send(sock.[TLS_TCP_SOCK], buf, TLS_RECORD + 1)) JMP .e
+
+    memcpy(&buf{32}, "client finished".[STRINGPTR], "client finished".[STRINGLEN]);
+    sha256_calc(&buf{32 + "client finished".[STRINGLEN]}, handshake.[VEC_PTR], handshake.[VEC_LEN]);
+    hmac_sha256(master_secret, 48, &buf{32}, 32 + "client finished".[STRINGLEN], buf, 32);
+    hmac_sha256(master_secret, 48, buf, 64 + "client finished".[STRINGLEN], &buf{TLS_HANDSHAKENR}, 12);
+    buf{TLS_HANDSHAKENR_TYPE} = 0x14;
+    buf.<TLS_HANDSHAKENR_LEN_LO> = 0x0C00;
+    buf{TLS_HANDSHAKENR_LEN_HI} = 0;
+    if (!_tls_send(sock, buf, 12 + TLS_HANDSHAKENR, 0x16)) JMP .e
+
+    # server change cipher spec, server handshake finished
+    if (!_tls_recvall(sock, buf, 65, NULL)) JMP .e
+
+    vec_free(handshake);
+    return sock;
+.e:
+    tls_close(sock);
+    vec_free(handshake);
+    return NULL;
+}
+
+function tls_listen(port, backlog, cert, priv)
+(sock, certf{FILE}, privf{FILE})
+{
+    if (!open(cert, certf, 0)) return NULL;
+    if (!open(priv, privf, 0)) return NULL;
+    sock = malloc(TLS_SOCKL + certf.[FILE_SIZE] + privf.[FILE_SIZE]);
+    if (!sock) return NULL;
+    sock.[TLSL_CERT_LEN] = certf.[FILE_SIZE];
+    sock.[TLSL_PRIV_LEN] = privf.[FILE_SIZE];
+    if (read(certf, certf.[FILE_SIZE], &sock{TLS_SOCKL}) != certf.[FILE_SIZE]) JMP .e
+    if (read(privf, privf.[FILE_SIZE], &sock{TLS_SOCKL + certf.[FILE_SIZE]}) != privf.[FILE_SIZE]) JMP .e
+    sock.[TLSL_TCP_SOCK] = tcp_listen(port, backlog);
+    if (!sock.[TLSL_TCP_SOCK]) JMP .e
+    return sock;
+.e:
+    free(sock);
+    return NULL;
+}
+
+function tls_accept(s)
+(n, handshake{VEC}, type, len, i, server_priv{32}, server_rand, client_rand, buf{256}, client_pub, server_pub, master_secret{48})
+{
+    n = malloc(TLS_SOCK);
+    if (!n) return NULL;
+    n.[TLS_TCP_SOCK] = tcp_accept(s.[TLSL_TCP_SOCK]);
+    if (!n.[TLS_TCP_SOCK])
+    {
+        free(n);
+        return NULL;
+    }
+
+    type = 0;
+    vec_init(handshake, 8192, 1);
+    n.[TLS_READ_LEFT] = 0;
+    n.[TLS_SEQ] = 0;
+    n.[TLS_CHUNK_LEFT] = 0;
+    if (!_tls_recvall(n, handshake.[VEC_PTR], TLS_HANDSHAKENR, &type)) JMP .e
+    if (type != 0x16 or handshake.[VEC_PTR]{TLS_HANDSHAKENR_TYPE} != 0x01) JMP .e
+    len = swap16(handshake.[VEC_PTR].<TLS_HANDSHAKENR_LEN_LO>) | (handshake.[VEC_PTR]{TLS_HANDSHAKENR_LEN_HI} << 16);
+    vec_resize(handshake, TLS_HANDSHAKENR + len);
+    if (!_tls_recvall(n, &handshake.[VEC_PTR]{TLS_HANDSHAKENR}, len, &type)) JMP .e
+    if (type != 0x16) JMP .e
+    if (handshake.[VEC_PTR].<TLS_CLIENT_HELLO_VERSION - TLS_RECORD> != 0x0303) JMP .e
+    client_rand = &handshake.[VEC_PTR]{TLS_CLIENT_HELLO_RANDOM - TLS_RECORD};
+    handshake.[VEC_LEN] += TLS_HANDSHAKENR + len;
+
+    vec_resize(handshake, handshake.[VEC_LEN] + TLS_SERVER_HELLO + TLS_EXT + 1);
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD_TYPE} = 0x16;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_VERSION> = 0x0303;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_LENGTH> = swap16(TLS_SERVER_HELLO + TLS_EXT + 1 - TLS_RECORD);
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_TYPE} = 0x02;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_HI} = 0;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_LO> = swap16(TLS_SERVER_HELLO + TLS_EXT + 1 - TLS_HANDSHAKE);
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_SERVER_HELLO_VERSION> = 0x0303;
+    i = 0;
+    while (i <! 32)
+    {
+        handshake.[VEC_PTR].[handshake.[VEC_LEN] + TLS_SERVER_HELLO_RANDOM + i] = rand();
+        i += 4;
+    }
+    server_rand = &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_SERVER_HELLO_RANDOM - TLS_RECORD};
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_SERVER_HELLO_ID_LEN} = 0;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_SERVER_HELLO_CIPHER> = 0x14C0;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_SERVER_HELLO_COMPRESSION} = 0;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_SERVER_HELLO_EXTENSIONS_LEN> = 0x0500;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_SERVER_HELLO + TLS_EXT_TYPE> = 0x01FF;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_SERVER_HELLO + TLS_EXT_LEN> = 0x0100;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_SERVER_HELLO + TLS_EXT} = 0;
+
+    if (!tcp_send(n.[TLS_TCP_SOCK], &handshake.[VEC_PTR]{handshake.[VEC_LEN]}, TLS_SERVER_HELLO + TLS_EXT + 1)) JMP .e
+    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD}, TLS_SERVER_HELLO + TLS_EXT + 1 - TLS_RECORD);
+    handshake.[VEC_LEN] += TLS_SERVER_HELLO + TLS_EXT + 1 - TLS_RECORD;
+
+    vec_resize(handshake, handshake.[VEC_LEN] + TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN]);
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD_TYPE} = 0x16;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_VERSION> = 0x0303;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_LENGTH> = swap16(TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN] - TLS_RECORD);
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_TYPE} = 0x0B;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_HI} = 0;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_LO> = swap16(6 + s.[TLSL_CERT_LEN]);
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE} = 0;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE + 1> = swap16(3 + s.[TLSL_CERT_LEN]);
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 3} = 0;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE + 4> = swap16(s.[TLSL_CERT_LEN]);
+    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 6}, &s{TLS_SOCKL}, s.[TLSL_CERT_LEN]);
+
+    if (!tcp_send(n.[TLS_TCP_SOCK], &handshake.[VEC_PTR]{handshake.[VEC_LEN]}, TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN])) JMP .e
+    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD}, TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN] - TLS_RECORD);
+    handshake.[VEC_LEN] += TLS_HANDSHAKE + 6 + s.[TLSL_CERT_LEN] - TLS_RECORD;
+
+    i = 0;
+    while (i <! 32)
+    {
+        server_priv.[i] = rand();
+        i += 4;
+    }
+
+    vec_resize(handshake, handshake.[VEC_LEN] + TLS_RECORD + 300);
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD_TYPE} = 0x16;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_VERSION> = 0x0303;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_LENGTH> = 0x2C01;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_TYPE} = 0x0C;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_HI} = 0;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_LO> = 0x2801;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE} = 0x03;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE + 1> = 0x1D00;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 3} = 32;
+    x25519_scalarmult_base(&handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 4}, server_priv);
+    server_pub = &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 4 - TLS_RECORD};
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE + 36> = 0x0104;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE + 38> = 0x0001;
+    memcpy(buf, client_rand, 32);
+    memcpy(&buf{32}, server_rand, 32);
+    memcpy(&buf{64}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE}, 3 + 1 + 32);
+    sha256_calc(&buf{224}, buf, 32 + 32 + 3 + 1 + 32);
+    memcpy(&buf{205}, .asn, 19);
+    buf{0} = 0x00;
+    buf{1} = 0x01;
+    memset(&buf{2}, 0xFF, 202);
+    buf{204} = 0;
+    # FIXME hardcoded offsets wont be correct if modulus MSB is 0
+    rsa_modexp(&handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE + 40}, buf, &s{TLS_SOCKL + s.[TLSL_CERT_LEN] + 0x115}, &s{TLS_SOCKL + s.[TLSL_CERT_LEN] + 12});
+
+    if (!tcp_send(n.[TLS_TCP_SOCK], &handshake.[VEC_PTR]{handshake.[VEC_LEN]}, 300 + TLS_RECORD)) JMP .e
+    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD}, 300);
+    handshake.[VEC_LEN] += 300;
+
+    vec_resize(handshake, handshake.[VEC_LEN] + TLS_HANDSHAKE);
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD_TYPE} = 0x16;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_VERSION> = 0x0303;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_RECORD_LENGTH> = 0x0400;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_TYPE} = 0x0E;
+    handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_HI} = 0;
+    handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKE_LEN_LO> = 0;
+
+    if (!tcp_send(n.[TLS_TCP_SOCK], &handshake.[VEC_PTR]{handshake.[VEC_LEN]}, TLS_HANDSHAKE)) JMP .e
+    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_RECORD}, TLS_HANDSHAKE - TLS_RECORD);
+    handshake.[VEC_LEN] += TLS_HANDSHAKE - TLS_RECORD;
+
+    vec_resize(handshake, handshake.[VEC_LEN] + TLS_HANDSHAKENR);
+    if (!_tls_recvall(n, &handshake.[VEC_PTR]{handshake.[VEC_LEN]}, TLS_HANDSHAKENR, &type)) JMP .e
+    if (type != 0x16 or handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKENR_TYPE} != 0x10) JMP .e
+    len = swap16(handshake.[VEC_PTR].<handshake.[VEC_LEN] + TLS_HANDSHAKENR_LEN_LO>) | (handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKENR_LEN_HI} << 16);
+    vec_resize(handshake, handshake.[VEC_LEN] + TLS_HANDSHAKENR + len);
+    if (!_tls_recvall(n, &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKENR}, len, &type)) JMP .e
+    if (type != 0x16) JMP .e
+    client_pub = &handshake.[VEC_PTR]{handshake.[VEC_LEN] + TLS_HANDSHAKENR + 1};
+    handshake.[VEC_LEN] += TLS_HANDSHAKENR + len;
+
+    tls_keyexpand(n, server_priv, client_pub, client_rand, server_rand, master_secret, FALSE);
+
+    if (!_tls_recvall(n, buf, 65, NULL)) JMP .e
+    memcpy(&n{TLS_SERVER_CTX + AES256_CTX_IV}, &buf{1}, 16);
+    aes256_cbc_decrypt_buffer(&n{TLS_SERVER_CTX}, &buf{17}, 48);
+    vec_resize(handshake, handshake.[VEC_LEN] + 16);
+    memcpy(&handshake.[VEC_PTR]{handshake.[VEC_LEN]}, &buf{17}, 16);
+    handshake.[VEC_LEN] += 16;
+
+    buf{TLS_RECORD_TYPE} = 0x14;
+    buf.<TLS_RECORD_VERSION> = 0x0303;
+    buf.<TLS_RECORD_LENGTH> = 0x0100;
+    buf{TLS_RECORD} = 0x01;
+    if (!tcp_send(n.[TLS_TCP_SOCK], buf, TLS_RECORD + 1)) JMP .e
+
+    memcpy(&buf{32}, "server finished".[STRINGPTR], "server finished".[STRINGLEN]);
+    sha256_calc(&buf{32 + "server finished".[STRINGLEN]}, handshake.[VEC_PTR], handshake.[VEC_LEN]);
+    hmac_sha256(master_secret, 48, &buf{32}, 32 + "server finished".[STRINGLEN], buf, 32);
+    hmac_sha256(master_secret, 48, buf, 64 + "server finished".[STRINGLEN], &buf{TLS_HANDSHAKENR}, 12);
+    buf{TLS_HANDSHAKENR_TYPE} = 0x14;
+    buf.<TLS_HANDSHAKENR_LEN_LO> = 0x0C00;
+    buf{TLS_HANDSHAKENR_LEN_HI} = 0;
+    if (!_tls_send(n, buf, 12 + TLS_HANDSHAKENR, 0x16)) JMP .e
+
+    vec_free(handshake);
+    return n;
+.e:
+    tls_close(n);
+    vec_free(handshake);
+    return NULL;
+.asn: DB 0x30, 0x31, 0x30, 0x0D, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20
+}
+
+function tls_keyexpand(s, priv, pub, client_rand, server_rand, master_secret, c)
+(pre_master_secret{32}, p{136}, buf{128})
+{
+    x25519_scalarmult(pre_master_secret, priv, pub);
 
     memcpy(&buf{32}, "master secret".[STRINGPTR], "master secret".[STRINGLEN]);
     memcpy(&buf{32 + "master secret".[STRINGLEN]}, client_rand, 32);
@@ -160,33 +377,18 @@ function tls_connect(host, port)
     hmac_sha256(master_secret, 48, buf, 32, buf, 32);
     hmac_sha256(master_secret, 48, buf, 64 + 32 + "key expansion".[STRINGLEN], &p{128}, 8);
 
-    memcpy(&sock{TLS_CLIENT_MAC}, p, 20);
-    aes256_init_ctx(&sock{TLS_CLIENT_CTX}, &p{40});
-    aes256_init_ctx(&sock{TLS_SERVER_CTX}, &p{72});
-
-    buf{TLS_RECORD_TYPE} = 0x14;
-    buf.<TLS_RECORD_VERSION> = 0x0303;
-    buf.<TLS_RECORD_LENGTH> = 0x0100;
-    buf{TLS_RECORD} = 0x01;
-    if (!tcp_send(sock.[TLS_TCP_SOCK], buf, TLS_RECORD + 1)) JMP .e
-
-    memcpy(&buf{32}, "client finished".[STRINGPTR], "client finished".[STRINGLEN]);
-    sha256_calc(&buf{32 + "client finished".[STRINGLEN]}, handshake.[VEC_PTR], handshake.[VEC_LEN]);
-    hmac_sha256(master_secret, 48, &buf{32}, 32 + "client finished".[STRINGLEN], buf, 32);
-    hmac_sha256(master_secret, 48, buf, 64 + "client finished".[STRINGLEN], &buf{TLS_HANDSHAKENR}, 12);
-    buf{TLS_HANDSHAKENR_TYPE} = 0x14;
-    buf.<TLS_HANDSHAKENR_LEN_LO> = 0x0C00;
-    buf{TLS_HANDSHAKENR_LEN_HI} = 0;
-    if (!_tls_send(sock, buf, 12 + TLS_HANDSHAKENR, 0x16)) JMP .e
-
-    # server change cipher spec, server handshake finished
-    if (!_tls_recvall(sock, buf, 65, NULL)) JMP .e
-
-    return sock;
-.e:
-    tls_close(sock);
-    vec_free(handshake);
-    return NULL;
+    if (c)
+    {
+        memcpy(&s{TLS_CLIENT_MAC}, p, 20);
+        aes256_init_ctx(&s{TLS_CLIENT_CTX}, &p{40});
+        aes256_init_ctx(&s{TLS_SERVER_CTX}, &p{72});
+    }
+    else
+    {
+        memcpy(&s{TLS_CLIENT_MAC}, &p{20}, 20);
+        aes256_init_ctx(&s{TLS_SERVER_CTX}, &p{40});
+        aes256_init_ctx(&s{TLS_CLIENT_CTX}, &p{72});
+    }
 }
 
 function tls_close(sock)
@@ -201,6 +403,7 @@ function _tls_recv(sock, buf, len, type)
     if (!sock.[TLS_READ_LEFT])
     {
         if (!tcp_recvall(sock.[TLS_TCP_SOCK], record, TLS_RECORD)) return 0;
+        if (record.<TLS_RECORD_VERSION> != 0x0103 and record.<TLS_RECORD_VERSION> != 0x0303) return 0;
         sock.[TLS_READ_LEFT] = swap16(record.<TLS_RECORD_LENGTH>);
         if (type) *type = record{TLS_RECORD_TYPE};
     }
@@ -220,7 +423,6 @@ function _tls_recvall(sock, buf, len, type)
     return TRUE;
 }
 
-# TODO split >64kb into multiple records
 function _tls_send(sock, buf, len, type)
 (p, pad_len, i)
 {
@@ -250,7 +452,20 @@ function _tls_send(sock, buf, len, type)
     return maxs(0, i - TLS_RECORD - 16 - 20 - pad_len);
 }
 
-function tls_send(sock, buf, len) return _tls_send(sock, buf, len, 0x17);
+function tls_send(sock, buf, len)
+(i, x)
+{
+    i = 0;
+    while (len)
+    {
+        i += x = _tls_send(sock, buf, minu(0xFFFF, len), 0x17);
+        if (!x) return i;
+        len -= x;
+        buf += x;
+    }
+    return i;
+}
+
 function tls_sends(sock, s) return tls_send(sock, s.[STRINGPTR], s.[STRINGLEN]);
 
 function tls_recv(sock, buf, len)
@@ -292,9 +507,20 @@ function tls_recvuntil(s, buf, len, c)
     while (len)
     {
         len -= i = tls_recv(s, buf, 1);
-        if (!i) return x - len;
-        if (buf{0} == c) break;
+        if (!i or buf{0} == c) break;
         buf += 1;
     }
     return x - len;
+}
+
+function tls_recvall(sock, buf, len, type)
+(x)
+{
+    while (len)
+    {
+        len -= x = tls_recv(sock, buf, len, type);
+        if (!x) return FALSE;
+        buf += x;
+    }
+    return TRUE;
 }

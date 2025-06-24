@@ -66,9 +66,11 @@ function telnetd()
     s = tcp_listen(23, 3);
     if (!s) print("Could not listen\n");
     print("Listening on port 23\n");
-    while ((n = tcp_accept(s)))
+    while (TRUE)
     {
-        n.[TCP_SOCK_TASK] = n.[MEM_HEADER_TASK - MEM_HEADER] = new_task("Telnet", telnetd_task, n);
+.l:     n = tcp_accept(s);
+        if (!n) JMP .l
+        n.[TCP_SOCK_TASK] = new_task("Telnet", telnetd_task, n);
         compiler_const_set(&n.[TCP_SOCK_TASK]{TASK_COMPILER}, "_telnet_sock", n);
         compile(&n.[TCP_SOCK_TASK]{TASK_COMPILER}, "telnetd", "
 function _telnet_print(s)

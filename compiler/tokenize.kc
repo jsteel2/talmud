@@ -97,6 +97,7 @@ function tokenizer_ident_token(t, out)
             if (strcmp(s, "CMPSB")) out.[TOKEN_TYPE] = TCMPSB;
             else if (strcmp(s, "CALL")) out.[TOKEN_TYPE] = TCALL;
             else if (strcmp(s, "CWDE")) out.[TOKEN_TYPE] = TCWDE;
+            else if (strcmp(s, "CLC")) out.[TOKEN_TYPE] = TCLC;
             else if (strcmp(s, "CLD")) out.[TOKEN_TYPE] = TCLD;
             else if (strcmp(s, "CDQ")) out.[TOKEN_TYPE] = TCDQ;
             else if (strcmp(s, "CLI")) out.[TOKEN_TYPE] = TCLI;
@@ -232,6 +233,7 @@ function tokenizer_ident_token(t, out)
             else if (strcmp(s, "SETNZ")) out.[TOKEN_TYPE] = TSETNZ;
             else if (strcmp(s, "STD")) out.[TOKEN_TYPE] = TSTD;
             else if (strcmp(s, "STI")) out.[TOKEN_TYPE] = TSTI;
+            else if (strcmp(s, "SBB")) out.[TOKEN_TYPE] = TSBB;
             else if (strcmp(s, "SUB")) out.[TOKEN_TYPE] = TSUB;
             else if (strcmp(s, "SHL")) out.[TOKEN_TYPE] = TSHL;
             else if (strcmp(s, "SHR")) out.[TOKEN_TYPE] = TSHR;
