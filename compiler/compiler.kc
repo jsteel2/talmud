@@ -298,6 +298,8 @@ function compiler_statement(c)
         case TINSB: return compiler_aemit8(c, OINSB);
         case TOUTSB: return compiler_aemit8(c, OOUTSB);
         case TCMPSB: return compiler_aemit8(c, OCMPSB);
+        case TCMPSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OCMPSW);
+        case TCMPSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OCMPSW);
         case TSTOSB: return compiler_aemit8(c, OSTOSB);
         case TSTOSW: compiler_asm_sizeoverride(c, 16); return compiler_aemit8(c, OSTOSW);
         case TSTOSD: compiler_asm_sizeoverride(c, 32); return compiler_aemit8(c, OSTOSW);

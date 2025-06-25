@@ -1,25 +1,32 @@
-# direly needs to be optimized
-
 function rsa_mul(out, a, b)
-(i, j, carry, prod, sum)
+(carry)
 {
     memsetd(out, 0, 128);
-    i = 0;
-    while (i <! 128)
-    {
-        carry = 0;
-        j = 0;
-        while (j <! 128)
-        {
-            prod = a<i> *! b<j>;
-            sum = out<i + j> + prod + carry;
-            out<i + j> = sum;
-            carry = sum >> 16;
-            j += 1;
-        }
-        out<i + 128> = carry;
-        i += 1;
-    }
+    XOR ECX, ECX
+.o:
+    MOV DWORD [carry], 0
+    XOR ESI, ESI
+.i:
+    MOV EBX, [a]
+    MOV EAX, [EBX + ECX * 4]
+    MOV EBX, [b]
+    MUL DWORD [EBX + ESI * 4]
+    LEA EDI, [ECX + ESI]
+    MOV EBX, [out]
+    ADD EAX, [EBX + EDI * 4]
+    ADC EDX, 0
+    ADD EAX, [carry]
+    ADC EDX, 0
+    MOV [EBX + EDI * 4], EAX
+    MOV [carry], EDX
+    INC ESI
+    CMP ESI, 64
+    JNZ .i
+    MOV EAX, [carry]
+    MOV [EBX + ECX * 4 + 64 *! 4], EAX
+    INC ECX
+    CMP ECX, 64
+    JNZ .o
 }
 
 function rsa_sub(out, a, b)
@@ -27,7 +34,7 @@ function rsa_sub(out, a, b)
     MOV ESI, [a]
     MOV EDI, [out]
     MOV EDX, [b]
-    MOV ECX, 128
+    MOV ECX, 65
     CLC
 .l:
     LODSD
@@ -40,7 +47,7 @@ function rsa_sub(out, a, b)
 function rsa_lshift1(x)
 (i)
 {
-    i = 127;
+    i = 64;
     while (i >=$ 0)
     {
         if (i == 0) x[0] <<= 1;
@@ -52,7 +59,7 @@ function rsa_lshift1(x)
 function rsa_cmp(x, y)
 (i)
 {
-    i = 127;
+    i = 64;
     while (i >=$ 0)
     {
         if (x[i] <! y[i]) return -1;
@@ -65,7 +72,7 @@ function rsa_cmp(x, y)
 function rsa_mod(out, a, b)
 (i)
 {
-    memsetd(out, 0, 128);
+    memsetd(out, 0, 65);
     i = 4095;
     while (i >=$ 0)
     {
@@ -84,11 +91,11 @@ function rsa_modmul(out, x, y, mod)
 }
 
 function rsa_modexp(out, base, e, m)
-(b[128], r[128], exp[64], mod[128], i)
+(b[65], r[65], exp[64], mod[65], i)
 {
-    memsetd(r, 0, 128);
-    memsetd(&b[64], 0, 64);
-    memsetd(&mod[64], 0, 64);
+    memsetd(r, 0, 65);
+    b[64] = 0;
+    mod[64] = 0;
     r{0} = 1;
     i = 0;
     while (i <! 256)
