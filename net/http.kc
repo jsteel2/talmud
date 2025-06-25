@@ -1,5 +1,23 @@
+function httpd_dir(f)
+(d{DIR_ENTRY}, str{STRING}, buf{12})
+{
+    str.[STRINGPTR] = buf;
+    print("<ul>");
+    while (dir_next(f, d))
+    {
+        f83tos(d, str);
+        print("<li><a href=\"");
+        print(str);
+        if (d{DIR_ENTRY_ATTR} & FILE_FDIRECTORY) print("/");
+        print("\">");
+        print(str);
+        print("</a></li>");
+    }
+    print("</ul>");
+}
+
 function httpd_task(x)
-(buf{4096}, str{STRING}, f{FILE}, d{DIR_ENTRY}, s, send, sends, close, recvuntil)
+(buf{4096}, str{STRING}, f{FILE}, s, send, sends, close, recvuntil, b)
 {
     s = x[0];
     send = x[1];
@@ -24,21 +42,36 @@ function httpd_task(x)
     sends(s, "HTTP/1.0 200 OK\r\n\r\n");
     if (f{FILE_FLAGS} & FILE_FDIRECTORY)
     {
-        if (!sends(s, "<body><html><ul>")) JMP .e
-        while (dir_next(f, d))
+        memcpy(&task{TASK_CWD}, f, FILE);
+        if (open("index.cgi", f, 0)) JMP .c
+        if (open("index.htm", f, 0)) JMP .h
+        if (!sends(s, "<body><html>")) JMP .e
+        httpd_dir(&task{TASK_CWD});
+        if (!sends(s, "</body></html>")) JMP .e
+    }
+    else if (str.[STRINGLEN] - (x = strchr(str, '.')) == 4 and memicmp(&str.[STRINGPTR]{x + 1}, "CGI".[STRINGPTR], 3))
+    {
+.c:
+        b = malloc(f.[FILE_SIZE]);
+        if (!b) JMP .e
+        if (read(f, f.[FILE_SIZE], b) != f.[FILE_SIZE])
         {
-            f83tos(d, str);
-            if (!sends(s, "<li><a href=\"")) JMP .e
-            if (!sends(s, str)) JMP .e
-            if (d{DIR_ENTRY_ATTR} & FILE_FDIRECTORY and !sends(s, "/")) JMP .e
-            if (!sends(s, "\">")) JMP .e
-            if (!sends(s, str)) JMP .e
-            if (!sends(s, "</a></li>")) JMP .e
+            free(b);
+            JMP .e
         }
-        if (!sends(s, "</ul></body></html>")) JMP .e
+        str.[STRINGLEN] = f.[FILE_SIZE];
+        str.[STRINGPTR] = b;
+        x = compile(&task{TASK_COMPILER}, "httpd", str);
+        free(b);
+        if (x)
+        {
+            x();
+            free(x);
+        }
     }
     else
     {
+.h:
         while (send(s, buf, read(f, 4096, buf)));
     }
 .e:
@@ -63,6 +96,17 @@ function _httpxd(listen, cert, priv, accept, port, close, send, sends, recv, rec
         x[3] = close;
         x[4] = recvuntil;
         x.[MEM_HEADER_TASK - MEM_HEADER] = p.[TCP_SOCK_TASK] = new_task("HTTP", httpd_task, x);
+        compiler_const_set(&p.[TCP_SOCK_TASK]{TASK_COMPILER}, "_http_sock", n);
+        compiler_const_set(&p.[TCP_SOCK_TASK]{TASK_COMPILER}, "_http_sends", sends);
+        compile(&p.[TCP_SOCK_TASK]{TASK_COMPILER}, "httpd", "
+function _http_print(s)
+(state, st{STRING})
+{
+    if (!s.[STRINGLEN]) return;
+    if (!_http_sends(_http_sock, s)) exit();
+}
+");
+        compiler_ident_get(&p.[TCP_SOCK_TASK]{TASK_COMPILER}, "_http_print", &p.[TCP_SOCK_TASK]{TASK_PRINT});
     }
     close(s);
 }
