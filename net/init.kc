@@ -4,7 +4,8 @@ function net_init()
 (bus, dev, fun, nic_init, net_main)
 {
     net_task = task;
-    if (pci_find(0x10EC, 0x8139, &bus, &dev, &fun)) compile(&ADAM{TASK_COMPILER}, "net_init", "include \"/net/driver/rtl8139.kc\"");
+    if (pci_find(0x8086, 0x10D3, &bus, &dev, &fun)) compile(&ADAM{TASK_COMPILER}, "net_init", "include \"/net/driver/e1000e.kc\"");
+    else if (pci_find(0x10EC, 0x8139, &bus, &dev, &fun)) compile(&ADAM{TASK_COMPILER}, "net_init", "include \"/net/driver/rtl8139.kc\"");
     else if (pci_find(0x10EC, 0x8029, &bus, &dev, &fun)) compile(&ADAM{TASK_COMPILER}, "net_init", "include \"/net/driver/ne2000.kc\"");
     else return print("No supported network card found.\n");
     if (!compile(&ADAM{TASK_COMPILER}, "net_init", "

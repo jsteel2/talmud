@@ -1,0 +1,100 @@
+global mac{6}, e1000e_io, rx_descs, rx_cur, tx_descs, tx_cur;
+const NUM_RX_DESC = 512;
+const NUM_TX_DESC = 128;
+struct RX_DESC = [RX_DESC_ADDR_LO], [RX_DESC_ADDR_HI], <RX_DESC_LEN>, <RX_DESC_CHECKSUM>, {RX_DESC_STATUS}, {RX_DESC_ERRORS}, <RS_DESC_SPECIAL>;
+struct TX_DESC = [TX_DESC_ADDR_LO], [TX_DESC_ADDR_HI], <TX_DESC_LEN>, {TX_DESC_CSO}, {TX_DESC_CMD}, {TX_DESC_STATUS}, {TX_DESC_CSS}, <RS_DESC_SPECIAL>;
+
+function nic_init(bus, dev, fun)
+(irq, i)
+{
+    pci_write32(bus, dev, fun, PCI_REG_COMMAND, pci_read32(bus, dev, fun, PCI_REG_COMMAND) | 4);
+    e1000e_io = pci_read32(bus, dev, fun, PCI_REG_BAR0) & 0xFFFFFFF0;
+    irq = pci_read32(bus, dev, fun, PCI_REG_INTERRUPT_LINE) & 0xFF;
+    mac.[0] = e1000e_io.[0x5400];
+    mac.<4> = e1000e_io.<0x5404>;
+    format(print, "MAC: %x:%x:%x:%x:%x:%x\n", mac{0}, mac{1}, mac{2}, mac{3}, mac{4}, mac{5});
+    memsetd(&e1000e_io{0x5200}, 0, 128);
+    idt_set_entry(0x20 + irq, e1000e_irq_handler, 0x8E);
+    pic_clear_mask(irq);
+    e1000e_io.[0xD0] = 0x80;
+    e1000e_io.[0x18] = 0x8000000;
+    rx_descs = malloc(RX_DESC *! NUM_RX_DESC + 16);
+    rx_descs = (rx_descs + 16 - 1) & ~(16 - 1);
+    i = 0;
+    while (i <! NUM_RX_DESC)
+    {
+        rx_descs.[i *! RX_DESC + RX_DESC_ADDR_LO] = malloc(2048);
+        rx_descs.[i *! RX_DESC + RX_DESC_ADDR_HI] = 0;
+        rx_descs{i *! RX_DESC + RX_DESC_STATUS} = 0;
+        i += 1;
+    }
+    e1000e_io.[0x2800] = rx_descs;
+    e1000e_io.[0x2804] = 0;
+    e1000e_io.[0x2808] = RX_DESC *! NUM_RX_DESC;
+    e1000e_io.[0x2810] = 0;
+    e1000e_io.[0x2818] = NUM_RX_DESC - 1;
+    e1000e_io.[0x0100] = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 15) | (1 << 26);
+    tx_descs = malloc(TX_DESC *! NUM_TX_DESC + 16);
+    tx_descs = (tx_descs + 16 - 1) & ~(16 - 1);
+    i = 0;
+    while (i <! NUM_TX_DESC)
+    {
+        tx_descs.[i *! TX_DESC + TX_DESC_ADDR_LO] = 0;
+        tx_descs.[i *! TX_DESC + TX_DESC_ADDR_HI] = 0;
+        tx_descs{i *! TX_DESC + TX_DESC_CMD} = 0;
+        tx_descs{i *! TX_DESC + TX_DESC_STATUS} = 1;
+        i += 1;
+    }
+    e1000e_io.[0x3800] = tx_descs;
+    e1000e_io.[0x3804] = 0;
+    e1000e_io.[0x3808] = TX_DESC *! NUM_TX_DESC;
+    e1000e_io.[0x3810] = 0;
+    e1000e_io.[0x3818] = 0;
+    e1000e_io.[0x0400] = 0b0110000000000111111000011111010;
+    e1000e_io.[0x0410] = 0x0060200A;
+}
+
+function nic_rx_packet(data, size)
+{
+    if (rx_descs{rx_cur *! RX_DESC + RX_DESC_STATUS} & 1)
+    {
+        rx_descs{rx_cur *! RX_DESC + RX_DESC_STATUS} = 0;
+        *size = rx_descs.<rx_cur *! RX_DESC + RX_DESC_LEN>;
+        memcpy(data, rx_descs.[rx_cur *! RX_DESC + RX_DESC_ADDR_LO], minu(*size, 1518));
+        e1000e_io.[0x2818] = rx_cur;
+        rx_cur = (rx_cur + 1) %! NUM_RX_DESC;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+function nic_tx_packet(data, size)
+{
+    if (((e1000e_io.[0x3810] + NUM_TX_DESC - e1000e_io.[0x3818] - 1) %! NUM_TX_DESC) == 0) return FALSE;
+    if (tx_descs.[tx_cur *! TX_DESC + TX_DESC_ADDR_LO]) free(tx_descs.[tx_cur *! TX_DESC + TX_DESC_ADDR_LO]);
+    tx_descs.[tx_cur *! TX_DESC + TX_DESC_ADDR_LO] = data;
+    tx_descs.[tx_cur *! TX_DESC + TX_DESC_ADDR_HI] = 0;
+    tx_descs.<tx_cur *! TX_DESC + TX_DESC_LEN> = size;
+    tx_descs{tx_cur *! TX_DESC + TX_DESC_CMD} = 1 | (1 << 1) | (1 << 3);
+    tx_descs{tx_cur *! TX_DESC + TX_DESC_STATUS} = 0;
+    tx_cur = (tx_cur + 1) %! NUM_TX_DESC;
+    e1000e_io.[0x3818] = tx_cur;
+    return TRUE;
+}
+
+e1000e_irq_handler:
+    PUSH EAX
+    MOV AX, 0x10
+    MOV DS, AX
+    MOV ES, AX
+    MOV FS, AX
+    MOV GS, AX
+    MOV EAX, [e1000e_io]
+    MOV EAX, [EAX + 0xC0]
+    MOV EAX, [net_task]
+    MOV BYTE [EAX + TASK_WAIT], FALSE
+    MOV AL, 0x20
+    OUT 0xA0, AL
+    OUT 0x20, AL
+    POP EAX
+    IRET

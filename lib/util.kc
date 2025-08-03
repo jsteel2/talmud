@@ -102,6 +102,12 @@ function strcmp(x, y)
     return memcmp(x.[STRINGPTR], y.[STRINGPTR], x.[STRINGLEN]);
 }
 
+function stricmp(x, y)
+{
+    if (x.[STRINGLEN] != y.[STRINGLEN]) return FALSE;
+    return memicmp(x.[STRINGPTR], y.[STRINGPTR], x.[STRINGLEN]);
+}
+
 function strchr(s, c)
 (i)
 {

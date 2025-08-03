@@ -135,7 +135,7 @@ function _httpx_fetch(connect, close, sends, recvuntil, recv, resolve, host, por
     if (!sends(s, "\r\n\r\n")) JMP .e
     str.[STRINGPTR] = buf;
     if (!(str.[STRINGLEN] = recvuntil(s, buf, 4096, '\n'))) JMP .e
-    if (!strcmp(str, "HTTP/1.0 200 OK\r\n") and !strcmp(str, "HTTP/1.1 200 OK\r\n"))
+    if (!stricmp(str, "HTTP/1.0 200 OK\r\n") and !stricmp(str, "HTTP/1.1 200 OK\r\n"))
     {
         print(str);
         JMP .e

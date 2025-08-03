@@ -139,6 +139,7 @@ function sys()
     copyto("/net", installdir, "/net");
     copyto("/scripts", installdir, "/scripts");
     copyto("/sound", installdir, "/sound");
+    copyto("/index.cgi", installdir, "/index.cgi");
 }
 
 print("Enter installation path (ex. :80;1): ");

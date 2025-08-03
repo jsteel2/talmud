@@ -28,7 +28,7 @@ clean:
 	rm -rf build doom/doom.elf
 
 run: build/disk.img
-	qemu-system-i386 -net user -net nic,model=rtl8139 -device sb16 -vnc :1 -hda $<
+	qemu-system-i386 -net user -net nic,model=e1000e -device sb16 -vnc :1 -hda $<
 
 build/compiler:
 	$(MAKE) -C compilerc
