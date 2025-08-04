@@ -16,6 +16,7 @@ function nic_init(bus, dev, fun)
     memsetd(&e1000e_io{0x5200}, 0, 128);
     idt_set_entry(0x20 + irq, e1000e_irq_handler, 0x8E);
     pic_clear_mask(irq);
+    e1000e_io.[0] |= 0x20 | 0x40;
     e1000e_io.[0xD0] = 0x80;
     e1000e_io.[0x18] = 0x8000000;
     rx_descs = malloc(RX_DESC *! NUM_RX_DESC + 16);
